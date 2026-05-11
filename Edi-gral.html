@@ -208,6 +208,17 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .cuenta-copy { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 4px; margin-left: 6px; flex-shrink: 0; }
 .cuenta-copy:active { color: var(--green); }
 .cuenta-empty { padding: 16px; font-size: 13px; color: var(--muted); text-align: center; font-style: italic; }
+.cotiz-card{background:var(--white);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);padding:16px;margin-bottom:12px;}
+.cotiz-title{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+.cotiz-value{font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:800;color:var(--text);letter-spacing:-1px;margin-bottom:4px;}
+.cotiz-sub{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+.cotiz-hist-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);}
+.cotiz-hist-row:last-child{border-bottom:none;}
+.cotiz-hist-date{font-size:12px;font-weight:600;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+.cotiz-hist-val{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--text);}
+.cotiz-hist-src{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;}
+.cotiz-src-bna{background:var(--blue-bg);color:var(--blue);}
+.cotiz-src-tes{background:var(--orange-bg);color:var(--orange);}
 @media print {
   body * { visibility: hidden !important; }
   #print-area, #print-area * { visibility: visible !important; }
@@ -234,6 +245,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <button class="tab" onclick="switchTab('posesiones')">Posesiones</button>
     <button class="tab" onclick="switchTab('cesiones')">Cesiones</button>
     <button class="tab" onclick="switchTab('cuentas')">Cuentas bancarias</button>
+    <button class="tab" onclick="switchTab('cotizacion')">Cotización $</button>
     <button class="tab" onclick="switchTab('ajustes')">⚙ Ajustes</button>
   </div>
 </div>
@@ -757,6 +769,98 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       <button class="calc-btn" onclick="desbloquearAjustes()" style="margin-bottom:0;">🔐 Desbloquear ajustes</button>
     </div>
   </div>
+
+  <div class="section">
+    <div class="section-head"><span class="section-head-dot"></span> Datos · Exportar / Importar</div>
+    <div class="section-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.5;">Exportá todos tus datos a un archivo JSON para guardarlos o transferirlos a otro dispositivo.</p>
+      <button onclick="exportarDatosJSON()" style="width:100%;background:var(--green-bg);color:var(--green);border:1px solid rgba(26,102,64,0.2);border-radius:var(--radius);padding:13px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;">↓ Exportar todos los datos</button>
+      <div style="height:1px;background:var(--border);margin:4px 0 10px;"></div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.5;">Importar un archivo JSON reemplaza todos los datos actuales.</p>
+      <label style="width:100%;background:var(--blue-bg);color:var(--blue);border:1px solid rgba(26,74,128,0.2);border-radius:var(--radius);padding:13px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;display:block;text-align:center;box-sizing:border-box;">
+        ↑ Importar datos desde JSON
+        <input type="file" accept=".json" onchange="importarDatosJSON(this)" style="display:none;">
+      </label>
+      <div id="import-status" style="font-size:12px;font-weight:600;text-align:center;margin-top:8px;display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ TAB COTIZACIÓN ══════ -->
+<div id="tab-cotizacion" class="main">
+
+  <!-- BNA Automático -->
+  <div class="cotiz-card">
+    <div class="cotiz-title"><span class="section-head-dot"></span> Dólar BNA · Automático</div>
+    <div id="cotiz-bna-loading" style="font-size:13px;color:var(--muted);text-align:center;padding:8px 0;">Consultando...</div>
+    <div id="cotiz-bna-data" style="display:none;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+        <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Compra</div>
+          <div id="cotiz-bna-compra" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:var(--text);">—</div>
+        </div>
+        <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Venta</div>
+          <div id="cotiz-bna-venta" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:var(--text);">—</div>
+        </div>
+        <div style="background:var(--text);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Promedio</div>
+          <div id="cotiz-bna-val" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:#fff;">—</div>
+        </div>
+      </div>
+      <div class="cotiz-sub" id="cotiz-bna-fecha">—</div>
+      <div style="font-size:11px;font-weight:600;margin-top:4px;" id="cotiz-bna-status"></div>
+    </div>
+    <div id="cotiz-bna-error" style="display:none;font-size:12px;color:var(--red);text-align:center;padding:4px 0;"></div>
+  </div>
+
+  <!-- Tesorería Manual -->
+  <div class="cotiz-card">
+    <div class="cotiz-title"><span class="section-head-dot"></span> Valor Tesorería · Manual</div>
+    <div id="cotiz-tes-current" style="margin-bottom:12px;display:none;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+        <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Compra</div>
+          <div id="cotiz-tes-compra-disp" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:var(--text);">—</div>
+        </div>
+        <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Venta</div>
+          <div id="cotiz-tes-venta-disp" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:var(--text);">—</div>
+        </div>
+        <div style="background:var(--text);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Promedio</div>
+          <div id="cotiz-tes-val" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:#fff;">—</div>
+        </div>
+      </div>
+      <div class="cotiz-sub" id="cotiz-tes-fecha">—</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+      <div>
+        <label class="field-label">Compra</label>
+        <input type="text" id="cotiz-tes-compra" placeholder="0,00" style="font-family:'JetBrains Mono',monospace;font-weight:700;">
+      </div>
+      <div>
+        <label class="field-label">Venta</label>
+        <input type="text" id="cotiz-tes-venta" placeholder="0,00" style="font-family:'JetBrains Mono',monospace;font-weight:700;">
+      </div>
+      <div>
+        <label class="field-label">Promedio</label>
+        <input type="text" id="cotiz-tes-prom" placeholder="0,00" style="font-family:'JetBrains Mono',monospace;font-weight:700;">
+      </div>
+    </div>
+    <button onclick="guardarTesoreria()" style="width:100%;background:var(--text);color:#fff;border:none;border-radius:var(--radius-sm);padding:11px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Guardar cotización de hoy</button>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px;">Se guarda con la fecha de hoy</div>
+  </div>
+
+  <!-- Historial + Exportar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;" id="cotiz-hist-header" style="display:none;">
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;">Historial</div>
+    <button onclick="exportarCotizacionExcel()" style="background:var(--green-bg);color:var(--green);border:1px solid rgba(26,102,64,0.2);border-radius:var(--radius-sm);padding:8px 14px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">↓ Exportar Excel</button>
+  </div>
+  <div class="section" id="cotiz-hist-list" style="display:none;">
+    <div id="cotiz-hist-body"></div>
+  </div>
+
 </div>
 
 <!-- Print area for boleto -->
@@ -1012,6 +1116,8 @@ function switchTab(tab) {
   document.getElementById('tab-cuentas').classList.toggle('active', tab === 'cuentas');
   document.getElementById('tab-ajustes').classList.toggle('active', tab === 'ajustes');
   if (tab === 'ajustes') renderAjustes();
+  document.getElementById('tab-cotizacion').classList.toggle('active', tab === 'cotizacion');
+  if (tab === 'cotizacion') { initCotizacion(); renderCotizacion(); }
 }
 
 // ── BOLETO ────────────────────────────────────────────────────────
@@ -3462,6 +3568,17 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .cuenta-copy { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 4px; margin-left: 6px; flex-shrink: 0; }
 .cuenta-copy:active { color: var(--green); }
 .cuenta-empty { padding: 16px; font-size: 13px; color: var(--muted); text-align: center; font-style: italic; }
+.cotiz-card{background:var(--white);border-radius:var(--radius);border:1px solid var(--border);box-shadow:var(--shadow);padding:16px;margin-bottom:12px;}
+.cotiz-title{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+.cotiz-value{font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:800;color:var(--text);letter-spacing:-1px;margin-bottom:4px;}
+.cotiz-sub{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+.cotiz-hist-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);}
+.cotiz-hist-row:last-child{border-bottom:none;}
+.cotiz-hist-date{font-size:12px;font-weight:600;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+.cotiz-hist-val{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--text);}
+.cotiz-hist-src{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;}
+.cotiz-src-bna{background:var(--blue-bg);color:var(--blue);}
+.cotiz-src-tes{background:var(--orange-bg);color:var(--orange);}
 @media print {
   body * { visibility: hidden !important; }
   #print-area, #print-area * { visibility: visible !important; }
@@ -3488,6 +3605,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <button class="tab" onclick="switchTab('posesiones')">Posesiones</button>
     <button class="tab" onclick="switchTab('cesiones')">Cesiones</button>
     <button class="tab" onclick="switchTab('cuentas')">Cuentas bancarias</button>
+    <button class="tab" onclick="switchTab('cotizacion')">Cotización $</button>
     <button class="tab" onclick="switchTab('ajustes')">⚙ Ajustes</button>
   </div>
 </div>
@@ -4011,6 +4129,98 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       <button class="calc-btn" onclick="desbloquearAjustes()" style="margin-bottom:0;">🔐 Desbloquear ajustes</button>
     </div>
   </div>
+
+  <div class="section">
+    <div class="section-head"><span class="section-head-dot"></span> Datos · Exportar / Importar</div>
+    <div class="section-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.5;">Exportá todos tus datos a un archivo JSON para guardarlos o transferirlos a otro dispositivo.</p>
+      <button onclick="exportarDatosJSON()" style="width:100%;background:var(--green-bg);color:var(--green);border:1px solid rgba(26,102,64,0.2);border-radius:var(--radius);padding:13px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;">↓ Exportar todos los datos</button>
+      <div style="height:1px;background:var(--border);margin:4px 0 10px;"></div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.5;">Importar un archivo JSON reemplaza todos los datos actuales.</p>
+      <label style="width:100%;background:var(--blue-bg);color:var(--blue);border:1px solid rgba(26,74,128,0.2);border-radius:var(--radius);padding:13px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;display:block;text-align:center;box-sizing:border-box;">
+        ↑ Importar datos desde JSON
+        <input type="file" accept=".json" onchange="importarDatosJSON(this)" style="display:none;">
+      </label>
+      <div id="import-status" style="font-size:12px;font-weight:600;text-align:center;margin-top:8px;display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ TAB COTIZACIÓN ══════ -->
+<div id="tab-cotizacion" class="main">
+
+  <!-- BNA Automático -->
+  <div class="cotiz-card">
+    <div class="cotiz-title"><span class="section-head-dot"></span> Dólar BNA · Automático</div>
+    <div id="cotiz-bna-loading" style="font-size:13px;color:var(--muted);text-align:center;padding:8px 0;">Consultando...</div>
+    <div id="cotiz-bna-data" style="display:none;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+        <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Compra</div>
+          <div id="cotiz-bna-compra" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:var(--text);">—</div>
+        </div>
+        <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Venta</div>
+          <div id="cotiz-bna-venta" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:var(--text);">—</div>
+        </div>
+        <div style="background:var(--text);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Promedio</div>
+          <div id="cotiz-bna-val" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:#fff;">—</div>
+        </div>
+      </div>
+      <div class="cotiz-sub" id="cotiz-bna-fecha">—</div>
+      <div style="font-size:11px;font-weight:600;margin-top:4px;" id="cotiz-bna-status"></div>
+    </div>
+    <div id="cotiz-bna-error" style="display:none;font-size:12px;color:var(--red);text-align:center;padding:4px 0;"></div>
+  </div>
+
+  <!-- Tesorería Manual -->
+  <div class="cotiz-card">
+    <div class="cotiz-title"><span class="section-head-dot"></span> Valor Tesorería · Manual</div>
+    <div id="cotiz-tes-current" style="margin-bottom:12px;display:none;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+        <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Compra</div>
+          <div id="cotiz-tes-compra-disp" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:var(--text);">—</div>
+        </div>
+        <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Venta</div>
+          <div id="cotiz-tes-venta-disp" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:var(--text);">—</div>
+        </div>
+        <div style="background:var(--text);border-radius:var(--radius-sm);padding:10px;text-align:center;">
+          <div style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px;">Promedio</div>
+          <div id="cotiz-tes-val" style="font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:#fff;">—</div>
+        </div>
+      </div>
+      <div class="cotiz-sub" id="cotiz-tes-fecha">—</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
+      <div>
+        <label class="field-label">Compra</label>
+        <input type="text" id="cotiz-tes-compra" placeholder="0,00" style="font-family:'JetBrains Mono',monospace;font-weight:700;">
+      </div>
+      <div>
+        <label class="field-label">Venta</label>
+        <input type="text" id="cotiz-tes-venta" placeholder="0,00" style="font-family:'JetBrains Mono',monospace;font-weight:700;">
+      </div>
+      <div>
+        <label class="field-label">Promedio</label>
+        <input type="text" id="cotiz-tes-prom" placeholder="0,00" style="font-family:'JetBrains Mono',monospace;font-weight:700;">
+      </div>
+    </div>
+    <button onclick="guardarTesoreria()" style="width:100%;background:var(--text);color:#fff;border:none;border-radius:var(--radius-sm);padding:11px;font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">Guardar cotización de hoy</button>
+    <div style="font-size:11px;color:var(--muted);margin-top:6px;">Se guarda con la fecha de hoy</div>
+  </div>
+
+  <!-- Historial + Exportar -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;" id="cotiz-hist-header" style="display:none;">
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;">Historial</div>
+    <button onclick="exportarCotizacionExcel()" style="background:var(--green-bg);color:var(--green);border:1px solid rgba(26,102,64,0.2);border-radius:var(--radius-sm);padding:8px 14px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">↓ Exportar Excel</button>
+  </div>
+  <div class="section" id="cotiz-hist-list" style="display:none;">
+    <div id="cotiz-hist-body"></div>
+  </div>
+
 </div>
 
 <!-- Print area for boleto -->
@@ -4268,6 +4478,8 @@ function switchTab(tab) {
   if (tab === 'icc') renderICCHistorico();
   if (tab === 'sello') renderTasaSello();
   if (tab === 'ajustes') renderAjustes();
+  document.getElementById('tab-cotizacion').classList.toggle('active', tab === 'cotizacion');
+  if (tab === 'cotizacion') { initCotizacion(); renderCotizacion(); }
   if (tab === 'cuentas') {} // static
 }
 
@@ -6528,6 +6740,238 @@ function guardarAjustes() {
   });
   savePasswords();
   alert('Contraseñas guardadas correctamente');
+}
+
+// ── COTIZACIÓN DÓLAR ──────────────────────────────
+var COTIZ_HIST = [];
+try { COTIZ_HIST = JSON.parse(localStorage.getItem('cotiz_hist') || '[]'); } catch(e) {}
+function saveCotiz() { localStorage.setItem('cotiz_hist', JSON.stringify(COTIZ_HIST)); }
+
+function todayStr() {
+  var n = new Date();
+  return n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0') + '-' + String(n.getDate()).padStart(2,'0');
+}
+function fmtFechaCotiz(str) {
+  var p = str.split('-');
+  return p[2] + '/' + p[1] + '/' + p[0];
+}
+
+function initCotizacion() {
+  var today = todayStr();
+  var yaGuardado = COTIZ_HIST.find(function(r){ return r.fecha === today && r.fuente === 'BNA'; });
+  
+  if (yaGuardado) {
+    mostrarBNAActual(yaGuardado.promedio, yaGuardado.fecha, false, yaGuardado.compra, yaGuardado.venta);
+    return;
+  }
+
+  // Fetch BNA for today only
+  var url = 'https://api.argentinadatos.com/v1/cotizaciones/dolares/oficial';
+  fetch(url)
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      var sorted = data.slice().sort(function(a,b){ return a.fecha > b.fecha ? -1 : 1; });
+      var latest = sorted[0];
+      if (!latest) throw new Error('Sin datos');
+
+      // Only show and save if it's today
+      if (latest.fecha !== today) {
+        document.getElementById('cotiz-bna-loading').style.display = 'none';
+        var err = document.getElementById('cotiz-bna-error');
+        err.style.display = 'block';
+        err.textContent = 'La cotización de hoy aún no está disponible. Volvé más tarde.';
+        return;
+      }
+
+      var promedio = (latest.compra + latest.venta) / 2;
+      var existing = COTIZ_HIST.find(function(r){ return r.fecha === today && r.fuente === 'BNA'; });
+      if (!existing) {
+        COTIZ_HIST.unshift({ fecha: today, compra: latest.compra, venta: latest.venta, promedio: promedio, fuente: 'BNA' });
+        saveCotiz();
+      }
+      mostrarBNAActual(promedio, today, false, latest.compra, latest.venta);
+      renderCotizacion();
+    })
+    .catch(function(e) {
+      document.getElementById('cotiz-bna-loading').style.display = 'none';
+      var err = document.getElementById('cotiz-bna-error');
+      err.style.display = 'block';
+      err.textContent = 'No se pudo obtener la cotización. Intentá más tarde.';
+    });
+}
+
+function mostrarBNAActual(promedio, fecha, esAnterior, compra, venta) {
+  document.getElementById('cotiz-bna-loading').style.display = 'none';
+  document.getElementById('cotiz-bna-data').style.display = 'block';
+  var fmt = function(v) { return v ? '$' + v.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'; };
+  document.getElementById('cotiz-bna-compra').textContent = fmt(compra);
+  document.getElementById('cotiz-bna-venta').textContent = fmt(venta);
+  document.getElementById('cotiz-bna-val').textContent = fmt(promedio);
+  document.getElementById('cotiz-bna-fecha').textContent = 'BNA · ' + fmtFechaCotiz(fecha);
+  var status = document.getElementById('cotiz-bna-status');
+  if (esAnterior) {
+    status.textContent = '⚠ Último día hábil disponible';
+    status.style.color = 'var(--orange)';
+  } else {
+    status.textContent = '✓ Guardado automáticamente hoy';
+    status.style.color = 'var(--green)';
+  }
+}
+
+function guardarTesoreria() {
+  var compra  = parseMonto(document.getElementById('cotiz-tes-compra').value);
+  var venta   = parseMonto(document.getElementById('cotiz-tes-venta').value);
+  var promedio = parseMonto(document.getElementById('cotiz-tes-prom').value);
+  if (!compra && !venta && !promedio) { alert('Ingresá al menos un valor'); return; }
+  if (!promedio && compra && venta) promedio = (compra + venta) / 2;
+  var today = todayStr();
+  var idx = COTIZ_HIST.findIndex(function(r){ return r.fecha === today && r.fuente === 'Tesorería'; });
+  if (idx >= 0) COTIZ_HIST.splice(idx, 1);
+  COTIZ_HIST.unshift({ fecha: today, compra: compra||null, venta: venta||null, promedio: promedio||null, fuente: 'Tesorería' });
+  COTIZ_HIST.sort(function(a,b){ return a.fecha > b.fecha ? -1 : 1; });
+  saveCotiz();
+  document.getElementById('cotiz-tes-compra').value = '';
+  document.getElementById('cotiz-tes-venta').value = '';
+  document.getElementById('cotiz-tes-prom').value = '';
+  renderCotizacion();
+}
+
+function renderCotizacion() {
+  var hist = document.getElementById('cotiz-hist-body');
+  var header = document.getElementById('cotiz-hist-header');
+  var list = document.getElementById('cotiz-hist-list');
+  if (!hist) return;
+
+  // Show latest tesorería
+  var latestTes = COTIZ_HIST.find(function(r){ return r.fuente === 'Tesorería'; });
+  if (latestTes) {
+    var fmt = function(v) { return v ? '$' + v.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'; };
+    document.getElementById('cotiz-tes-current').style.display = 'block';
+    document.getElementById('cotiz-tes-compra-disp').textContent = fmt(latestTes.compra);
+    document.getElementById('cotiz-tes-venta-disp').textContent = fmt(latestTes.venta);
+    document.getElementById('cotiz-tes-val').textContent = fmt(latestTes.promedio);
+    document.getElementById('cotiz-tes-fecha').textContent = 'Tesorería · ' + fmtFechaCotiz(latestTes.fecha);
+  }
+
+  if (!COTIZ_HIST.length) { header.style.display = 'none'; list.style.display = 'none'; return; }
+  header.style.display = 'flex';
+  list.style.display = 'block';
+
+  hist.innerHTML = COTIZ_HIST.map(function(r) {
+    var srcClass = r.fuente === 'BNA' ? 'cotiz-src-bna' : 'cotiz-src-tes';
+    var fmt = function(v) { return v ? '$' + v.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'; };
+    return '<div class="cotiz-hist-row" style="flex-direction:column;align-items:stretch;gap:4px;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span class="cotiz-hist-date">' + fmtFechaCotiz(r.fecha) + '</span>' +
+        '<span class="cotiz-hist-src ' + srcClass + '">' + r.fuente + '</span>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:4px;">' +
+        '<div style="text-align:center;background:var(--bg);border-radius:4px;padding:4px;"><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;">Compra</div><div style="font-family:JetBrains Mono,monospace;font-size:12px;font-weight:700;">' + fmt(r.compra) + '</div></div>' +
+        '<div style="text-align:center;background:var(--bg);border-radius:4px;padding:4px;"><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;">Venta</div><div style="font-family:JetBrains Mono,monospace;font-size:12px;font-weight:700;">' + fmt(r.venta) + '</div></div>' +
+        '<div style="text-align:center;background:var(--accent-light);border-radius:4px;padding:4px;"><div style="font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;">Promedio</div><div style="font-family:JetBrains Mono,monospace;font-size:12px;font-weight:700;">' + fmt(r.promedio) + '</div></div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function exportarCotizacionExcel() {
+  if (typeof XLSX === 'undefined') { alert('Cargando librería, intentá de nuevo'); return; }
+  if (!COTIZ_HIST.length) { alert('No hay datos para exportar'); return; }
+
+  // Group by month
+  var grupos = {};
+  COTIZ_HIST.forEach(function(r) {
+    var key = r.fecha.substring(0,7); // YYYY-MM
+    if (!grupos[key]) grupos[key] = [];
+    grupos[key].push(r);
+  });
+
+  var wb = XLSX.utils.book_new();
+
+  // Resumen sheet
+  var resRows = [['Mes','Prom. BNA','Prom. Tesorería']];
+  Object.keys(grupos).sort().reverse().forEach(function(key) {
+    var p = key.split('-');
+    var mesLabel = MESES[parseInt(p[1])-1] + ' ' + p[0];
+    var bna = grupos[key].filter(function(r){return r.fuente==='BNA';});
+    var tes = grupos[key].filter(function(r){return r.fuente==='Tesorería';});
+    var avgBNA = bna.length ? bna.reduce(function(s,r){return s+r.promedio;},0)/bna.length : '';
+    var avgTes = tes.length ? tes.reduce(function(s,r){return s+r.promedio;},0)/tes.length : '';
+    resRows.push([mesLabel, avgBNA ? Math.round(avgBNA*100)/100 : '', avgTes ? Math.round(avgTes*100)/100 : '']);
+  });
+  var wsRes = XLSX.utils.aoa_to_sheet(resRows);
+  wsRes['!cols'] = [{wch:16},{wch:16},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, wsRes, 'Resumen');
+
+  // One sheet per month
+  Object.keys(grupos).sort().reverse().forEach(function(key) {
+    var p = key.split('-');
+    var rows = [['Fecha','Fuente','Compra','Venta','Promedio']];
+    grupos[key].forEach(function(r) {
+      rows.push([fmtFechaCotiz(r.fecha), r.fuente, r.compra||'', r.venta||'', r.promedio||'']);
+    });
+    var ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:12},{wch:12},{wch:12},{wch:12},{wch:14}];
+    var sheetName = (MESES[parseInt(p[1])-1].substring(0,3) + '_' + p[0]).substring(0,31);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
+
+  var now = new Date();
+  XLSX.writeFile(wb, 'Cotizacion_USD_' + now.getFullYear() + '_' + String(now.getMonth()+1).padStart(2,'0') + '.xlsx');
+}
+
+// ── EXPORT / IMPORT JSON ──────────────────────────
+var DATA_KEYS = ['sello_registros','posesiones','cesiones','cotiz_hist','icc_custom','icc_pct_custom'];
+
+function exportarDatosJSON() {
+  var datos = { _version: 1, _fecha: new Date().toISOString() };
+  DATA_KEYS.forEach(function(k) {
+    try { datos[k] = JSON.parse(localStorage.getItem(k) || 'null'); } catch(e) { datos[k] = null; }
+  });
+  var blob = new Blob([JSON.stringify(datos, null, 2)], {type: 'application/json'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  var now = new Date();
+  a.href = url;
+  a.download = 'EdisurICC_datos_' + now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+
+function importarDatosJSON(input) {
+  var file = input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var datos = JSON.parse(e.target.result);
+      if (!datos._version) throw new Error('Archivo inválido');
+      var imported = 0;
+      DATA_KEYS.forEach(function(k) {
+        if (datos[k] !== undefined && datos[k] !== null) {
+          localStorage.setItem(k, JSON.stringify(datos[k]));
+          imported++;
+        }
+      });
+      // Reload all data in memory
+      try { SELLO_REGISTROS = JSON.parse(localStorage.getItem('sello_registros') || '[]'); } catch(e) {}
+      try { POSESIONES      = JSON.parse(localStorage.getItem('posesiones')       || '[]'); } catch(e) {}
+      try { CESIONES         = JSON.parse(localStorage.getItem('cesiones')         || '[]'); } catch(e) {}
+      try { COTIZ_HIST       = JSON.parse(localStorage.getItem('cotiz_hist')       || '[]'); } catch(e) {}
+
+      var status = document.getElementById('import-status');
+      status.style.display = 'block';
+      status.style.color = 'var(--green)';
+      status.textContent = '✓ ' + imported + ' secciones importadas correctamente';
+      input.value = '';
+    } catch(err) {
+      var status = document.getElementById('import-status');
+      status.style.display = 'block';
+      status.style.color = 'var(--red)';
+      status.textContent = '✗ Error: archivo inválido o corrupto';
+    }
+  };
+  reader.readAsText(file);
 }
 
 // ── INIT ──────────────────────────────────────────────────────────
