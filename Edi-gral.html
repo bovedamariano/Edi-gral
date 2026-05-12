@@ -1677,9 +1677,7 @@ function renderItemFijo(container, storageKey, label, defaultVal) {
 }
 
 window.editarFijo = function(storageKey, label) {
-  var clave = prompt('Contraseña para editar:');
-  if (clave === null) return;
-  if (!checkPass('finanzas', clave)) { alert('Contraseña incorrecta'); return; }
+  
   var val = parseFloat(localStorage.getItem(storageKey) || '0');
   var el = document.getElementById(storageKey + '-block');
   el.innerHTML =
@@ -1707,9 +1705,7 @@ MESES.forEach(function(n,i) {
 });
 
 function pedirClaveICC() {
-  var clave = prompt('Contraseña para editar:');
-  if (clave === 'Finanzas') togglePanel();
-  else if (clave !== null) alert('Contraseña incorrecta');
+  togglePanel();
 }
 function togglePanel() {
   var p = document.getElementById('iccPanel');
@@ -1741,9 +1737,7 @@ function guardarICC() {
   renderCustom(); poblarFechas(); poblarMesesEstaticos(); renderEstaticos();
 }
 function borrarICC(a, m) {
-  var clave = prompt('Contraseña para eliminar:');
-  if (clave === null) return;
-  if (!checkPass('finanzas', clave)) { alert('Contraseña incorrecta'); return; }
+  
   ICC_CUSTOM = ICC_CUSTOM.filter(function(r) { return !(r[0]===a && r[1]===m); });
   saveCustom(); renderCustom(); poblarFechas(); poblarMesesEstaticos(); renderEstaticos();
 }
@@ -2023,9 +2017,7 @@ function calcularSello() {
 }
 
 function pedirClaveTasa() {
-  var clave = prompt('Contraseña para editar:');
-  if (clave === null) return;
-  if (!checkPass('finanzas', clave)) { alert('Contraseña incorrecta'); return; }
+  
   var f = parseFechaSello();
   if (!f) return;
   var actual = getTasa(f.anio, f.mes);
@@ -2304,9 +2296,7 @@ function togglePos(id, campo) {
 }
 
 function eliminarPosesion(id) {
-  var clave = prompt('Contraseña para eliminar:');
-  if (clave === null) return;
-  if (!checkPass('finanzas', clave)) { alert('Contraseña incorrecta'); return; }
+  
   POSESIONES = POSESIONES.filter(function(x){return x.id!==id;});
   savePosesiones(); renderPosesiones();
 }
@@ -2432,9 +2422,7 @@ function agregarCesion() {
 }
 
 function toggleFacturado(id) {
-  var clave = prompt('Contraseña para cambiar estado:');
-  if (clave === null) return;
-  if (!checkPass('finanzas', clave)) { alert('Contraseña incorrecta'); return; }
+  
   var c = CESIONES.find(function(x) { return x.id === id; });
   if (c) { c.facturado = !c.facturado; saveCesiones(); renderCesiones(); }
 }
@@ -2613,9 +2601,7 @@ function exportarSelloExcel() {
 }
 
 function actualizarImpuesto(id) {
-  var clave = prompt('Contraseña para actualizar:');
-  if (clave === null) return;
-  if (!checkPass('finanzas', clave)) { alert('Contraseña incorrecta'); return; }
+  
   var r = SELLO_REGISTROS.find(function(x){ return x.id === id; });
   if (!r) return;
   var el = document.getElementById('imp-edit-' + id);
@@ -2641,9 +2627,7 @@ function guardarImpuestoAct(id) {
 }
 
 function eliminarSelloReg(id) {
-  var clave = prompt('Contraseña para eliminar:');
-  if (clave === null) return;
-  if (!checkPass('finanzas', clave)) { alert('Contraseña incorrecta'); return; }
+  
   SELLO_REGISTROS = SELLO_REGISTROS.filter(function(x){ return x.id !== id; });
   saveSelloReg();
   renderSelloRegistros();
@@ -2794,9 +2778,7 @@ function togglePos(id, campo) {
 }
 
 function eliminarPosesion(id) {
-  var clave = prompt('Contraseña para eliminar:');
-  if (clave === null) return;
-  if (!checkPass('finanzas', clave)) { alert('Contraseña incorrecta'); return; }
+  
   POSESIONES = POSESIONES.filter(function(x){return x.id!==id;});
   savePosesiones(); renderPosesiones();
 }
@@ -2922,9 +2904,7 @@ function agregarCesion() {
 }
 
 function toggleFacturado(id) {
-  var clave = prompt('Contraseña para cambiar estado:');
-  if (clave === null) return;
-  if (!checkPass('finanzas', clave)) { alert('Contraseña incorrecta'); return; }
+  
   var c = CESIONES.find(function(x) { return x.id === id; });
   if (c) { c.facturado = !c.facturado; saveCesiones(); renderCesiones(); }
 }
@@ -3103,9 +3083,7 @@ function exportarSelloExcel() {
 }
 
 function actualizarImpuesto(id) {
-  var clave = prompt('Contraseña para actualizar:');
-  if (clave === null) return;
-  if (!checkPass('finanzas', clave)) { alert('Contraseña incorrecta'); return; }
+  
   var r = SELLO_REGISTROS.find(function(x){ return x.id === id; });
   if (!r) return;
   var el = document.getElementById('imp-edit-' + id);
@@ -3131,9 +3109,7 @@ function guardarImpuestoAct(id) {
 }
 
 function eliminarSelloReg(id) {
-  var clave = prompt('Contraseña para eliminar:');
-  if (clave === null) return;
-  if (!checkPass('finanzas', clave)) { alert('Contraseña incorrecta'); return; }
+  
   SELLO_REGISTROS = SELLO_REGISTROS.filter(function(x){ return x.id !== id; });
   saveSelloReg();
   renderSelloRegistros();
@@ -3285,9 +3261,7 @@ function agregarTransferencia() {
   renderCesiones();}
 
 function eliminarTransferencia(id) {
-  var clave = prompt('Contraseña para eliminar:');
-  if (clave === null) return;
-  if (!checkPass('finanzas', clave)) { alert('Contraseña incorrecta'); return; }
+  
   TRANSFERENCIAS = TRANSFERENCIAS.filter(function(x) { return x.id !== id; });
   saveTr(); renderCesiones();}
 
@@ -3636,10 +3610,7 @@ function checkPass(key, input) {
 }
 
 function pedirAcceso(key, onOk) {
-  var clave = prompt('Contraseña requerida:');
-  if (clave === null) return;
-  if (checkPass(key, clave)) { onOk(); }
-  else { alert('Contraseña incorrecta'); }
+  onOk();
 }
 
 // ── AJUSTES ───────────────────────────────────────
@@ -3959,9 +3930,9 @@ var AREA_TABS = {
 };
 
 var AREA_DEFAULT_PASS = {
-  Finanzas: 'MBFinanzas',
-  Legales:  'Legales123',
-  Ventas:   'Ventas123',
+  Finanzas: 'F1234',
+  Legales:  'Leg.2',
+  Ventas:   'Vtas.3',
   SAC:      'SAC123'
 };
 
