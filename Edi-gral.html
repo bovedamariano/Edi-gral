@@ -1,0 +1,2114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Grupo Edisur · ICC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.0/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#f6f4ef;
+  --surface:#ffffff;
+  --surface-2:#fafaf6;
+  --ink:#1a2332;
+  --ink-2:#3a4555;
+  --ink-3:#6b7585;
+  --line:#e3dfd5;
+  --line-2:#ede9df;
+  --accent:#b85c2e;
+  --accent-2:#d4825a;
+  --accent-soft:#fbeee3;
+  --ok:#2d6a4f;
+  --ok-soft:#d8efe1;
+  --warn:#b8860b;
+  --warn-soft:#fbf0d3;
+  --err:#9b2226;
+  --err-soft:#f9dfe0;
+  --radius:6px;
+  --radius-lg:10px;
+  --shadow-sm:0 1px 2px rgba(26,35,50,.06);
+  --shadow:0 4px 16px rgba(26,35,50,.08);
+  --shadow-lg:0 12px 40px rgba(26,35,50,.18);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;font-family:'Manrope',sans-serif;color:var(--ink);background:var(--bg);font-size:14px;line-height:1.5}
+h1,h2,h3,h4{font-family:'Bricolage Grotesque',sans-serif;font-weight:600;letter-spacing:-0.01em;margin:0}
+h1{font-size:1.6rem}h2{font-size:1.25rem}h3{font-size:1.05rem}h4{font-size:.92rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3)}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ===== Login ===== */
+#login-screen{
+  position:fixed;inset:0;display:grid;place-items:center;background:linear-gradient(135deg,#f6f4ef 0%,#ece8db 100%);
+}
+.login-card{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);
+  padding:36px 32px;width:min(420px,92vw);box-shadow:var(--shadow-lg);
+}
+.login-brand{font-family:'Bricolage Grotesque',sans-serif;font-size:1.4rem;font-weight:700;letter-spacing:-0.02em;margin-bottom:4px}
+.login-sub{color:var(--ink-3);font-size:.86rem;margin-bottom:28px}
+.login-card .field{margin-bottom:14px}
+.login-card label{display:block;font-size:.8rem;font-weight:600;color:var(--ink-2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em}
+.login-card input{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2);transition:border-color .15s,background .15s}
+.login-card input:focus{outline:none;border-color:var(--accent);background:#fff}
+.login-card button[type=submit]{width:100%;padding:12px;background:var(--ink);color:#fff;border:none;border-radius:var(--radius);font-weight:600;cursor:pointer;margin-top:8px;transition:background .15s}
+.login-card button[type=submit]:hover{background:#0f1722}
+.login-card .err{background:var(--err-soft);color:var(--err);padding:10px 12px;border-radius:var(--radius);font-size:.85rem;margin-bottom:14px;display:none}
+.login-card .err.show{display:block}
+
+/* ===== App shell ===== */
+#app{display:none;min-height:100vh}
+#app.active{display:grid;grid-template-columns:240px 1fr}
+aside.sidebar{
+  background:var(--ink);color:#e8e4d8;padding:22px 16px;display:flex;flex-direction:column;gap:4px;
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.brand{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:1.15rem;letter-spacing:-0.02em;color:#fff;margin-bottom:24px;padding:0 6px}
+.brand span{color:var(--accent-2)}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius);color:#c8c2b0;cursor:pointer;border:none;background:transparent;text-align:left;width:100%;font-weight:500;transition:background .12s,color .12s}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav-item.active{background:rgba(184,92,46,.18);color:#fff;border-left:3px solid var(--accent-2);padding-left:9px}
+.nav-section{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#7a7464;margin:18px 6px 4px}
+.sidebar-footer{margin-top:auto;padding-top:18px;border-top:1px solid rgba(255,255,255,.08)}
+.user-chip{display:flex;align-items:center;gap:10px;padding:8px 6px;font-size:.82rem;color:#c8c2b0}
+.user-chip .av{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:.78rem}
+.user-chip .meta{flex:1;min-width:0;line-height:1.25}
+.user-chip .meta b{color:#fff;font-weight:600;display:block;font-size:.84rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-chip .meta span{color:#9d957e;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em}
+.btn-logout{margin-top:8px;width:100%;padding:7px;background:transparent;border:1px solid rgba(255,255,255,.12);color:#c8c2b0;border-radius:var(--radius);cursor:pointer;font-size:.8rem}
+.btn-logout:hover{background:rgba(255,255,255,.06);color:#fff}
+
+main.content{padding:28px 36px;max-width:1280px}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px}
+.page-head h1{margin:0}
+.page-head p{margin:6px 0 0;color:var(--ink-3);font-size:.9rem}
+
+/* ===== Cards / Sections ===== */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px;margin-bottom:18px;box-shadow:var(--shadow-sm)}
+.card h3{margin-bottom:14px}
+.card h3+.sub{color:var(--ink-3);font-size:.86rem;margin:-10px 0 14px}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media (max-width:900px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}}
+
+/* ===== Forms ===== */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.78rem;font-weight:600;color:var(--ink-2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.field input,.field select,.field textarea{
+  width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:var(--radius);
+  background:var(--surface-2);transition:border-color .15s,background .15s
+}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);background:#fff}
+.field-row{display:flex;gap:10px}
+.field-row>*{flex:1}
+.field .hint{font-size:.74rem;color:var(--ink-3);margin-top:4px}
+
+/* ===== Buttons ===== */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:var(--ink);color:#fff;border:none;border-radius:var(--radius);font-weight:600;cursor:pointer;font-size:.86rem;transition:background .12s,transform .06s}
+.btn:hover{background:#0f1722}
+.btn:active{transform:translateY(1px)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.ghost:hover{background:var(--surface-2);border-color:var(--ink-3)}
+.btn.accent{background:var(--accent)}
+.btn.accent:hover{background:#9b4d24}
+.btn.danger{background:var(--err)}
+.btn.danger:hover{background:#7e1c1f}
+.btn.sm{padding:5px 10px;font-size:.78rem}
+.btn.icon{padding:6px 8px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ===== Tables ===== */
+.tbl{width:100%;border-collapse:collapse;font-size:.86rem}
+.tbl th{text-align:left;padding:9px 10px;background:var(--surface-2);color:var(--ink-2);font-weight:600;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line)}
+.tbl td{padding:10px;border-bottom:1px solid var(--line-2)}
+.tbl tr:hover td{background:var(--surface-2)}
+.tbl .num{text-align:right;font-variant-numeric:tabular-nums}
+.tbl .actions{text-align:right;white-space:nowrap}
+.tbl-wrap{overflow-x:auto;margin:0 -4px;padding:0 4px}
+.empty{text-align:center;padding:32px 16px;color:var(--ink-3);font-size:.88rem}
+
+/* ===== Tabs (nested) ===== */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.tab{padding:9px 16px;background:transparent;border:none;cursor:pointer;color:var(--ink-3);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px;font-size:.86rem}
+.tab.active{color:var(--ink);border-bottom-color:var(--accent)}
+.tab:hover{color:var(--ink)}
+
+/* ===== Badges ===== */
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:.72rem;font-weight:600}
+.badge.ok{background:var(--ok-soft);color:var(--ok)}
+.badge.warn{background:var(--warn-soft);color:var(--warn)}
+.badge.muted{background:var(--surface-2);color:var(--ink-3)}
+.badge.accent{background:var(--accent-soft);color:var(--accent)}
+
+/* ===== Stats ===== */
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:14px 16px}
+.stat .lab{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600}
+.stat .val{font-family:'Bricolage Grotesque',sans-serif;font-size:1.4rem;font-weight:600;margin-top:4px;color:var(--ink)}
+.stat .sub{font-size:.76rem;color:var(--ink-3);margin-top:2px}
+
+/* ===== Toast ===== */
+#toast-container{position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:10px;z-index:9999;pointer-events:none}
+.toast{
+  background:var(--ink);color:#fff;padding:11px 16px;border-radius:var(--radius);
+  box-shadow:var(--shadow-lg);font-size:.88rem;font-weight:500;
+  display:flex;align-items:center;gap:10px;pointer-events:auto;
+  animation:toastIn .25s ease;max-width:380px
+}
+.toast.ok{background:var(--ok)}
+.toast.err{background:var(--err)}
+.toast.warn{background:var(--warn);color:#fff}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===== Modal ===== */
+#modal-backdrop{position:fixed;inset:0;background:rgba(26,35,50,.5);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px}
+#modal-backdrop.show{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius-lg);width:min(520px,100%);max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);animation:modalIn .2s ease}
+.modal.wide{width:min(720px,100%)}
+@keyframes modalIn{from{opacity:0;transform:translateY(-12px) scale(.98)}to{opacity:1;transform:none}}
+.modal-head{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+.modal-head h3{margin:0}
+.modal-close{background:none;border:none;cursor:pointer;color:var(--ink-3);font-size:1.3rem;padding:4px 8px;line-height:1}
+.modal-body{padding:22px}
+.modal-foot{padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;background:var(--surface-2)}
+
+/* ===== Account cards ===== */
+.cuenta-grupo{margin-bottom:18px}
+.cuenta-grupo summary{cursor:pointer;padding:12px 16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:1.02rem;list-style:none;display:flex;align-items:center;justify-content:space-between}
+.cuenta-grupo summary::-webkit-details-marker{display:none}
+.cuenta-grupo summary::before{content:'▸';margin-right:8px;color:var(--accent);transition:transform .15s;display:inline-block}
+.cuenta-grupo[open] summary::before{transform:rotate(90deg)}
+.cuenta-grupo summary small{font-weight:400;color:var(--ink-3);font-size:.78rem;font-family:'Manrope',sans-serif}
+.cuenta-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;margin-top:12px}
+.cuenta-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:14px 16px}
+.cuenta-card .ban{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.cuenta-card .ban h4{font-family:'Bricolage Grotesque',sans-serif;text-transform:none;letter-spacing:0;font-size:.98rem;color:var(--ink);font-weight:600}
+.cuenta-card .row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:.84rem}
+.cuenta-card .row .k{color:var(--ink-3);min-width:54px;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.cuenta-card .row .v{flex:1;font-variant-numeric:tabular-nums;word-break:break-all}
+.cuenta-card .copy{cursor:pointer;color:var(--ink-3);background:none;border:none;padding:2px 4px;font-size:.95rem}
+.cuenta-card .copy:hover{color:var(--accent)}
+.cuenta-card .actions{display:flex;gap:6px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line-2)}
+
+/* ===== Search ===== */
+.search-bar{position:relative;margin-bottom:14px}
+.search-bar input{width:100%;padding:10px 12px 10px 36px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);font-size:.9rem}
+.search-bar::before{content:'⌕';position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ink-3);font-size:1.1rem}
+
+/* ===== Misc ===== */
+.muted{color:var(--ink-3)}
+.right{text-align:right}
+.mono{font-family:ui-monospace,SFMono-Regular,monospace}
+.divider{height:1px;background:var(--line);margin:14px 0}
+.kbd{display:inline-block;padding:2px 6px;background:var(--surface-2);border:1px solid var(--line);border-radius:4px;font-family:ui-monospace,monospace;font-size:.78rem}
+hr{border:none;border-top:1px solid var(--line);margin:18px 0}
+
+/* ===== Workflow checkboxes (posesiones) ===== */
+.pos-workflow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pos-chk{display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:.74rem;color:var(--ink-2);user-select:none;padding:3px 6px;border-radius:4px;transition:background .12s}
+.pos-chk:hover{background:var(--surface-2)}
+.pos-chk input{cursor:pointer;accent-color:var(--accent);margin:0}
+.pos-chk input:checked + span{color:var(--ok);font-weight:600;text-decoration:line-through;text-decoration-thickness:1px;text-decoration-color:rgba(45,106,79,.4)}
+
+/* ===== Lista de conceptos (Gastos del mes) ===== */
+.concepto-item{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-top:1px solid var(--line-2);gap:16px}
+.concepto-item:first-child{border-top:none;padding-top:6px}
+.concepto-item .info{flex:1;min-width:0}
+.concepto-item .nom{font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:.95rem;letter-spacing:.02em;text-transform:uppercase;color:var(--ink);margin-bottom:6px}
+.concepto-item .badges{display:flex;gap:6px;flex-wrap:wrap}
+.concepto-item .precio-box{text-align:right;min-width:130px}
+.concepto-item .precio{font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:1.4rem;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+.concepto-item .var{font-size:.74rem;margin-top:3px;font-variant-numeric:tabular-nums}
+.concepto-item .var.up{color:var(--ok)}
+.concepto-item .var.down{color:var(--err)}
+.concepto-item .var.neutral{color:var(--ink-3)}
+.concepto-item.fijo{opacity:.85}
+.concepto-item.fijo .precio{color:var(--ink-3)}
+.concepto-item .acciones-admin{display:flex;gap:4px;align-items:center}
+.badge.icc{background:var(--accent-soft);color:var(--accent)}
+.badge.exacto{background:var(--ok-soft);color:var(--ok)}
+.badge.fijo{background:var(--surface-2);color:var(--ink-3);border:1px solid var(--line)}
+.conceptos-total{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;margin-top:14px;background:var(--surface-2);border-radius:var(--radius);border:1px solid var(--line-2)}
+.conceptos-total .lab{font-size:.78rem;color:var(--ink-2);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.conceptos-total .val{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:1.5rem;color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* ===== Mobile ===== */
+@media (max-width:768px){
+  #app.active{grid-template-columns:1fr}
+  aside.sidebar{position:fixed;top:0;left:-260px;width:240px;height:100vh;transition:left .25s;z-index:100;box-shadow:var(--shadow-lg)}
+  aside.sidebar.open{left:0}
+  main.content{padding:64px 18px 24px}
+  .mobile-burger{display:block;position:fixed;top:14px;left:14px;z-index:101;background:var(--ink);color:#fff;border:none;border-radius:var(--radius);padding:8px 11px;cursor:pointer;font-size:1.1rem}
+}
+.mobile-burger{display:none}
+</style>
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-brand">Grupo Edisur · ICC</div>
+    <div class="login-sub">Ingresá con tu usuario corporativo</div>
+    <div class="err" id="login-err"></div>
+    <div class="field">
+      <label>Usuario</label>
+      <input type="text" id="login-email" autocomplete="username" placeholder="ej: finanzas" required>
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="login-pass" autocomplete="current-password" required>
+    </div>
+    <button type="submit" id="login-btn">Entrar</button>
+    <div style="text-align:center;margin-top:14px"><a href="#" id="forgot-link" style="font-size:.82rem">¿Olvidaste tu contraseña?</a></div>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<button class="mobile-burger" id="burger">≡</button>
+<div id="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">Grupo <span>Edisur</span></div>
+    <div class="nav-section">Operaciones</div>
+    <button class="nav-item active" data-tab="icc">📊 Actualización ICC</button>
+    <button class="nav-item" data-tab="sellos">⚖️ Imp. Sellos</button>
+    <button class="nav-item" data-tab="posesiones">🏠 Posesiones</button>
+    <button class="nav-item" data-tab="cesiones">📝 Cesiones</button>
+    <div class="nav-section">Finanzas</div>
+    <button class="nav-item" data-tab="cuentas">🏦 Cuentas bancarias</button>
+    <button class="nav-item" data-tab="cotizacion">💵 Cotización</button>
+    <button class="nav-item" data-tab="gastos">💼 Gastos del mes</button>
+    <div class="nav-section" id="admin-section" style="display:none">Admin</div>
+    <button class="nav-item" data-tab="ajustes" id="ajustes-nav" style="display:none">⚙️ Ajustes</button>
+    <button class="nav-item" data-tab="audit" id="audit-nav" style="display:none">📜 Audit log</button>
+    <div class="sidebar-footer">
+      <div class="user-chip">
+        <div class="av" id="user-av">?</div>
+        <div class="meta"><b id="user-name">—</b><span id="user-role">—</span></div>
+      </div>
+      <button class="btn-logout" id="btn-logout">Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <main class="content">
+
+    <!-- ICC TAB -->
+    <section class="tab-content" id="tab-icc">
+      <div class="page-head">
+        <div><h1>Actualización ICC</h1><p>Indice de Costo de la Construcción · Histórico y cálculo por boleto</p></div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" data-subtab="icc-actualizar">Calcular por boleto</button>
+        <button class="tab" data-subtab="icc-historico">Histórico ICC</button>
+      </div>
+
+      <div class="subtab-content" id="icc-actualizar">
+        <div class="card">
+          <h3>Actualización por boleto</h3>
+          <div class="grid-4">
+            <div class="field">
+              <label>Fecha del boleto (origen)</label>
+              <input type="date" id="icc-fecha-origen">
+            </div>
+            <div class="field">
+              <label>Mes destino</label>
+              <select id="icc-mes-destino"></select>
+            </div>
+            <div class="field">
+              <label>Año destino</label>
+              <input type="number" id="icc-anio-destino" min="2000" max="2100">
+            </div>
+            <div class="field">
+              <label>Coeficiente</label>
+              <input type="text" id="icc-coef" readonly style="background:var(--surface-2);font-weight:600">
+              <div class="hint" id="icc-coef-hint">ICC destino / ICC origen</div>
+            </div>
+          </div>
+          <div id="icc-valores-usados" class="hint" style="margin:-6px 0 14px;padding:8px 10px;background:var(--surface-2);border-radius:var(--radius);display:none"></div>
+          <h4 style="margin-top:6px;margin-bottom:10px">Montos a actualizar</h4>
+          <div id="icc-conceptos"></div>
+          <div class="btn-row" style="margin-top:10px">
+            <button class="btn ghost sm" id="icc-add-concepto">+ Agregar concepto</button>
+            <button class="btn accent" id="icc-calcular">Calcular ↗</button>
+          </div>
+          <div id="icc-resultado" style="display:none;margin-top:18px"></div>
+        </div>
+      </div>
+
+      <div class="subtab-content" id="icc-historico" style="display:none">
+        <div class="card">
+          <h3>Valores ICC (absoluto)</h3>
+          <p class="sub">Cargá el valor absoluto del ICC publicado por INDEC cada mes. <a href="https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31" target="_blank" rel="noopener">Ver publicación oficial ↗</a></p>
+          <div class="grid-4" style="align-items:end">
+            <div class="field"><label>Mes</label><select id="icc-mes"></select></div>
+            <div class="field"><label>Año</label><input type="number" id="icc-anio" min="2000" max="2100"></div>
+            <div class="field"><label>Valor ICC</label><input type="number" id="icc-valor" step="0.01"></div>
+            <button class="btn" id="icc-save">Guardar</button>
+          </div>
+          <div class="tbl-wrap" style="margin-top:14px"><table class="tbl" id="icc-tabla"><thead><tr><th>Mes</th><th>Año</th><th class="num">Valor</th><th>Cargado</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SELLOS TAB -->
+    <section class="tab-content" id="tab-sellos" style="display:none">
+      <div class="page-head"><div><h1>Imp. Sellos</h1><p>Timbrado de boletos de compra-venta</p></div></div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>Nuevo boleto</h3>
+          <div class="field"><label>Fecha</label><input type="date" id="sello-fecha"></div>
+          <div class="field"><label>Propietario</label><input type="text" id="sello-prop" placeholder="Apellido y Nombre"></div>
+          <div class="field"><label>Unidad</label><input type="text" id="sello-unidad" placeholder="Ej: M5-L23"></div>
+          <div class="field-row">
+            <div class="field"><label>Moneda</label><select id="sello-moneda"><option value="ARS">$ ARS</option><option value="USD">USD</option></select></div>
+            <div class="field"><label>Monto del boleto</label><input type="number" id="sello-monto" step="0.01"></div>
+          </div>
+          <div class="field">
+            <label>Alícuota vigente (%) <span id="sello-alicuota-lock" style="font-size:.7rem;color:var(--ink-3);text-transform:none;letter-spacing:0;font-weight:400">· solo admin</span></label>
+            <input type="number" id="sello-alicuota" step="0.01" value="0.70">
+            <div class="hint" id="sello-alicuota-hint" style="display:none">Solo el administrador puede modificar este valor</div>
+          </div>
+          <div class="field"><label>Observaciones (opcional)</label><textarea id="sello-obs" rows="2"></textarea></div>
+          <div class="btn-row">
+            <button class="btn accent" id="sello-calcular">Calcular y registrar ↗</button>
+            <button class="btn ghost" id="sello-pdf-only">Solo PDF informativo</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Tipo de cambio (BNA)</h3>
+          <div class="grid-3" style="gap:10px">
+            <div class="stat"><div class="lab">Compra</div><div class="val" id="bna-compra">—</div></div>
+            <div class="stat"><div class="lab">Venta</div><div class="val" id="bna-venta">—</div></div>
+            <div class="stat"><div class="lab">Promedio</div><div class="val" id="bna-prom">—</div></div>
+          </div>
+          <div class="hint" id="bna-fuente" style="margin-top:8px">Consultando...</div>
+          <button class="btn ghost sm" id="bna-refresh" style="margin-top:8px">↻ Actualizar cotización</button>
+
+          <div class="divider"></div>
+          <h3>Resumen del cálculo</h3>
+          <div id="sello-resumen" class="muted">Completá el formulario y presioná calcular.</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h3 style="margin:0">Boletos registrados</h3>
+          <div class="btn-row">
+            <button class="btn ghost sm" id="sellos-excel">↓ Excel</button>
+          </div>
+        </div>
+        <div class="search-bar"><input type="text" id="sellos-search" placeholder="Buscar por propietario, unidad..."></div>
+        <div class="tbl-wrap"><table class="tbl" id="sellos-tabla">
+          <thead><tr><th>Fecha</th><th>Propietario</th><th>Unidad</th><th class="num">Monto</th><th>Moneda</th><th class="num">A pagar</th><th>Vence</th><th>Estado</th><th class="actions"></th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- POSESIONES TAB -->
+    <section class="tab-content" id="tab-posesiones" style="display:none">
+      <div class="page-head"><div><h1>Posesiones</h1></div></div>
+      <div class="card">
+        <h3>Nueva posesión</h3>
+        <div class="grid-3">
+          <div class="field"><label>Fecha</label><input type="date" id="pos-fecha"></div>
+          <div class="field"><label>Unidad</label><input type="text" id="pos-unidad"></div>
+          <div class="field"><label>Propietario</label><input type="text" id="pos-prop"></div>
+        </div>
+        <div class="field"><label>Observaciones</label><textarea id="pos-obs" rows="2"></textarea></div>
+        <button class="btn accent" id="pos-add">+ Agregar posesión</button>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h3 style="margin:0">Registros</h3>
+          <button class="btn ghost sm" id="pos-excel">↓ Excel</button>
+        </div>
+        <div class="search-bar"><input type="text" id="pos-search" placeholder="Buscar..."></div>
+        <div class="tbl-wrap"><table class="tbl" id="pos-tabla">
+          <thead><tr>
+            <th>Fecha</th><th>Unidad</th><th>Propietario</th>
+            <th style="text-align:center" title="1. Mail · 2. Gastos · 3. Facturado · 4. Acta tenencia">Workflow</th>
+            <th>Observaciones</th>
+            <th class="actions"></th>
+          </tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- CESIONES TAB -->
+    <section class="tab-content" id="tab-cesiones" style="display:none">
+      <div class="page-head"><div><h1>Cesiones</h1></div></div>
+      <div class="card">
+        <h3>Nueva cesión</h3>
+        <div class="grid-2">
+          <div class="field"><label>Fecha</label><input type="date" id="ces-fecha"></div>
+          <div class="field"><label>Monto ($)</label><input type="number" id="ces-monto" step="0.01"></div>
+        </div>
+        <div class="grid-2">
+          <div class="field"><label>Cedente</label><input type="text" id="ces-cedente"></div>
+          <div class="field"><label>Cesionario</label><input type="text" id="ces-cesionario"></div>
+        </div>
+        <div class="field"><label>Observación (opcional)</label><textarea id="ces-obs" rows="2"></textarea></div>
+        <div class="field"><label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:.9rem"><input type="checkbox" id="ces-facturado"> Facturado</label></div>
+        <button class="btn accent" id="ces-add">+ Agregar cesión</button>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h3 style="margin:0">Registros</h3>
+          <div class="btn-row"><button class="btn ghost sm" id="ces-excel">↓ Excel</button><button class="btn ghost sm" id="ces-pdf">↓ PDF</button></div>
+        </div>
+        <div class="search-bar"><input type="text" id="ces-search" placeholder="Buscar..."></div>
+        <div class="tbl-wrap"><table class="tbl" id="ces-tabla">
+          <thead><tr><th>Fecha</th><th>Cedente</th><th>Cesionario</th><th class="num">Monto</th><th>Facturado</th><th>Observación</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- CUENTAS BANCARIAS TAB -->
+    <section class="tab-content" id="tab-cuentas" style="display:none">
+      <div class="page-head"><div><h1>Cuentas bancarias</h1><p>Click en cualquier CBU o Alias para copiar</p></div></div>
+      <div class="search-bar"><input type="text" id="cuentas-search" placeholder="Buscar por empresa, banco, alias..."></div>
+      <div id="cuentas-list"></div>
+    </section>
+
+    <!-- COTIZACION TAB -->
+    <section class="tab-content" id="tab-cotizacion" style="display:none">
+      <div class="page-head"><div><h1>Cotización del dólar</h1></div></div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Dólar BNA (automático)</h3>
+          <div class="grid-3" style="gap:10px">
+            <div class="stat"><div class="lab">Compra</div><div class="val" id="cot-bna-c">—</div></div>
+            <div class="stat"><div class="lab">Venta</div><div class="val" id="cot-bna-v">—</div></div>
+            <div class="stat"><div class="lab">Promedio</div><div class="val" id="cot-bna-p">—</div></div>
+          </div>
+          <div class="hint" id="cot-bna-meta" style="margin-top:8px">—</div>
+          <button class="btn ghost sm" id="cot-refresh" style="margin-top:10px">↻ Refrescar</button>
+        </div>
+        <div class="card">
+          <h3>Valor Tesorería (manual)</h3>
+          <div class="field-row">
+            <div class="field"><label>Compra</label><input type="number" id="tes-c" step="0.01"></div>
+            <div class="field"><label>Venta</label><input type="number" id="tes-v" step="0.01"></div>
+          </div>
+          <button class="btn accent" id="tes-save">Guardar cotización de hoy</button>
+          <div class="hint" style="margin-top:8px">Se guarda con la fecha de hoy</div>
+        </div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h3 style="margin:0">Historial</h3>
+          <button class="btn ghost sm" id="cot-excel">↓ Excel</button>
+        </div>
+        <div class="tbl-wrap"><table class="tbl" id="cot-tabla">
+          <thead><tr><th>Fecha</th><th>Fuente</th><th class="num">Compra</th><th class="num">Venta</th><th class="num">Promedio</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- GASTOS TAB -->
+    <section class="tab-content" id="tab-gastos" style="display:none">
+      <div class="page-head">
+        <div><h1>Gastos del mes</h1><p>Lista de conceptos con precios proyectados por ICC</p></div>
+        <button class="btn accent" id="concepto-add" style="display:none">+ Nuevo concepto</button>
+      </div>
+
+      <div class="card">
+        <div class="field" style="margin-bottom:0">
+          <label>Mes de referencia</label>
+          <select id="concepto-mes-ref" style="font-weight:600;font-size:1.05rem;padding:11px 13px"></select>
+          <div class="hint" id="concepto-mes-hint" style="margin-top:6px"></div>
+        </div>
+      </div>
+
+      <div class="card" id="conceptos-principales-card">
+        <h3 style="margin-bottom:14px">Conceptos principales</h3>
+        <div id="conceptos-principales"></div>
+        <div class="conceptos-total" id="conceptos-total">
+          <div class="lab">TOTAL <span id="conceptos-total-label"></span></div>
+          <div class="val" id="conceptos-total-val">—</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom:14px">Otros gastos</h3>
+        <div id="conceptos-otros"></div>
+      </div>
+    </section>
+
+    <!-- AJUSTES TAB -->
+    <section class="tab-content" id="tab-ajustes" style="display:none">
+      <div class="page-head"><div><h1>Ajustes</h1><p>Administración del sistema</p></div></div>
+      <div class="tabs">
+        <button class="tab active" data-subtab="aj-usuarios">Usuarios</button>
+        <button class="tab" data-subtab="aj-empresas">Empresas y cuentas</button>
+        <button class="tab" data-subtab="aj-alicuotas">Alícuotas sellos</button>
+        <button class="tab" data-subtab="aj-datos">Datos / Backup</button>
+      </div>
+      <div class="subtab-content" id="aj-usuarios">
+        <div class="card">
+          <h3>Usuarios del sistema</h3>
+          <p class="sub">Los usuarios se crean desde el panel de Supabase (Authentication → Users). Acá podés asignar rol y área.</p>
+          <div class="tbl-wrap"><table class="tbl" id="users-tabla">
+            <thead><tr><th>Nombre</th><th>Área</th><th>Rol</th><th>Estado</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+      <div class="subtab-content" id="aj-empresas" style="display:none">
+        <div class="card">
+          <h3>Empresas</h3>
+          <button class="btn sm" id="emp-add">+ Nueva empresa</button>
+          <div class="tbl-wrap" style="margin-top:12px"><table class="tbl" id="emp-tabla">
+            <thead><tr><th>Nombre</th><th>CUIT</th><th>Estado</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <div class="card">
+          <h3>Cuentas bancarias</h3>
+          <button class="btn sm" id="cta-add">+ Nueva cuenta</button>
+          <div class="tbl-wrap" style="margin-top:12px"><table class="tbl" id="cta-tabla">
+            <thead><tr><th>Empresa</th><th>Banco</th><th>Moneda</th><th>CBU</th><th>Alias</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+      <div class="subtab-content" id="aj-alicuotas" style="display:none">
+        <div class="card">
+          <h3>Alícuotas de sellos por mes</h3>
+          <div class="grid-4" style="align-items:end">
+            <div class="field"><label>Mes</label><select id="ali-mes"></select></div>
+            <div class="field"><label>Año</label><input type="number" id="ali-anio"></div>
+            <div class="field"><label>Alícuota (%)</label><input type="number" id="ali-valor" step="0.01"></div>
+            <button class="btn" id="ali-save">Guardar</button>
+          </div>
+          <div class="tbl-wrap" style="margin-top:14px"><table class="tbl" id="ali-tabla">
+            <thead><tr><th>Mes</th><th>Año</th><th class="num">Alícuota</th><th>Jurisdicción</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+      <div class="subtab-content" id="aj-datos" style="display:none">
+        <div class="card">
+          <h3>Exportar / Importar</h3>
+          <p class="sub">Backup completo de todos los datos en JSON. Los datos también están seguros en Supabase, esto es por las dudas.</p>
+          <div class="btn-row"><button class="btn ghost" id="export-json">↓ Exportar todos los datos (JSON)</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AUDIT TAB -->
+    <section class="tab-content" id="tab-audit" style="display:none">
+      <div class="page-head"><div><h1>Audit log</h1><p>Registro de cambios · solo admin</p></div></div>
+      <div class="card">
+        <div class="grid-3" style="align-items:end;margin-bottom:14px">
+          <div class="field"><label>Filtrar por tabla</label><select id="audit-tabla"><option value="">Todas</option></select></div>
+          <div class="field"><label>Filtrar por acción</label><select id="audit-accion"><option value="">Todas</option><option>insert</option><option>update</option><option>delete</option></select></div>
+          <div><button class="btn ghost sm" id="audit-refresh">↻ Refrescar</button></div>
+        </div>
+        <div class="tbl-wrap"><table class="tbl" id="audit-tabla-data">
+          <thead><tr><th>Fecha</th><th>Usuario</th><th>Tabla</th><th>Acción</th><th>Registro</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="toast-container"></div>
+<div id="modal-backdrop"><div class="modal" id="modal"></div></div>
+
+<script>
+// =================================================================
+// CONFIG · Edi-gral v2
+// =================================================================
+const SUPABASE_URL = 'https://uljauhrplryudxjnwsbc.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsamF1aHJwbHJ5dWR4am53c2JjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2Mzg1MDcsImV4cCI6MjA5NDIxNDUwN30.zQoQmkHVsaEVXcaJ-DPe1boHo-65dELjnCdxQC2eTZ0';
+
+// Validación de credenciales antes de inicializar
+let sb = null;
+let configError = null;
+if (!SUPABASE_URL || SUPABASE_URL.includes('REEMPLAZAR') || !SUPABASE_URL.startsWith('http')) {
+  configError = 'Faltan las credenciales de Supabase en el HTML. Editá las constantes SUPABASE_URL y SUPABASE_ANON_KEY (líneas 584-585) con los valores de tu proyecto (Settings → API).';
+} else if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('REEMPLAZAR') || SUPABASE_ANON_KEY.length < 50) {
+  configError = 'La SUPABASE_ANON_KEY no parece válida. Editá el HTML con el valor real (Settings → API → anon public).';
+} else {
+  try {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch (e) {
+    configError = 'Error inicializando Supabase: ' + e.message;
+  }
+}
+
+// Si hay error de config, mostrar el mensaje y abortar
+if (configError) {
+  document.addEventListener('DOMContentLoaded', () => {
+    const err = document.getElementById('login-err');
+    if (err) { err.textContent = configError; err.classList.add('show'); err.style.fontSize = '.78rem'; err.style.lineHeight = '1.4'; }
+    const btn = document.getElementById('login-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Config incompleta'; }
+  });
+}
+
+// Estado global
+const state = {
+  user: null,
+  profile: null,
+  icc: [],
+  alicuotas: [],
+  boletos: [],
+  posesiones: [],
+  cesiones: [],
+  cuentas: [],
+  empresas: [],
+  cotizaciones: [],
+  conceptos: [],
+  users: [],
+  feriados: {}, // {year: [{fecha, nombre}]}
+  bnaActual: null,
+};
+
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+// =================================================================
+// UTILIDADES
+// =================================================================
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const todayISO = () => new Date().toISOString().split('T')[0];
+const fmt = n => new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n||0));
+const fmtInt = n => new Intl.NumberFormat('es-AR').format(Number(n||0));
+const fmtFecha = d => d ? new Date(d+'T00:00:00').toLocaleDateString('es-AR') : '—';
+const fmtFechaHora = d => d ? new Date(d).toLocaleString('es-AR') : '—';
+
+function toast(msg, type='info') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + (type === 'ok' ? 'ok' : type === 'err' ? 'err' : type === 'warn' ? 'warn' : '');
+  el.textContent = msg;
+  $('#toast-container').appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, 3200);
+}
+
+function confirmAction(msg) { return Promise.resolve(window.confirm(msg)); }
+
+function showModal(html, opts={}) {
+  $('#modal').className = 'modal' + (opts.wide ? ' wide' : '');
+  $('#modal').innerHTML = html;
+  $('#modal-backdrop').classList.add('show');
+}
+function closeModal() { $('#modal-backdrop').classList.remove('show'); }
+$('#modal-backdrop').addEventListener('click', e => { if (e.target.id === 'modal-backdrop') closeModal(); });
+
+async function copyToClipboard(txt) {
+  try { await navigator.clipboard.writeText(txt); toast('Copiado: ' + txt, 'ok'); }
+  catch { toast('No se pudo copiar', 'err'); }
+}
+
+// Enter para submit en formularios simples
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !e.shiftKey) {
+    const card = e.target.closest('.card');
+    if (card) {
+      const btn = card.querySelector('.btn.accent, .btn:not(.ghost):not(.danger)');
+      if (btn) { e.preventDefault(); btn.click(); }
+    }
+  }
+});
+
+// =================================================================
+// AUTH
+// =================================================================
+async function login(email, password) {
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  return data;
+}
+
+async function loadProfile() {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return null;
+  state.user = user;
+  const { data: prof } = await sb.from('profiles').select('*').eq('id', user.id).single();
+  state.profile = prof;
+  return prof;
+}
+
+async function logout() {
+  await sb.auth.signOut();
+  location.reload();
+}
+
+async function initAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) await afterLogin();
+}
+
+async function afterLogin() {
+  const prof = await loadProfile();
+  if (!prof || !prof.activo) {
+    toast('Tu usuario no está activo. Pedile a un admin que te active.', 'err');
+    setTimeout(logout, 2500);
+    return;
+  }
+  $('#login-screen').style.display = 'none';
+  $('#app').classList.add('active');
+  $('#user-name').textContent = prof.nombre || state.user.email;
+  $('#user-role').textContent = prof.rol;
+  $('#user-av').textContent = (prof.nombre || state.user.email).slice(0,2).toUpperCase();
+  if (prof.rol === 'admin') {
+    $('#admin-section').style.display = 'block';
+    $('#ajustes-nav').style.display = 'flex';
+    $('#audit-nav').style.display = 'flex';
+    $('#sello-alicuota-lock').style.display = 'none';
+  } else {
+    // No-admin: bloquear el campo de alícuota
+    $('#sello-alicuota').readOnly = true;
+    $('#sello-alicuota').style.background = 'var(--surface-2)';
+    $('#sello-alicuota').style.cursor = 'not-allowed';
+    $('#sello-alicuota-hint').style.display = 'block';
+  }
+  await Promise.all([
+    loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
+    loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
+    loadFeriados(new Date().getFullYear()),
+    loadFeriados(new Date().getFullYear() + 1),
+  ]);
+  initIccTab();
+  fetchBNA();
+  renderAll();
+  switchTab('icc');
+}
+
+// Convierte un usuario tipo "finanzas" a "finanzas@edigral.local" para Supabase.
+// Si ya viene con @, lo usa tal cual (admin con email real).
+function userToEmail(input) {
+  if (!input) return '';
+  const v = input.trim().toLowerCase();
+  return v.includes('@') ? v : `${v}@edigral.local`;
+}
+
+// Login submit
+$('#login-btn').addEventListener('click', async () => {
+  const userInput = $('#login-email').value.trim();
+  const pass = $('#login-pass').value;
+  if (!userInput || !pass) { $('#login-err').textContent = 'Completá usuario y contraseña'; $('#login-err').classList.add('show'); return; }
+  $('#login-err').classList.remove('show');
+  $('#login-btn').textContent = 'Entrando...';
+  $('#login-btn').disabled = true;
+  try {
+    await login(userToEmail(userInput), pass);
+    await afterLogin();
+  } catch (e) {
+    console.error('Error en login:', e);
+    let msg = 'Usuario o contraseña incorrectos';
+    if (e?.message) {
+      if (/invalid login credentials/i.test(e.message)) msg = 'Usuario o contraseña incorrectos';
+      else if (/email not confirmed/i.test(e.message)) msg = 'El usuario no está confirmado. Marcá "Auto Confirm User" al crearlo.';
+      else if (/failed to fetch|network/i.test(e.message)) msg = 'No se pudo conectar a Supabase. Verificá SUPABASE_URL y SUPABASE_ANON_KEY.';
+      else msg = e.message;
+    }
+    $('#login-err').textContent = msg;
+    $('#login-err').classList.add('show');
+  } finally {
+    $('#login-btn').textContent = 'Entrar';
+    $('#login-btn').disabled = false;
+  }
+});
+$('#login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') $('#login-btn').click(); });
+$('#login-email').addEventListener('keydown', e => { if (e.key === 'Enter') $('#login-pass').focus(); });
+
+$('#forgot-link').addEventListener('click', async e => {
+  e.preventDefault();
+  const userInput = $('#login-email').value.trim();
+  if (!userInput) { toast('Escribí tu usuario primero', 'warn'); return; }
+  // Solo tiene sentido si es un email real (con dominio)
+  if (!userInput.includes('@')) {
+    toast('Pedile a un admin que te cambie la clave', 'warn');
+    return;
+  }
+  const { error } = await sb.auth.resetPasswordForEmail(userInput);
+  if (error) toast('Error: ' + error.message, 'err');
+  else toast('Te enviamos un mail para resetear', 'ok');
+});
+
+$('#btn-logout').addEventListener('click', async () => { if (await confirmAction('¿Cerrar sesión?')) logout(); });
+
+// =================================================================
+// NAVEGACION
+// =================================================================
+function switchTab(tab) {
+  $$('.tab-content').forEach(el => el.style.display = 'none');
+  $$('.nav-item').forEach(el => el.classList.remove('active'));
+  $('#tab-' + tab).style.display = 'block';
+  document.querySelector(`.nav-item[data-tab="${tab}"]`)?.classList.add('active');
+  if (window.innerWidth < 768) $('#sidebar').classList.remove('open');
+  if (tab === 'audit') loadAudit();
+  if (tab === 'ajustes') loadUsers();
+}
+
+$$('.nav-item').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+$('#burger').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
+
+// Subtabs
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('tab') && e.target.dataset.subtab) {
+    const container = e.target.closest('section');
+    container.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    e.target.classList.add('active');
+    container.querySelectorAll('.subtab-content').forEach(c => c.style.display = 'none');
+    container.querySelector('#' + e.target.dataset.subtab).style.display = 'block';
+  }
+});
+
+// =================================================================
+// DATA LOADERS
+// =================================================================
+async function loadIcc() {
+  const { data, error } = await sb.from('icc_valores').select('*').order('anio',{ascending:false}).order('mes',{ascending:false});
+  if (error) { console.error(error); return; }
+  state.icc = data || [];
+}
+async function loadAlicuotas() {
+  const { data } = await sb.from('sellos_alicuotas').select('*').order('anio',{ascending:false}).order('mes',{ascending:false});
+  state.alicuotas = data || [];
+}
+async function loadBoletos() {
+  const { data } = await sb.from('boletos').select('*').order('fecha',{ascending:false}).limit(200);
+  state.boletos = data || [];
+}
+async function loadPosesiones() {
+  const { data } = await sb.from('posesiones').select('*').order('created_at',{ascending:false});
+  state.posesiones = data || [];
+}
+async function loadCesiones() {
+  const { data } = await sb.from('cesiones').select('*').order('fecha',{ascending:false});
+  state.cesiones = data || [];
+}
+async function loadCuentas() {
+  const [emps, ctas] = await Promise.all([
+    sb.from('empresas').select('*').order('orden'),
+    sb.from('cuentas_bancarias').select('*').order('orden'),
+  ]);
+  state.empresas = emps.data || [];
+  state.cuentas = ctas.data || [];
+}
+async function loadCotizaciones() {
+  const { data } = await sb.from('cotizaciones').select('*').order('fecha',{ascending:false}).limit(100);
+  state.cotizaciones = data || [];
+}
+async function loadGastosConceptos() {
+  const { data } = await sb.from('gastos_conceptos').select('*').order('categoria').order('orden').order('nombre');
+  state.conceptos = data || [];
+}
+async function loadUsers() {
+  if (state.profile?.rol !== 'admin') return;
+  const { data } = await sb.from('profiles').select('*').order('nombre');
+  state.users = data || [];
+  renderUsers();
+}
+
+// =================================================================
+// FERIADOS AR (cache anual)
+// =================================================================
+async function loadFeriados(year) {
+  if (state.feriados[year]) return;
+  try {
+    const r = await fetch('https://api.argentinadatos.com/v1/feriados/' + year);
+    if (r.ok) state.feriados[year] = await r.json();
+  } catch (e) { console.warn('No se pudo cargar feriados', e); state.feriados[year] = []; }
+}
+
+function esFeriado(date) {
+  const y = date.getFullYear();
+  if (!state.feriados[y]) return false;
+  const iso = date.toISOString().split('T')[0];
+  return state.feriados[y].some(f => f.fecha === iso);
+}
+
+function diasHabilesDesde(fechaISO, dias) {
+  const d = new Date(fechaISO + 'T00:00:00');
+  let count = 0;
+  while (count < dias) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6 && !esFeriado(d)) count++;
+  }
+  return d.toISOString().split('T')[0];
+}
+
+// =================================================================
+// BNA (con fallback a dolarapi)
+// =================================================================
+async function fetchBNA() {
+  try {
+    const r = await fetch('https://dolarapi.com/v1/dolares/oficial');
+    if (!r.ok) throw new Error();
+    const j = await r.json();
+    state.bnaActual = { compra: j.compra, venta: j.venta, prom: (j.compra+j.venta)/2, fuente: 'dolarapi', fecha: j.fechaActualizacion };
+  } catch (e) {
+    state.bnaActual = null;
+    toast('No se pudo obtener cotización BNA', 'warn');
+  }
+  renderBNA();
+}
+
+function renderBNA() {
+  if (!state.bnaActual) return;
+  const b = state.bnaActual;
+  ['bna-compra','cot-bna-c'].forEach(id => $('#'+id) && ($('#'+id).textContent = '$' + fmt(b.compra)));
+  ['bna-venta','cot-bna-v'].forEach(id => $('#'+id) && ($('#'+id).textContent = '$' + fmt(b.venta)));
+  ['bna-prom','cot-bna-p'].forEach(id => $('#'+id) && ($('#'+id).textContent = '$' + fmt(b.prom)));
+  const meta = `Fuente: ${b.fuente} · ${b.fecha ? new Date(b.fecha).toLocaleString('es-AR') : ''}`;
+  $('#bna-fuente') && ($('#bna-fuente').textContent = meta);
+  $('#cot-bna-meta') && ($('#cot-bna-meta').textContent = meta);
+}
+
+$('#bna-refresh').addEventListener('click', fetchBNA);
+$('#cot-refresh').addEventListener('click', fetchBNA);
+
+// =================================================================
+// MODULO: ICC
+// =================================================================
+function initIccTab() {
+  const mesSel = $('#icc-mes');
+  const mesDest = $('#icc-mes-destino');
+  if (mesSel.children.length === 0) {
+    MESES.forEach((m,i) => { mesSel.add(new Option(m, i+1)); mesDest.add(new Option(m, i+1)); });
+  }
+  $('#icc-mes').value = new Date().getMonth() + 1;
+  $('#icc-anio').value = new Date().getFullYear();
+  $('#icc-mes-destino').value = new Date().getMonth() + 1;
+  $('#icc-anio-destino').value = new Date().getFullYear();
+  $('#icc-fecha-origen').value = todayISO();
+  if ($('#icc-conceptos').children.length === 0) addConceptoRow();
+}
+
+function addConceptoRow() {
+  const div = document.createElement('div');
+  div.className = 'field-row';
+  div.innerHTML = `<div class="field" style="flex:2"><input type="text" placeholder="Concepto" class="con-nom"></div>
+    <div class="field"><input type="number" placeholder="Monto base" class="con-mon" step="0.01"></div>
+    <button class="btn ghost sm" onclick="this.parentElement.remove()">×</button>`;
+  $('#icc-conceptos').appendChild(div);
+}
+$('#icc-add-concepto').addEventListener('click', addConceptoRow);
+
+function iccValor(mes, anio) {
+  const v = state.icc.find(v => v.mes === Number(mes) && v.anio === Number(anio))?.valor_absoluto;
+  return v != null ? Number(v) : undefined;
+}
+
+$('#icc-calcular').addEventListener('click', () => {
+  const fechaOrig = $('#icc-fecha-origen').value;
+  if (!fechaOrig) { toast('Falta fecha de origen', 'warn'); return; }
+  const [yO, mO] = fechaOrig.split('-').map(Number);
+  const mD = Number($('#icc-mes-destino').value);
+  const yD = Number($('#icc-anio-destino').value);
+  if (!yD) { toast('Falta año destino', 'warn'); return; }
+  const vO = iccValor(mO, yO);
+  const vD = iccValor(mD, yD);
+  if (vO == null || vD == null) {
+    const falta = [];
+    if (vO == null) falta.push(`${MESES[mO-1]} ${yO}`);
+    if (vD == null) falta.push(`${MESES[mD-1]} ${yD}`);
+    toast('Falta cargar ICC de: ' + falta.join(', '), 'err');
+    return;
+  }
+  const coef = vD / vO;
+  $('#icc-coef').value = coef.toFixed(6);
+  $('#icc-coef-hint').textContent = `${fmt(vD)} / ${fmt(vO)}`;
+  $('#icc-valores-usados').innerHTML = `<b>Usando:</b> ICC ${MESES[mO-1]} ${yO} = ${fmt(vO)}  ·  ICC ${MESES[mD-1]} ${yD} = ${fmt(vD)}  ·  Coef = ${coef.toFixed(6)}`;
+  $('#icc-valores-usados').style.display = 'block';
+  const rows = [];
+  let total = 0;
+  $$('#icc-conceptos .field-row').forEach(r => {
+    const nom = r.querySelector('.con-nom').value;
+    const m = parseFloat(r.querySelector('.con-mon').value);
+    if (nom && m) { const act = m * coef; rows.push([nom, m, act]); total += act; }
+  });
+  if (!rows.length) { toast('No hay conceptos para calcular', 'warn'); return; }
+  let html = `<h4>Resultado · Coef: ${coef.toFixed(6)}</h4>
+    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Concepto</th><th class="num">Original</th><th class="num">Actualizado</th></tr></thead><tbody>`;
+  rows.forEach(([n,o,a]) => html += `<tr><td>${n}</td><td class="num">$${fmt(o)}</td><td class="num"><b>$${fmt(a)}</b></td></tr>`);
+  html += `</tbody><tfoot><tr><th>Total</th><th class="num">$${fmt(rows.reduce((s,r)=>s+r[1],0))}</th><th class="num">$${fmt(total)}</th></tr></tfoot></table></div>
+    <div class="btn-row" style="margin-top:12px"><button class="btn ghost sm" onclick="iccDescargarPDF()">↓ PDF</button></div>`;
+  $('#icc-resultado').innerHTML = html;
+  $('#icc-resultado').style.display = 'block';
+  state._iccLast = { fechaOrig, mO, yO, mD, yD, vO, vD, coef, rows, total };
+});
+
+window.iccDescargarPDF = function() {
+  const d = state._iccLast; if (!d) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  doc.setFontSize(15); doc.setFont(undefined,'bold');
+  doc.text('Actualización ICC · Grupo Edisur', 14, 16);
+  doc.setFontSize(9); doc.setFont(undefined,'normal');
+  doc.text(`Boleto: ${fmtFecha(d.fechaOrig)}  ·  Destino: ${MESES[d.mD-1]} ${d.yD}`, 14, 23);
+  doc.text(`ICC origen (${MESES[d.mO-1]} ${d.yO}): ${fmt(d.vO)}  ·  ICC destino (${MESES[d.mD-1]} ${d.yD}): ${fmt(d.vD)}`, 14, 29);
+  doc.text(`Coeficiente: ${d.coef.toFixed(6)}`, 14, 35);
+  doc.autoTable({
+    startY: 41,
+    head: [['Concepto', 'Original', 'Actualizado']],
+    body: d.rows.map(r => [r[0], '$'+fmt(r[1]), '$'+fmt(r[2])]),
+    foot: [['Total', '$'+fmt(d.rows.reduce((s,r)=>s+r[1],0)), '$'+fmt(d.total)]],
+    styles: { font:'helvetica', fontSize:9, cellPadding:2 },
+    headStyles: { fillColor:[26,35,50] },
+    footStyles: { fillColor:[246,244,239], textColor:[26,35,50], fontStyle:'bold' },
+    margin: { top: 14, right: 14, bottom: 14, left: 14 },
+    pageBreak: 'avoid',
+  });
+  // Footer chiquito
+  const finalY = doc.lastAutoTable.finalY || 50;
+  doc.setFontSize(7); doc.setTextColor(140);
+  doc.text(`Generado: ${new Date().toLocaleString('es-AR')}`, 14, finalY + 8);
+  // Forzar una sola página
+  while (doc.internal.getNumberOfPages() > 1) doc.deletePage(doc.internal.getNumberOfPages());
+  doc.save(`actualizacion-icc-${d.fechaOrig}.pdf`);
+};
+
+$('#icc-save').addEventListener('click', async () => {
+  const mes = Number($('#icc-mes').value), anio = Number($('#icc-anio').value), valor = parseFloat($('#icc-valor').value);
+  if (!mes || !anio || !valor) { toast('Completá todos los campos', 'warn'); return; }
+  const { error } = await sb.from('icc_valores').upsert({ mes, anio, valor_absoluto: valor, created_by: state.user.id }, { onConflict: 'mes,anio' });
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  toast('Valor ICC guardado', 'ok');
+  $('#icc-valor').value = '';
+  await loadIcc(); renderIccTabla();
+});
+
+function renderIccTabla() {
+  const tb = $('#icc-tabla tbody');
+  if (!state.icc.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">Sin valores cargados</td></tr>'; return; }
+  tb.innerHTML = state.icc.map(v => `<tr>
+    <td>${MESES[v.mes-1]}</td><td>${v.anio}</td>
+    <td class="num">${fmt(v.valor_absoluto)}</td>
+    <td class="muted" style="font-size:.8rem">${fmtFechaHora(v.created_at)}</td>
+    <td class="actions">${state.profile?.rol==='admin'?`<button class="btn ghost sm" onclick="deleteIcc('${v.id}')">×</button>`:''}</td>
+  </tr>`).join('');
+}
+window.deleteIcc = async function(id) {
+  if (!await confirmAction('¿Eliminar este valor ICC?')) return;
+  const { error } = await sb.from('icc_valores').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  await loadIcc(); renderIccTabla(); toast('Eliminado', 'ok');
+};
+
+// =================================================================
+// MODULO: SELLOS
+// =================================================================
+$('#sello-fecha').addEventListener('change', updateAlicuotaForFecha);
+function updateAlicuotaForFecha() {
+  const f = $('#sello-fecha').value;
+  if (!f) return;
+  const [y,m] = f.split('-').map(Number);
+  const a = state.alicuotas.find(x => x.mes===m && x.anio===y);
+  if (a) $('#sello-alicuota').value = a.alicuota;
+}
+
+// Busca cotización del día hábil INMEDIATO anterior a la fecha dada.
+// Itera hacia atrás hasta encontrar un día hábil con cotización válida (máx 10 días por seguridad).
+async function fetchCotizacionFecha(fechaISO) {
+  const d = new Date(fechaISO + 'T00:00:00');
+  // Asegurar que tenemos feriados de los años involucrados
+  await loadFeriados(d.getFullYear());
+  await loadFeriados(d.getFullYear() - 1);
+  for (let i = 0; i < 10; i++) {
+    d.setDate(d.getDate() - 1);
+    const dow = d.getDay();
+    if (dow === 0 || dow === 6) continue;
+    if (esFeriado(d)) continue;
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    try {
+      const r = await fetch(`https://api.argentinadatos.com/v1/cotizaciones/dolares/oficial/${y}/${m}/${dd}`);
+      if (r.ok) {
+        const j = await r.json();
+        if (j && j.compra != null && j.venta != null) {
+          return { compra: Number(j.compra), venta: Number(j.venta), promedio: (Number(j.compra)+Number(j.venta))/2, fecha: `${y}-${m}-${dd}` };
+        }
+      }
+    } catch (e) {}
+  }
+  return null;
+}
+
+async function calcSello() {
+  const fecha = $('#sello-fecha').value;
+  const prop = $('#sello-prop').value.trim();
+  const unidad = $('#sello-unidad').value.trim();
+  const moneda = $('#sello-moneda').value;
+  const monto = parseFloat($('#sello-monto').value);
+  const alicuota = parseFloat($('#sello-alicuota').value);
+  if (!fecha || !prop || !unidad || !monto || !alicuota) { toast('Completá todos los campos', 'warn'); return null; }
+  let tc = null, tcFecha = null, equiv;
+  if (moneda === 'USD') {
+    toast('Buscando cotización del día hábil anterior...', 'info');
+    const cot = await fetchCotizacionFecha(fecha);
+    if (!cot) { toast('No se encontró cotización para el día hábil anterior', 'err'); return null; }
+    tc = cot.promedio;
+    tcFecha = cot.fecha;
+    equiv = monto * tc;
+  } else {
+    equiv = monto;
+  }
+  const importe = equiv * alicuota / 100;
+  // Feriados para cálculo de vencimiento (15 días hábiles)
+  const yBoleto = Number(fecha.slice(0,4));
+  await loadFeriados(yBoleto);
+  await loadFeriados(yBoleto + 1);
+  const venc = diasHabilesDesde(fecha, 15);
+  return { fecha, prop, unidad, moneda, monto, tc, tcFecha, equiv, alicuota, importe, venc };
+}
+
+function renderSelloResumen(r) {
+  $('#sello-resumen').innerHTML = `
+    <table class="tbl" style="font-size:.85rem">
+      <tr><td>Fecha</td><td class="num">${fmtFecha(r.fecha)}</td></tr>
+      <tr><td>Propietario</td><td class="num">${r.prop}</td></tr>
+      <tr><td>Unidad</td><td class="num">${r.unidad}</td></tr>
+      <tr><td>Monto</td><td class="num">${r.moneda} ${fmt(r.monto)}</td></tr>
+      ${r.moneda==='USD'?`<tr><td>TC BNA (promedio ${fmtFecha(r.tcFecha)})</td><td class="num">$${fmt(r.tc)}</td></tr><tr><td>Equivalente ARS</td><td class="num">$${fmt(r.equiv)}</td></tr>`:''}
+      <tr><td>Alícuota</td><td class="num">${r.alicuota}%</td></tr>
+      <tr><td>Vence (15 días hábiles)</td><td class="num"><b>${fmtFecha(r.venc)}</b></td></tr>
+      <tr style="background:var(--accent-soft)"><td><b>Importe a pagar</b></td><td class="num"><b>$${fmt(r.importe)}</b></td></tr>
+    </table>`;
+}
+
+$('#sello-pdf-only').addEventListener('click', async () => {
+  const r = await calcSello(); if (!r) return;
+  renderSelloResumen(r); generateSelloPDF(r, 'pendiente');
+});
+
+$('#sello-calcular').addEventListener('click', async () => {
+  const r = await calcSello(); if (!r) return;
+  renderSelloResumen(r);
+  const { error } = await sb.from('boletos').insert({
+    fecha: r.fecha, propietario: r.prop, unidad: r.unidad, moneda: r.moneda,
+    monto: r.monto, tipo_cambio_bna: r.tc, equivalente_ars: r.equiv,
+    alicuota: r.alicuota, importe_pagar: r.importe, fecha_vencimiento: r.venc,
+    observaciones: $('#sello-obs').value, estado: 'generado', created_by: state.user.id,
+  });
+  if (error) { toast(error.message, 'err'); return; }
+  toast('Boleto registrado', 'ok');
+  generateSelloPDF(r, 'generado');
+  await loadBoletos(); renderSellos();
+  ['sello-prop','sello-unidad','sello-monto','sello-obs'].forEach(id => $('#'+id).value='');
+});
+
+// PDF formato Edisur: dos copias (Original + Duplicado) en una página A4
+function generateSelloPDF(r, estado) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const W = 210; // ancho A4
+  const H = 297; // alto A4
+  const margin = 12;
+  const blockH = 130; // alto de cada copia
+
+  // Función que dibuja una copia (original o duplicado)
+  function drawCopy(yStart, tipo) {
+    const x = margin;
+    const w = W - margin * 2;
+    const h = blockH;
+    // Borde exterior
+    doc.setDrawColor(0); doc.setLineWidth(0.4);
+    doc.rect(x, yStart, w, h);
+    // Franja izquierda (label vertical ORIGINAL/DUPLICADO)
+    const fxw = 14;
+    doc.line(x + fxw, yStart, x + fxw, yStart + h);
+    // Franja derecha (label TIMBRADO BOLETO DE COMPRA VENTA)
+    doc.line(x + w - fxw, yStart, x + w - fxw, yStart + h);
+
+    // Texto vertical izquierdo
+    doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(60);
+    doc.text(tipo.toUpperCase(), x + fxw/2 + 2, yStart + h/2, { angle: 90, align: 'center' });
+
+    // Texto vertical derecho
+    doc.setFontSize(9); doc.setTextColor(120);
+    doc.text('TIMBRADO BOLETO DE COMPRA VENTA', x + w - fxw/2 + 1.5, yStart + h/2, { angle: 90, align: 'center' });
+
+    // Área central
+    const cx = x + fxw + 4;
+    const cw = w - (fxw * 2) - 8;
+    let cy = yStart + 8;
+
+    const fieldLabel = (lab, val, opts={}) => {
+      doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(140);
+      doc.text(lab.toUpperCase(), cx, cy);
+      doc.setFontSize(opts.bigVal ? 13 : 10);
+      doc.setFont('helvetica', opts.bold !== false ? 'bold' : 'normal');
+      doc.setTextColor(0);
+      doc.text(String(val || '—'), cx, cy + (opts.bigVal ? 7 : 5));
+      cy += opts.tall ? 14 : 11;
+    };
+
+    // Fila: propietario | fecha (en columnas)
+    doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(140);
+    doc.text('PROPIETARIO', cx, cy);
+    doc.text('FECHA', cx + cw - 30, cy);
+    doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(0);
+    doc.text(r.prop, cx, cy + 5);
+    doc.text(fmtFecha(r.fecha), cx + cw - 30, cy + 5);
+    cy += 12;
+    doc.setDrawColor(220); doc.setLineWidth(0.2);
+    doc.line(cx, cy - 2, cx + cw, cy - 2);
+
+    fieldLabel('Unidad', r.unidad);
+    doc.setDrawColor(220); doc.line(cx, cy - 2, cx + cw, cy - 2);
+
+    // Monto del boleto
+    doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(140);
+    doc.text('MONTO DEL BOLETO', cx, cy);
+    doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(0);
+    let montoText = `${r.moneda} ${fmt(r.monto)}`;
+    if (r.moneda === 'USD') montoText += `  (≈ $${fmt(r.equiv)})`;
+    doc.text(montoText, cx, cy + 5.5);
+    if (r.moneda === 'USD' && r.tc) {
+      doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(110);
+      doc.text(`TC BNA: $${fmt(r.tc)}  /  ${fmtFecha(r.tcFecha)}`, cx, cy + 10);
+      cy += 16;
+    } else {
+      cy += 12;
+    }
+    doc.setDrawColor(220); doc.line(cx, cy - 2, cx + cw, cy - 2);
+
+    // Alícuota e Importe a pagar (lado a lado)
+    doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(140);
+    doc.text('ALÍCUOTA', cx, cy);
+    doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(0);
+    doc.text(`${fmt(r.alicuota)} %`, cx, cy + 6);
+
+    // Caja "Importe a pagar" a la derecha
+    const boxX = cx + cw - 70;
+    const boxY = cy - 4;
+    const boxW = 70;
+    const boxH = 18;
+    doc.setDrawColor(180, 30, 30); doc.setLineWidth(0.6);
+    doc.rect(boxX, boxY, boxW, boxH);
+    doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(180,30,30);
+    doc.text('IMPORTE A PAGAR', boxX + 3, boxY + 5);
+    doc.setFontSize(15); doc.setFont('helvetica','bold'); doc.setTextColor(0);
+    doc.text('$' + fmt(r.importe), boxX + boxW - 3, boxY + 13, { align: 'right' });
+    cy += 22;
+
+    // Solo en duplicado: vencimiento + sello de estado
+    if (tipo === 'duplicado') {
+      doc.setDrawColor(220); doc.setLineWidth(0.2); doc.line(cx, cy - 2, cx + cw, cy - 2);
+      doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(0);
+      doc.text(`Vence: ${fmtFecha(r.venc)}`, cx, cy + 4);
+
+      // Sello según estado
+      const stampX = cx + cw - 50;
+      const stampY = cy;
+      if (estado === 'pendiente' || estado === 'generado') {
+        doc.setDrawColor(180, 30, 30); doc.setLineWidth(1);
+        doc.rect(stampX, stampY - 2, 50, 9);
+        doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(180,30,30);
+        doc.text('NO REALIZADO', stampX + 25, stampY + 4, { align: 'center' });
+      } else if (estado === 'pagado') {
+        doc.setDrawColor(40, 110, 60); doc.setLineWidth(1);
+        doc.rect(stampX, stampY - 2, 50, 9);
+        doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(40,110,60);
+        doc.text('PAGADO', stampX + 25, stampY + 4, { align: 'center' });
+      }
+    }
+  }
+
+  // Dibujar ORIGINAL (arriba) y DUPLICADO (abajo)
+  drawCopy(margin + 4, 'original');
+
+  // Línea de corte (punteada) entre las dos copias
+  const cutY = margin + 4 + blockH + 8;
+  doc.setDrawColor(180); doc.setLineWidth(0.3);
+  doc.setLineDashPattern([2, 2], 0);
+  doc.line(margin, cutY, W - margin, cutY);
+  doc.setLineDashPattern([], 0);
+  doc.setFontSize(7); doc.setTextColor(140); doc.setFont('helvetica','normal');
+  doc.text('✂  corte aquí  ✂', W/2, cutY - 1, { align: 'center' });
+
+  drawCopy(cutY + 4, 'duplicado');
+
+  // Footer
+  doc.setFontSize(6); doc.setTextColor(160);
+  doc.text(`Generado: ${new Date().toLocaleString('es-AR')} · Grupo Edisur`, margin, H - 6);
+
+  while (doc.internal.getNumberOfPages() > 1) doc.deletePage(doc.internal.getNumberOfPages());
+  doc.save(`sello-${r.unidad.replace(/\s+/g,'_')}-${r.fecha}.pdf`);
+}
+
+function renderSellos() {
+  const q = $('#sellos-search').value.toLowerCase();
+  const filt = state.boletos.filter(b => !q || `${b.propietario} ${b.unidad}`.toLowerCase().includes(q));
+  const tb = $('#sellos-tabla tbody');
+  if (!filt.length) { tb.innerHTML = '<tr><td colspan="9" class="empty">Sin boletos</td></tr>'; return; }
+  const badgeFor = e => {
+    if (e === 'pagado') return '<span class="badge ok">Pagado</span>';
+    if (e === 'generado') return '<span class="badge accent">Generado</span>';
+    return '<span class="badge warn">Pendiente</span>';
+  };
+  tb.innerHTML = filt.map(b => {
+    const est = b.estado || 'pendiente';
+    return `<tr>
+      <td>${fmtFecha(b.fecha)}</td><td>${b.propietario}</td><td>${b.unidad}</td>
+      <td class="num">${fmt(b.monto)}</td><td>${b.moneda}</td>
+      <td class="num">$${fmt(b.importe_pagar)}</td>
+      <td>${fmtFecha(b.fecha_vencimiento)}</td>
+      <td>
+        <select onchange="cambiarEstadoBoleto('${b.id}', this.value)" style="padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--surface);font-size:.78rem">
+          <option value="pendiente" ${est==='pendiente'?'selected':''}>Pendiente</option>
+          <option value="generado" ${est==='generado'?'selected':''}>Generado</option>
+          <option value="pagado" ${est==='pagado'?'selected':''}>Pagado</option>
+        </select>
+        <span style="margin-left:4px">${badgeFor(est)}</span>
+      </td>
+      <td class="actions">
+        <button class="btn ghost sm" onclick="reimprimirSello('${b.id}')" title="Reimprimir PDF">↓</button>
+        ${state.profile?.rol==='admin'?`<button class="btn ghost sm" onclick="deleteSello('${b.id}')">×</button>`:''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+$('#sellos-search').addEventListener('input', renderSellos);
+window.cambiarEstadoBoleto = async function(id, nuevoEstado) {
+  const { error } = await sb.from('boletos').update({ estado: nuevoEstado }).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  toast('Estado actualizado: ' + nuevoEstado, 'ok');
+  await loadBoletos(); renderSellos();
+};
+window.reimprimirSello = function(id) {
+  const b = state.boletos.find(x => x.id === id);
+  if (!b) return;
+  const r = {
+    fecha: b.fecha, prop: b.propietario, unidad: b.unidad, moneda: b.moneda,
+    monto: Number(b.monto), tc: b.tipo_cambio_bna ? Number(b.tipo_cambio_bna) : null,
+    tcFecha: null, equiv: b.equivalente_ars ? Number(b.equivalente_ars) : Number(b.monto),
+    alicuota: Number(b.alicuota), importe: Number(b.importe_pagar), venc: b.fecha_vencimiento
+  };
+  generateSelloPDF(r, b.estado || 'pendiente');
+};
+window.deleteSello = async function(id) {
+  if (!await confirmAction('¿Eliminar este boleto?')) return;
+  const { error } = await sb.from('boletos').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  await loadBoletos(); renderSellos(); toast('Eliminado', 'ok');
+};
+
+$('#sellos-excel').addEventListener('click', () => exportarExcel(state.boletos, 'boletos'));
+
+// =================================================================
+// MODULO: POSESIONES
+// =================================================================
+$('#pos-add').addEventListener('click', async () => {
+  const fecha = $('#pos-fecha').value, unidad = $('#pos-unidad').value.trim(), prop = $('#pos-prop').value.trim();
+  if (!unidad || !prop) { toast('Completá unidad y propietario', 'warn'); return; }
+  const { error } = await sb.from('posesiones').insert({
+    fecha: fecha || null, unidad, propietario: prop, observaciones: $('#pos-obs').value, created_by: state.user.id
+  });
+  if (error) { toast(error.message, 'err'); return; }
+  ['pos-unidad','pos-prop','pos-obs'].forEach(id => $('#'+id).value=''); $('#pos-fecha').value = todayISO();
+  toast('Posesión agregada', 'ok');
+  await loadPosesiones(); renderPosesiones();
+});
+function renderPosesiones() {
+  const q = $('#pos-search').value.toLowerCase();
+  const filt = state.posesiones.filter(p => !q || `${p.unidad} ${p.propietario}`.toLowerCase().includes(q));
+  const tb = $('#pos-tabla tbody');
+  if (!filt.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">Sin posesiones</td></tr>'; return; }
+  const chk = (id, campo, val, lab) => `<label class="pos-chk" title="${lab}">
+    <input type="checkbox" ${val?'checked':''} onchange="togglePosesionCampo('${id}','${campo}',this.checked)">
+    <span>${lab}</span>
+  </label>`;
+  tb.innerHTML = filt.map(p => `<tr>
+    <td>${fmtFecha(p.fecha)}</td><td>${p.unidad}</td><td>${p.propietario}</td>
+    <td>
+      <div class="pos-workflow">
+        ${chk(p.id, 'mail_enviado', p.mail_enviado, '1. Mail')}
+        ${chk(p.id, 'gastos_enviados', p.gastos_enviados, '2. Gastos')}
+        ${chk(p.id, 'facturado', p.facturado, '3. Facturado')}
+        ${chk(p.id, 'acta_enviada', p.acta_enviada, '4. Acta')}
+      </div>
+    </td>
+    <td class="muted">${p.observaciones||''}</td>
+    <td class="actions">${state.profile?.rol==='admin'?`<button class="btn ghost sm" onclick="deletePos('${p.id}')">×</button>`:''}</td>
+  </tr>`).join('');
+}
+$('#pos-search').addEventListener('input', renderPosesiones);
+window.togglePosesionCampo = async function(id, campo, val) {
+  const { error } = await sb.from('posesiones').update({ [campo]: val }).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  // Actualizar estado local sin recargar todo (más fluido)
+  const p = state.posesiones.find(x => x.id === id);
+  if (p) p[campo] = val;
+  toast(val ? '✓ ' + campo.replace('_',' ') : 'desmarcado', 'ok');
+};
+window.deletePos = async function(id) {
+  if (!await confirmAction('¿Eliminar?')) return;
+  await sb.from('posesiones').delete().eq('id', id);
+  await loadPosesiones(); renderPosesiones(); toast('Eliminado', 'ok');
+};
+$('#pos-excel').addEventListener('click', () => exportarExcel(state.posesiones, 'posesiones'));
+
+// =================================================================
+// MODULO: CESIONES
+// =================================================================
+$('#ces-add').addEventListener('click', async () => {
+  const fecha = $('#ces-fecha').value, monto = parseFloat($('#ces-monto').value);
+  const cedente = $('#ces-cedente').value.trim(), cesionario = $('#ces-cesionario').value.trim();
+  if (!fecha || !monto || !cedente) { toast('Completá fecha, monto y cedente', 'warn'); return; }
+  const { error } = await sb.from('cesiones').insert({
+    fecha, monto, cedente, cesionario: cesionario || null,
+    observacion: $('#ces-obs').value, facturado: $('#ces-facturado').checked,
+    created_by: state.user.id
+  });
+  if (error) { toast(error.message, 'err'); return; }
+  ['ces-monto','ces-cedente','ces-cesionario','ces-obs'].forEach(id => $('#'+id).value='');
+  $('#ces-facturado').checked = false;
+  toast('Cesión agregada', 'ok');
+  await loadCesiones(); renderCesiones();
+});
+function renderCesiones() {
+  const q = $('#ces-search').value.toLowerCase();
+  const filt = state.cesiones.filter(c => !q || `${c.cedente} ${c.cesionario||''} ${c.observacion||''}`.toLowerCase().includes(q));
+  const tb = $('#ces-tabla tbody');
+  if (!filt.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">Sin cesiones</td></tr>'; return; }
+  tb.innerHTML = filt.map(c => `<tr>
+    <td>${fmtFecha(c.fecha)}</td><td>${c.cedente}</td><td>${c.cesionario||'—'}</td>
+    <td class="num">$${fmt(c.monto)}</td>
+    <td><span class="badge ${c.facturado?'ok':'muted'}">${c.facturado?'Sí':'No'}</span></td>
+    <td class="muted">${c.observacion||''}</td>
+    <td class="actions">
+      <button class="btn ghost sm" onclick="toggleCesFact('${c.id}',${!c.facturado})">${c.facturado?'↺':'✓'}</button>
+      ${state.profile?.rol==='admin'?`<button class="btn ghost sm" onclick="deleteCes('${c.id}')">×</button>`:''}
+    </td>
+  </tr>`).join('');
+}
+$('#ces-search').addEventListener('input', renderCesiones);
+window.toggleCesFact = async function(id, val) {
+  await sb.from('cesiones').update({ facturado: val }).eq('id', id);
+  await loadCesiones(); renderCesiones();
+};
+window.deleteCes = async function(id) {
+  if (!await confirmAction('¿Eliminar?')) return;
+  await sb.from('cesiones').delete().eq('id', id);
+  await loadCesiones(); renderCesiones(); toast('Eliminado', 'ok');
+};
+$('#ces-excel').addEventListener('click', () => exportarExcel(state.cesiones, 'cesiones'));
+$('#ces-pdf').addEventListener('click', () => {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(15); doc.text('Cesiones · Grupo Edisur', 14, 16);
+  doc.autoTable({
+    startY: 22,
+    head: [['Fecha','Cedente','Cesionario','Monto','Facturado','Observación']],
+    body: state.cesiones.map(c => [fmtFecha(c.fecha), c.cedente, c.cesionario||'', '$'+fmt(c.monto), c.facturado?'Sí':'No', c.observacion||'']),
+    styles:{font:'helvetica',fontSize:8}, headStyles:{fillColor:[26,35,50]}
+  });
+  doc.save('cesiones.pdf');
+});
+
+// =================================================================
+// MODULO: CUENTAS BANCARIAS
+// =================================================================
+function renderCuentas() {
+  const q = $('#cuentas-search').value.toLowerCase();
+  const cont = $('#cuentas-list');
+  cont.innerHTML = '';
+  state.empresas.filter(e => e.activo).forEach(emp => {
+    const ctas = state.cuentas.filter(c => c.empresa_id === emp.id && c.activo)
+      .filter(c => !q || `${emp.nombre} ${c.banco} ${c.alias||''} ${c.cbu||''}`.toLowerCase().includes(q));
+    if (!ctas.length && q) return;
+    const det = document.createElement('details');
+    det.className = 'cuenta-grupo';
+    det.open = !!q;
+    det.innerHTML = `<summary><span>${emp.nombre}</span><small>${ctas.length} cuenta${ctas.length!==1?'s':''}${emp.cuit?' · CUIT '+emp.cuit:''}</small></summary>
+      <div class="cuenta-list">${ctas.map(c => cuentaCardHTML(emp, c)).join('') || '<div class="empty">Sin cuentas cargadas</div>'}</div>`;
+    cont.appendChild(det);
+  });
+  if (!cont.children.length) cont.innerHTML = '<div class="card"><div class="empty">No hay resultados para "'+q+'"</div></div>';
+}
+function cuentaCardHTML(emp, c) {
+  const isAdmin = state.profile?.rol === 'admin';
+  const hasComp = !!c.comprobante_path;
+  return `<div class="cuenta-card">
+    <div class="ban"><h4>${c.banco} <span class="badge ${c.moneda==='USD'?'accent':'muted'}">${c.moneda}</span></h4></div>
+    ${c.cbu?`<div class="row"><span class="k">CBU</span><span class="v mono">${c.cbu}</span><button class="copy" onclick="copyToClipboard('${c.cbu}')" title="Copiar">⎘</button></div>`:''}
+    ${c.alias?`<div class="row"><span class="k">Alias</span><span class="v mono">${c.alias}</span><button class="copy" onclick="copyToClipboard('${c.alias}')" title="Copiar">⎘</button></div>`:''}
+    <div class="actions">
+      ${hasComp
+        ? `<button class="btn ghost sm" onclick="downloadComprobante('${c.id}')">↓ Comprobante</button>`
+        : `<span class="muted" style="font-size:.74rem;padding:5px 8px;font-style:italic">Sin comprobante${isAdmin?' · cargar desde Ajustes':''}</span>`}
+    </div>
+  </div>`;
+}
+$('#cuentas-search').addEventListener('input', renderCuentas);
+
+window.copyToClipboard = copyToClipboard;
+window.closeModal = closeModal;
+
+// Descarga el PDF de comprobante desde Supabase Storage
+window.downloadComprobante = async function(cuentaId) {
+  const c = state.cuentas.find(x => x.id === cuentaId);
+  if (!c || !c.comprobante_path) { toast('Sin comprobante cargado', 'warn'); return; }
+  toast('Descargando...', 'info');
+  const { data, error } = await sb.storage.from('cuentas-comprobantes').download(c.comprobante_path);
+  if (error) { toast('Error descargando: ' + error.message, 'err'); return; }
+  const emp = state.empresas.find(e => e.id === c.empresa_id);
+  const url = URL.createObjectURL(data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `comprobante-${(emp?.nombre||'').replace(/\s+/g,'-')}-${c.banco.replace(/\s+/g,'-')}.pdf`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+// =================================================================
+// MODULO: COTIZACION
+// =================================================================
+$('#tes-save').addEventListener('click', async () => {
+  const c = parseFloat($('#tes-c').value), v = parseFloat($('#tes-v').value);
+  if (!c || !v) { toast('Completá compra y venta', 'warn'); return; }
+  const { error } = await sb.from('cotizaciones').upsert({
+    fecha: todayISO(), fuente: 'tesoreria', compra: c, venta: v, promedio: (c+v)/2,
+    created_by: state.user.id
+  }, { onConflict: 'fecha,fuente' });
+  if (error) { toast(error.message, 'err'); return; }
+  $('#tes-c').value = ''; $('#tes-v').value = '';
+  toast('Cotización guardada', 'ok');
+  await loadCotizaciones(); renderCotizaciones();
+});
+
+function renderCotizaciones() {
+  const tb = $('#cot-tabla tbody');
+  if (!state.cotizaciones.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">Sin historial</td></tr>'; return; }
+  tb.innerHTML = state.cotizaciones.map(c => `<tr>
+    <td>${fmtFecha(c.fecha)}</td><td><span class="badge ${c.fuente==='tesoreria'?'accent':'muted'}">${c.fuente.toUpperCase()}</span></td>
+    <td class="num">$${fmt(c.compra)}</td><td class="num">$${fmt(c.venta)}</td><td class="num">$${fmt(c.promedio)}</td>
+  </tr>`).join('');
+}
+$('#cot-excel').addEventListener('click', () => exportarExcel(state.cotizaciones, 'cotizaciones'));
+
+// =================================================================
+// MODULO: GASTOS
+// =================================================================
+// =================================================================
+// MODULO: GASTOS DEL MES (lista de conceptos con proyección ICC)
+// =================================================================
+function initConceptosMesRef() {
+  const sel = $('#concepto-mes-ref');
+  if (sel.children.length) return;
+  // Tomar los meses para los cuales hay valor de ICC en la BD
+  const meses = state.icc.map(v => ({ mes: v.mes, anio: v.anio }))
+    .sort((a,b) => b.anio - a.anio || b.mes - a.mes);
+  meses.forEach(m => sel.add(new Option(`${MESES[m.mes-1]} ${m.anio}`, `${m.anio}-${String(m.mes).padStart(2,'0')}`)));
+  // Default: mes más reciente disponible
+  if (meses.length) sel.value = `${meses[0].anio}-${String(meses[0].mes).padStart(2,'0')}`;
+}
+
+function iccValorFromState(mes, anio) {
+  return state.icc.find(v => v.mes === Number(mes) && v.anio === Number(anio))?.valor_absoluto;
+}
+
+function mesAnterior(mes, anio) {
+  return mes === 1 ? { mes: 12, anio: anio - 1 } : { mes: mes - 1, anio };
+}
+
+function calcularConceptoValor(c, mesRef, anioRef) {
+  if (c.tipo_actualizacion === 'fijo') {
+    return Number(c.valor_base);
+  }
+  // tipo = icc
+  const iccBase = iccValorFromState(c.mes_base, c.anio_base);
+  const iccRef = iccValorFromState(mesRef, anioRef);
+  if (!iccBase || !iccRef) return null;
+  return Number(c.valor_base) * (Number(iccRef) / Number(iccBase));
+}
+
+function renderConceptos() {
+  if (!state.conceptos) return;
+  const mesRefVal = $('#concepto-mes-ref').value;
+  if (!mesRefVal) return;
+  const [anioRef, mesRef] = mesRefVal.split('-').map(Number);
+  const ant = mesAnterior(mesRef, anioRef);
+  const isAdmin = state.profile?.rol === 'admin';
+
+  // Mostrar/ocultar botón "Nuevo concepto"
+  $('#concepto-add').style.display = isAdmin ? 'inline-flex' : 'none';
+
+  // Hint
+  const iccRefVal = iccValorFromState(mesRef, anioRef);
+  $('#concepto-mes-hint').innerHTML = iccRefVal
+    ? `ICC ${MESES[mesRef-1]} ${anioRef} = <b>${fmt(iccRefVal)}</b>`
+    : `<span style="color:var(--err)">No hay ICC cargado para ese mes</span>`;
+
+  const principales = state.conceptos.filter(c => c.categoria === 'principal' && c.activo);
+  const otros = state.conceptos.filter(c => c.categoria === 'otro' && c.activo);
+
+  $('#conceptos-principales').innerHTML = renderConceptoList(principales, mesRef, anioRef, ant, isAdmin);
+  $('#conceptos-otros').innerHTML = otros.length ? renderConceptoList(otros, mesRef, anioRef, ant, isAdmin) : '<div class="empty">Sin otros conceptos</div>';
+
+  // Total de principales
+  if (principales.length >= 2) {
+    let total = 0;
+    let allCalculados = true;
+    principales.forEach(c => {
+      const v = calcularConceptoValor(c, mesRef, anioRef);
+      if (v == null) allCalculados = false;
+      else total += v;
+    });
+    $('#conceptos-total').style.display = 'flex';
+    $('#conceptos-total-label').textContent = principales.map((_,i) => i+1).join(' + ');
+    $('#conceptos-total-val').textContent = allCalculados ? '$' + fmt(total) : '—';
+  } else {
+    $('#conceptos-total').style.display = 'none';
+  }
+}
+
+function renderConceptoList(items, mesRef, anioRef, ant, isAdmin) {
+  if (!items.length) return '<div class="empty">Sin conceptos cargados</div>';
+  return items.map(c => {
+    const v = calcularConceptoValor(c, mesRef, anioRef);
+    const vAnt = c.tipo_actualizacion === 'fijo' ? v : calcularConceptoValor(c, ant.mes, ant.anio);
+    let badgesHTML = '';
+    let varHTML = '';
+    let precioStr = v != null ? '$' + fmt(v) : '—';
+
+    if (c.tipo_actualizacion === 'fijo') {
+      badgesHTML = '<span class="badge fijo">informativo · valor fijo</span>';
+    } else {
+      badgesHTML = '<span class="badge icc">proyectado ICC</span>';
+      if (v != null && vAnt != null && vAnt !== 0) {
+        const diff = v - vAnt;
+        const pct = (diff / vAnt) * 100;
+        const sign = diff >= 0 ? '+' : '';
+        const cls = diff > 0 ? 'up' : diff < 0 ? 'down' : 'neutral';
+        varHTML = `<div class="var ${cls}">${sign}${fmt(diff)} (${sign}${pct.toFixed(2)}%)</div>`;
+      }
+    }
+
+    const adminBtns = isAdmin
+      ? `<div class="acciones-admin">
+           <button class="btn ghost sm" onclick="editConcepto('${c.id}')" title="Editar">✎ Editar</button>
+         </div>`
+      : '';
+
+    return `<div class="concepto-item ${c.tipo_actualizacion==='fijo'?'fijo':''}">
+      <div class="info">
+        <div class="nom">${c.nombre}</div>
+        <div class="badges">${badgesHTML}</div>
+      </div>
+      <div class="precio-box">
+        <div class="precio">${precioStr}</div>
+        ${varHTML}
+      </div>
+      ${adminBtns}
+    </div>`;
+  }).join('');
+}
+
+$('#concepto-mes-ref').addEventListener('change', renderConceptos);
+
+$('#concepto-add').addEventListener('click', () => editConcepto(null));
+
+window.editConcepto = function(id) {
+  const c = id ? state.conceptos.find(x => x.id === id) : {
+    nombre: '', categoria: 'principal', tipo_actualizacion: 'icc',
+    valor_base: 0, mes_base: new Date().getMonth()+1, anio_base: new Date().getFullYear(),
+    orden: 0, activo: true
+  };
+  const mesOpts = MESES.map((m,i) => `<option value="${i+1}" ${c.mes_base===i+1?'selected':''}>${m}</option>`).join('');
+  showModal(`<div class="modal-head"><h3>${id?'Editar':'Nuevo'} concepto</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Nombre</label><input id="cc-nom" value="${c.nombre||''}" placeholder="Ej: PILAR PREMOLDEADO SIMPLE"></div>
+      <div class="field-row">
+        <div class="field"><label>Categoría</label><select id="cc-cat">
+          <option value="principal" ${c.categoria==='principal'?'selected':''}>Principal (suma al total)</option>
+          <option value="otro" ${c.categoria==='otro'?'selected':''}>Otro gasto</option>
+        </select></div>
+        <div class="field"><label>Tipo</label><select id="cc-tipo">
+          <option value="icc" ${c.tipo_actualizacion==='icc'?'selected':''}>Actualizado con ICC</option>
+          <option value="fijo" ${c.tipo_actualizacion==='fijo'?'selected':''}>Valor fijo (no se actualiza)</option>
+        </select></div>
+      </div>
+      <div class="field"><label>Valor base ($)</label><input type="number" id="cc-val" value="${c.valor_base||''}" step="0.01"></div>
+      <div class="field-row" id="cc-base-row">
+        <div class="field"><label>Mes base</label><select id="cc-mes">${mesOpts}</select></div>
+        <div class="field"><label>Año base</label><input type="number" id="cc-anio" value="${c.anio_base||new Date().getFullYear()}"></div>
+      </div>
+      <div class="hint" style="margin-top:-6px">Mes/año en el que el "valor base" es exacto. Si es ICC, se actualiza desde ahí.</div>
+      <div class="field"><label>Orden</label><input type="number" id="cc-ord" value="${c.orden||0}"></div>
+      <div class="field"><label style="text-transform:none;font-size:.9rem"><input type="checkbox" id="cc-act" ${c.activo!==false?'checked':''}> Activo</label></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      ${id?`<button class="btn danger" onclick="deleteConcepto('${id}')">Eliminar</button>`:''}
+      <button class="btn" onclick="saveConcepto('${id||''}')">Guardar</button>
+    </div>`, { wide: false });
+  // Hide base fields if "fijo"
+  const toggleBase = () => {
+    const tipo = $('#cc-tipo').value;
+    $('#cc-base-row').style.display = tipo === 'fijo' ? 'none' : 'flex';
+  };
+  $('#cc-tipo').addEventListener('change', toggleBase);
+  toggleBase();
+};
+
+window.saveConcepto = async function(id) {
+  const payload = {
+    nombre: $('#cc-nom').value.trim(),
+    categoria: $('#cc-cat').value,
+    tipo_actualizacion: $('#cc-tipo').value,
+    valor_base: parseFloat($('#cc-val').value),
+    mes_base: Number($('#cc-mes').value),
+    anio_base: Number($('#cc-anio').value),
+    orden: Number($('#cc-ord').value),
+    activo: $('#cc-act').checked
+  };
+  if (!payload.nombre || !payload.valor_base) { toast('Completá nombre y valor base', 'warn'); return; }
+  const { error } = id
+    ? await sb.from('gastos_conceptos').update(payload).eq('id', id)
+    : await sb.from('gastos_conceptos').insert({ ...payload, created_by: state.user.id });
+  if (error) { toast(error.message, 'err'); return; }
+  closeModal(); toast('Guardado', 'ok');
+  await loadGastosConceptos(); renderConceptos();
+};
+
+window.deleteConcepto = async function(id) {
+  if (!await confirmAction('¿Eliminar este concepto?')) return;
+  const { error } = await sb.from('gastos_conceptos').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  closeModal(); toast('Eliminado', 'ok');
+  await loadGastosConceptos(); renderConceptos();
+};
+
+// =================================================================
+// MODULO: AJUSTES (admin)
+// =================================================================
+function renderUsers() {
+  const tb = $('#users-tabla tbody');
+  if (!state.users.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">Sin usuarios</td></tr>'; return; }
+  tb.innerHTML = state.users.map(u => `<tr>
+    <td><b>${u.nombre||'—'}</b><div class="muted" style="font-size:.78rem">${u.id.slice(0,8)}</div></td>
+    <td>${u.area||'—'}</td>
+    <td><span class="badge ${u.rol==='admin'?'accent':'muted'}">${u.rol}</span></td>
+    <td><span class="badge ${u.activo?'ok':'warn'}">${u.activo?'Activo':'Inactivo'}</span></td>
+    <td class="actions"><button class="btn ghost sm" onclick="editUser('${u.id}')">Editar</button></td>
+  </tr>`).join('');
+}
+window.editUser = function(id) {
+  const u = state.users.find(x => x.id === id);
+  showModal(`<div class="modal-head"><h3>Editar usuario</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Nombre</label><input id="u-nom" value="${u.nombre||''}"></div>
+      <div class="field"><label>Área</label><select id="u-area">
+        <option value="">—</option><option ${u.area==='finanzas'?'selected':''} value="finanzas">Finanzas</option>
+        <option ${u.area==='legales'?'selected':''} value="legales">Legales</option>
+        <option ${u.area==='ventas'?'selected':''} value="ventas">Ventas</option>
+        <option ${u.area==='sac'?'selected':''} value="sac">SAC</option>
+        <option ${u.area==='admin'?'selected':''} value="admin">Admin</option></select></div>
+      <div class="field"><label>Rol</label><select id="u-rol">
+        <option ${u.rol==='viewer'?'selected':''}>viewer</option>
+        <option ${u.rol==='editor'?'selected':''}>editor</option>
+        <option ${u.rol==='admin'?'selected':''}>admin</option></select></div>
+      <div class="field"><label style="text-transform:none;font-size:.9rem"><input type="checkbox" id="u-act" ${u.activo?'checked':''}> Activo</label></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn" onclick="saveUser('${id}')">Guardar</button></div>`);
+};
+window.saveUser = async function(id) {
+  const { error } = await sb.from('profiles').update({
+    nombre: $('#u-nom').value, area: $('#u-area').value || null,
+    rol: $('#u-rol').value, activo: $('#u-act').checked
+  }).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  closeModal(); toast('Usuario actualizado', 'ok'); await loadUsers();
+};
+
+// Empresas
+$('#emp-add').addEventListener('click', () => editEmpresa(null));
+window.editEmpresa = function(id) {
+  const e = id ? state.empresas.find(x => x.id===id) : { nombre:'', cuit:'', orden:0, activo:true };
+  showModal(`<div class="modal-head"><h3>${id?'Editar':'Nueva'} empresa</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Nombre</label><input id="e-nom" value="${e.nombre||''}"></div>
+      <div class="field"><label>CUIT</label><input id="e-cuit" value="${e.cuit||''}"></div>
+      <div class="field"><label>Orden</label><input type="number" id="e-orden" value="${e.orden||0}"></div>
+      <div class="field"><label style="text-transform:none;font-size:.9rem"><input type="checkbox" id="e-act" ${e.activo?'checked':''}> Activa</label></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn" onclick="saveEmpresa('${id||''}')">Guardar</button></div>`);
+};
+window.saveEmpresa = async function(id) {
+  const payload = { nombre: $('#e-nom').value, cuit: $('#e-cuit').value, orden: Number($('#e-orden').value), activo: $('#e-act').checked };
+  const { error } = id ? await sb.from('empresas').update(payload).eq('id', id)
+                       : await sb.from('empresas').insert(payload);
+  if (error) { toast(error.message, 'err'); return; }
+  closeModal(); toast('Guardado', 'ok'); await loadCuentas(); renderEmpresas(); renderCuentas(); renderCuentasAdmin();
+};
+function renderEmpresas() {
+  const tb = $('#emp-tabla tbody');
+  tb.innerHTML = state.empresas.map(e => `<tr>
+    <td><b>${e.nombre}</b></td><td>${e.cuit||'—'}</td>
+    <td><span class="badge ${e.activo?'ok':'muted'}">${e.activo?'Activa':'Inactiva'}</span></td>
+    <td class="actions"><button class="btn ghost sm" onclick="editEmpresa('${e.id}')">Editar</button></td>
+  </tr>`).join('');
+}
+$('#cta-add').addEventListener('click', () => editCuenta(null));
+window.editCuenta = function(id) {
+  const c = id ? state.cuentas.find(x => x.id===id) : { empresa_id:'', banco:'', moneda:'ARS', numero_cuenta:'', cbu:'', alias:'', cuit:'', orden:0, activo:true };
+  const empOpts = state.empresas.map(e => `<option value="${e.id}" ${c.empresa_id===e.id?'selected':''}>${e.nombre}</option>`).join('');
+  showModal(`<div class="modal-head"><h3>${id?'Editar':'Nueva'} cuenta</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Empresa</label><select id="c-emp">${empOpts}</select></div>
+      <div class="field-row">
+        <div class="field"><label>Banco</label><input id="c-ban" value="${c.banco||''}"></div>
+        <div class="field"><label>Moneda</label><select id="c-mon"><option ${c.moneda==='ARS'?'selected':''}>ARS</option><option ${c.moneda==='USD'?'selected':''}>USD</option></select></div>
+      </div>
+      <div class="field"><label>Nº Cuenta</label><input id="c-num" value="${c.numero_cuenta||''}"></div>
+      <div class="field"><label>CBU</label><input id="c-cbu" value="${c.cbu||''}" maxlength="22"></div>
+      <div class="field"><label>Alias</label><input id="c-ali" value="${c.alias||''}"></div>
+      <div class="field"><label>CUIT</label><input id="c-cui" value="${c.cuit||''}"></div>
+      <div class="field"><label>Orden</label><input type="number" id="c-ord" value="${c.orden||0}"></div>
+      <div class="field"><label style="text-transform:none;font-size:.9rem"><input type="checkbox" id="c-act" ${c.activo?'checked':''}> Activa</label></div>
+      <div class="field" style="background:var(--surface-2);padding:12px;border-radius:var(--radius);border:1px dashed var(--line)">
+        <label>Comprobante PDF</label>
+        ${c.comprobante_path
+          ? `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+              <span class="badge ok">✓ Comprobante cargado</span>
+              <button type="button" class="btn ghost sm" onclick="downloadComprobante('${id}')">Ver actual</button>
+              <button type="button" class="btn ghost sm" onclick="eliminarComprobante('${id}')" style="color:var(--err)">Eliminar</button>
+            </div>`
+          : '<div class="muted" style="font-size:.8rem;margin-bottom:8px;font-style:italic">Sin comprobante cargado</div>'}
+        <input type="file" id="c-pdf" accept="application/pdf">
+        <div class="hint">Solo PDF, máx 5 MB. ${c.comprobante_path?'Si subís uno nuevo, reemplaza el actual.':''}</div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Cancelar</button>
+    ${id?`<button class="btn danger" onclick="deleteCuenta('${id}')">Eliminar</button>`:''}
+    <button class="btn" id="save-cta-btn" onclick="saveCuenta('${id||''}')">Guardar</button></div>`, { wide: true });
+};
+window.saveCuenta = async function(id) {
+  const payload = {
+    empresa_id: $('#c-emp').value, banco: $('#c-ban').value, moneda: $('#c-mon').value,
+    numero_cuenta: $('#c-num').value, cbu: $('#c-cbu').value, alias: $('#c-ali').value,
+    cuit: $('#c-cui').value, orden: Number($('#c-ord').value), activo: $('#c-act').checked
+  };
+  const file = $('#c-pdf')?.files?.[0];
+  if (file) {
+    if (file.size > 5 * 1024 * 1024) { toast('El PDF no puede superar 5 MB', 'err'); return; }
+    if (file.type !== 'application/pdf') { toast('Solo se aceptan archivos PDF', 'err'); return; }
+  }
+  $('#save-cta-btn').disabled = true; $('#save-cta-btn').textContent = 'Guardando...';
+  try {
+    let cuentaId = id;
+    if (id) {
+      const { error } = await sb.from('cuentas_bancarias').update(payload).eq('id', id);
+      if (error) throw error;
+    } else {
+      const { data, error } = await sb.from('cuentas_bancarias').insert(payload).select().single();
+      if (error) throw error;
+      cuentaId = data.id;
+    }
+    if (file) {
+      const path = `${cuentaId}/comprobante-${Date.now()}.pdf`;
+      const { error: upErr } = await sb.storage.from('cuentas-comprobantes').upload(path, file, { upsert: true, contentType: 'application/pdf' });
+      if (upErr) throw upErr;
+      // Borrar el viejo si existía
+      const cAnterior = state.cuentas.find(x => x.id === cuentaId);
+      if (cAnterior?.comprobante_path && cAnterior.comprobante_path !== path) {
+        await sb.storage.from('cuentas-comprobantes').remove([cAnterior.comprobante_path]);
+      }
+      const { error: updErr } = await sb.from('cuentas_bancarias').update({ comprobante_path: path }).eq('id', cuentaId);
+      if (updErr) throw updErr;
+    }
+    closeModal(); toast('Guardado', 'ok');
+    await loadCuentas(); renderCuentas(); renderCuentasAdmin();
+  } catch (e) {
+    toast('Error: ' + e.message, 'err');
+    $('#save-cta-btn').disabled = false; $('#save-cta-btn').textContent = 'Guardar';
+  }
+};
+window.eliminarComprobante = async function(cuentaId) {
+  if (!await confirmAction('¿Eliminar el comprobante PDF de esta cuenta?')) return;
+  const c = state.cuentas.find(x => x.id === cuentaId);
+  if (c?.comprobante_path) {
+    await sb.storage.from('cuentas-comprobantes').remove([c.comprobante_path]);
+  }
+  await sb.from('cuentas_bancarias').update({ comprobante_path: null }).eq('id', cuentaId);
+  closeModal(); toast('Comprobante eliminado', 'ok');
+  await loadCuentas(); renderCuentas(); renderCuentasAdmin();
+};
+window.deleteCuenta = async function(id) {
+  if (!await confirmAction('¿Eliminar esta cuenta?')) return;
+  // Borrar PDF asociado si existe
+  const c = state.cuentas.find(x => x.id === id);
+  if (c?.comprobante_path) {
+    await sb.storage.from('cuentas-comprobantes').remove([c.comprobante_path]);
+  }
+  await sb.from('cuentas_bancarias').delete().eq('id', id);
+  closeModal(); toast('Eliminada', 'ok'); await loadCuentas(); renderCuentas(); renderCuentasAdmin();
+};
+function renderCuentasAdmin() {
+  const tb = $('#cta-tabla tbody');
+  tb.innerHTML = state.cuentas.map(c => {
+    const emp = state.empresas.find(e => e.id === c.empresa_id);
+    return `<tr>
+      <td>${emp?.nombre||'?'}</td><td>${c.banco} <span class="badge ${c.moneda==='USD'?'accent':'muted'}">${c.moneda}</span></td>
+      <td>${c.moneda}</td><td class="mono" style="font-size:.78rem">${c.cbu||''}</td>
+      <td class="mono" style="font-size:.78rem">${c.alias||''}</td>
+      <td class="actions">
+        ${c.comprobante_path?'<span class="badge ok" style="margin-right:6px">PDF</span>':''}
+        <button class="btn ghost sm" onclick="editCuenta('${c.id}')">Editar</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// Alícuotas
+function initAlicuotas() {
+  if ($('#ali-mes').children.length) return;
+  MESES.forEach((m,i) => $('#ali-mes').add(new Option(m, i+1)));
+  $('#ali-mes').value = new Date().getMonth() + 1;
+  $('#ali-anio').value = new Date().getFullYear();
+}
+$('#ali-save').addEventListener('click', async () => {
+  const mes = Number($('#ali-mes').value), anio = Number($('#ali-anio').value), valor = parseFloat($('#ali-valor').value);
+  if (!mes || !anio || !valor) { toast('Completá los campos', 'warn'); return; }
+  const { error } = await sb.from('sellos_alicuotas').upsert({ mes, anio, alicuota: valor, jurisdiccion: 'Cordoba' }, { onConflict: 'mes,anio,jurisdiccion' });
+  if (error) { toast(error.message, 'err'); return; }
+  $('#ali-valor').value = '';
+  toast('Alícuota guardada', 'ok');
+  await loadAlicuotas(); renderAlicuotas();
+});
+function renderAlicuotas() {
+  const tb = $('#ali-tabla tbody');
+  if (!state.alicuotas.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">Sin alícuotas cargadas</td></tr>'; return; }
+  tb.innerHTML = state.alicuotas.map(a => `<tr>
+    <td>${MESES[a.mes-1]}</td><td>${a.anio}</td><td class="num">${a.alicuota}%</td><td>${a.jurisdiccion}</td>
+    <td class="actions">${state.profile?.rol==='admin'?`<button class="btn ghost sm" onclick="deleteAli('${a.id}')">×</button>`:''}</td>
+  </tr>`).join('');
+}
+window.deleteAli = async function(id) {
+  if (!await confirmAction('¿Eliminar?')) return;
+  await sb.from('sellos_alicuotas').delete().eq('id', id);
+  await loadAlicuotas(); renderAlicuotas(); toast('Eliminado', 'ok');
+};
+
+// =================================================================
+// AUDIT LOG (admin)
+// =================================================================
+async function loadAudit() {
+  if (state.profile?.rol !== 'admin') return;
+  const { data, error } = await sb.from('audit_log').select('*').order('fecha',{ascending:false}).limit(200);
+  if (error) { toast('Error cargando audit: ' + error.message, 'err'); return; }
+  // Mapear nombres de usuario en una segunda query
+  const userIds = [...new Set((data||[]).map(d => d.usuario_id).filter(Boolean))];
+  let userMap = {};
+  if (userIds.length) {
+    const { data: profs } = await sb.from('profiles').select('id,nombre').in('id', userIds);
+    userMap = Object.fromEntries((profs||[]).map(p => [p.id, p.nombre]));
+  }
+  state._auditRows = (data||[]).map(r => ({ ...r, _nombre: userMap[r.usuario_id] || r.usuario_id?.slice(0,8) || '—' }));
+  renderAudit(state._auditRows);
+  const tablas = [...new Set((data||[]).map(d => d.tabla))];
+  const cur = $('#audit-tabla').value;
+  $('#audit-tabla').innerHTML = '<option value="">Todas</option>' + tablas.map(t => `<option ${t===cur?'selected':''}>${t}</option>`).join('');
+}
+function renderAudit(rows) {
+  const fTabla = $('#audit-tabla').value, fAcc = $('#audit-accion').value;
+  const filt = rows.filter(r => (!fTabla||r.tabla===fTabla) && (!fAcc||r.accion===fAcc));
+  const tb = $('#audit-tabla-data tbody');
+  if (!filt.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">Sin registros</td></tr>'; return; }
+  tb.innerHTML = filt.map(r => {
+    const accBadge = r.accion==='insert'?'<span class="badge ok">insert</span>':r.accion==='delete'?'<span class="badge" style="background:var(--err-soft);color:var(--err)">delete</span>':'<span class="badge accent">update</span>';
+    return `<tr><td>${fmtFechaHora(r.fecha)}</td><td>${r._nombre}</td><td><code>${r.tabla}</code></td><td>${accBadge}</td>
+      <td><span class="mono" style="font-size:.74rem">${r.registro_id?.slice(0,8) || '—'}</span></td></tr>`;
+  }).join('');
+}
+$('#audit-refresh').addEventListener('click', loadAudit);
+$('#audit-tabla').addEventListener('change', () => renderAudit(state._auditRows||[]));
+$('#audit-accion').addEventListener('change', () => renderAudit(state._auditRows||[]));
+
+// =================================================================
+// EXPORT JSON
+// =================================================================
+$('#export-json').addEventListener('click', async () => {
+  const data = {
+    fecha_export: new Date().toISOString(),
+    icc: state.icc, alicuotas: state.alicuotas, boletos: state.boletos,
+    posesiones: state.posesiones, cesiones: state.cesiones,
+    empresas: state.empresas, cuentas: state.cuentas,
+    cotizaciones: state.cotizaciones, conceptos: state.conceptos
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `edigral-backup-${todayISO()}.json`;
+  a.click();
+  toast('Backup descargado', 'ok');
+});
+
+// =================================================================
+// EXCEL EXPORT HELPER
+// =================================================================
+function exportarExcel(rows, nombre) {
+  if (!rows.length) { toast('Nada para exportar', 'warn'); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, nombre);
+  XLSX.writeFile(wb, `${nombre}-${todayISO()}.xlsx`);
+}
+
+// =================================================================
+// RENDER ALL
+// =================================================================
+function renderAll() {
+  renderIccTabla();
+  renderSellos();
+  renderPosesiones();
+  renderCesiones();
+  renderCuentas();
+  renderCotizaciones();
+  initConceptosMesRef();
+  renderConceptos();
+  if (state.profile?.rol === 'admin') {
+    renderEmpresas();
+    renderCuentasAdmin();
+    initAlicuotas();
+    renderAlicuotas();
+  }
+  // defaults de fecha
+  $('#sello-fecha').value = todayISO();
+  $('#pos-fecha').value = todayISO();
+  $('#ces-fecha').value = todayISO();
+  updateAlicuotaForFecha();
+}
+
+// =================================================================
+// REAL-TIME SUBSCRIPTIONS
+// =================================================================
+function subscribeChanges() {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','icc_valores','sellos_alicuotas'].forEach(tabla => {
+    sb.channel('rt-'+tabla)
+      .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
+        if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
+        if (tabla==='posesiones') { await loadPosesiones(); renderPosesiones(); }
+        if (tabla==='cesiones') { await loadCesiones(); renderCesiones(); }
+        if (tabla==='cotizaciones') { await loadCotizaciones(); renderCotizaciones(); }
+        if (tabla==='cuentas_bancarias'||tabla==='empresas') { await loadCuentas(); renderCuentas(); if(state.profile?.rol==='admin'){renderEmpresas();renderCuentasAdmin();} }
+        if (tabla==='gastos_conceptos') { await loadGastosConceptos(); renderConceptos(); }
+        if (tabla==='icc_valores') { await loadIcc(); renderIccTabla(); initConceptosMesRef(); renderConceptos(); }
+        if (tabla==='sellos_alicuotas') { await loadAlicuotas(); if(state.profile?.rol==='admin') renderAlicuotas(); updateAlicuotaForFecha(); }
+      })
+      .subscribe();
+  });
+}
+
+// =================================================================
+// INIT
+// =================================================================
+initAuth().then(() => {
+  if (state.user) subscribeChanges();
+});
+
+</script>
+</body>
+</html>
