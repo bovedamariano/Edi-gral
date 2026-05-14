@@ -155,6 +155,10 @@ main.content{padding:28px 36px;max-width:1280px}
 .stat .lab{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600}
 .stat .val{font-family:'Bricolage Grotesque',sans-serif;font-size:1.4rem;font-weight:600;margin-top:4px;color:var(--ink)}
 .stat .sub{font-size:.76rem;color:var(--ink-3);margin-top:2px}
+.stat-input{font-family:'Bricolage Grotesque',sans-serif;font-size:1.4rem;font-weight:600;margin-top:4px;color:var(--ink);background:transparent;border:none;border-bottom:1px dashed transparent;padding:0;width:100%;outline:none;letter-spacing:-0.01em;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+.stat-input::-webkit-outer-spin-button,.stat-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.stat-input:hover{border-bottom-color:var(--line)}
+.stat-input:focus{border-bottom-color:var(--accent);background:var(--surface-2)}
 
 /* ===== Toast ===== */
 #toast-container{position:fixed;bottom:24px;right:24px;display:flex;flex-direction:column;gap:10px;z-index:9999;pointer-events:none}
@@ -475,8 +479,8 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
         <div class="card">
           <h3>Tipo de cambio (BNA)</h3>
           <div class="grid-3" style="gap:10px">
-            <div class="stat"><div class="lab">Compra</div><div class="val" id="bna-compra">—</div></div>
-            <div class="stat"><div class="lab">Venta</div><div class="val" id="bna-venta">—</div></div>
+            <div class="stat"><div class="lab">Compra</div><input type="number" step="0.01" id="bna-compra" class="stat-input" placeholder="—"></div>
+            <div class="stat"><div class="lab">Venta</div><input type="number" step="0.01" id="bna-venta" class="stat-input" placeholder="—"></div>
             <div class="stat"><div class="lab">Promedio</div><div class="val" id="bna-prom">—</div></div>
           </div>
           <div class="hint" id="bna-fuente" style="margin-top:8px">Consultando...</div>
@@ -1155,12 +1159,38 @@ async function fetchBNA(fechaRef = null) {
 function renderBNA() {
   if (!state.bnaActual) return;
   const b = state.bnaActual;
-  ['bna-compra','cot-bna-c'].forEach(id => $('#'+id) && ($('#'+id).textContent = '$' + fmt(b.compra)));
-  ['bna-venta','cot-bna-v'].forEach(id => $('#'+id) && ($('#'+id).textContent = '$' + fmt(b.venta)));
+  // Compra y Venta van en inputs editables; sólo seteamos value si el campo no tiene foco
+  ['bna-compra'].forEach(id => {
+    const el = $('#'+id);
+    if (el && document.activeElement !== el) el.value = b.compra.toFixed(2);
+  });
+  ['bna-venta'].forEach(id => {
+    const el = $('#'+id);
+    if (el && document.activeElement !== el) el.value = b.venta.toFixed(2);
+  });
+  // Display de cotización en pestaña Cotización (siguen siendo divs)
+  ['cot-bna-c'].forEach(id => $('#'+id) && ($('#'+id).textContent = '$' + fmt(b.compra)));
+  ['cot-bna-v'].forEach(id => $('#'+id) && ($('#'+id).textContent = '$' + fmt(b.venta)));
   ['bna-prom','cot-bna-p'].forEach(id => $('#'+id) && ($('#'+id).textContent = '$' + fmt(b.prom)));
-  $('#bna-fuente') && ($('#bna-fuente').innerHTML = `Cotización del <b>${fmtFecha(b.fechaCot)}</b> (día hábil anterior al boleto). Fuente: ${b.fuente}`);
-  $('#cot-bna-meta') && ($('#cot-bna-meta').innerHTML = `Última disponible: <b>${fmtFecha(b.fechaCot)}</b> · Fuente: ${b.fuente}`);
+  const fuenteTxt = b.fuente || 'API';
+  $('#bna-fuente') && ($('#bna-fuente').innerHTML = `Cotización del <b>${fmtFecha(b.fechaCot)}</b> (día hábil anterior al boleto) · Fuente: ${fuenteTxt} · <span style="color:var(--ink-3)">editá los valores si necesitás otro TC</span>`);
+  $('#cot-bna-meta') && ($('#cot-bna-meta').innerHTML = `Última disponible: <b>${fmtFecha(b.fechaCot)}</b> · Fuente: ${fuenteTxt}`);
 }
+
+// Cuando el usuario edita compra o venta manualmente, recalculamos el promedio en vivo
+function recalcularBNA() {
+  const c = parseFloat($('#bna-compra').value), v = parseFloat($('#bna-venta').value);
+  if (isNaN(c) || isNaN(v)) return;
+  const prom = (c + v) / 2;
+  $('#bna-prom').textContent = '$' + fmt(prom);
+  if (state.bnaActual) {
+    state.bnaActual.compra = c;
+    state.bnaActual.venta = v;
+    state.bnaActual.prom = prom;
+  }
+}
+$('#bna-compra').addEventListener('input', recalcularBNA);
+$('#bna-venta').addEventListener('input', recalcularBNA);
 
 $('#bna-refresh').addEventListener('click', () => fetchBNA($('#sello-fecha')?.value));
 $('#cot-refresh').addEventListener('click', () => fetchBNA());
@@ -1176,8 +1206,18 @@ function initIccTab() {
   }
   $('#icc-mes').value = new Date().getMonth() + 1;
   $('#icc-anio').value = new Date().getFullYear();
-  $('#icc-mes-destino').value = new Date().getMonth() + 1;
-  $('#icc-anio-destino').value = new Date().getFullYear();
+  // Default mes destino = ÚLTIMO mes con ICC cargado (no el mes calendario actual)
+  // Esto respeta el desfase típico de publicación del ICC (1-2 meses)
+  if (state.icc && state.icc.length) {
+    const ultimo = state.icc.reduce((a, b) =>
+      (b.anio > a.anio || (b.anio === a.anio && b.mes > a.mes)) ? b : a
+    );
+    $('#icc-mes-destino').value = ultimo.mes;
+    $('#icc-anio-destino').value = ultimo.anio;
+  } else {
+    $('#icc-mes-destino').value = new Date().getMonth() + 1;
+    $('#icc-anio-destino').value = new Date().getFullYear();
+  }
   $('#icc-fecha-origen').value = todayISO();
   if ($('#icc-conceptos').children.length === 0) addConceptoRow();
 }
@@ -1317,7 +1357,10 @@ function updateAlicuotaForFecha() {
 }
 
 // Busca cotización del día hábil INMEDIATO anterior a la fecha dada.
-// Itera hacia atrás hasta encontrar un día hábil con cotización válida (máx 10 días por seguridad).
+// PRIORIDAD:
+//   1) Tabla cotizaciones_bna en Supabase (scrapeada por Edge Function diariamente del BNA real)
+//   2) bluelytics.com.ar (matchea con BNA al cierre)
+//   3) argentinadatos.com (fallback final)
 async function fetchCotizacionFecha(fechaISO) {
   const d = new Date(fechaISO + 'T00:00:00');
   await loadFeriados(d.getFullYear());
@@ -1330,12 +1373,36 @@ async function fetchCotizacionFecha(fechaISO) {
     const y = d.getFullYear();
     const m = String(d.getMonth()+1).padStart(2,'0');
     const dd = String(d.getDate()).padStart(2,'0');
+    const fechaStr = `${y}-${m}-${dd}`;
+
+    // Intento 1: tabla cotizaciones_bna (scrapeada del BNA real)
     try {
-      const r = await fetch(`https://api.argentinadatos.com/v1/cotizaciones/dolares/oficial/${y}/${m}/${dd}`);
-      if (r.ok) {
-        const j = await r.json();
+      const { data } = await sb.from('cotizaciones_bna').select('compra,venta').eq('fecha', fechaStr).maybeSingle();
+      if (data && data.compra && data.venta) {
+        const c = Number(data.compra), v = Number(data.venta);
+        return { compra: c, venta: v, promedio: (c+v)/2, fecha: fechaStr, fuente: 'BNA oficial (scraper)' };
+      }
+    } catch (e) {}
+
+    // Intento 2: bluelytics
+    try {
+      const r1 = await fetch(`https://api.bluelytics.com.ar/v2/historical?day=${fechaStr}`);
+      if (r1.ok) {
+        const j = await r1.json();
+        if (j && j.oficial && j.oficial.value_buy != null && j.oficial.value_sell != null) {
+          const c = Number(j.oficial.value_buy), v = Number(j.oficial.value_sell);
+          return { compra: c, venta: v, promedio: (c+v)/2, fecha: fechaStr, fuente: 'bluelytics' };
+        }
+      }
+    } catch (e) {}
+
+    // Intento 3: argentinadatos (fallback)
+    try {
+      const r2 = await fetch(`https://api.argentinadatos.com/v1/cotizaciones/dolares/oficial/${y}/${m}/${dd}`);
+      if (r2.ok) {
+        const j = await r2.json();
         if (j && j.compra != null && j.venta != null) {
-          return { compra: Number(j.compra), venta: Number(j.venta), promedio: (Number(j.compra)+Number(j.venta))/2, fecha: `${y}-${m}-${dd}` };
+          return { compra: Number(j.compra), venta: Number(j.venta), promedio: (Number(j.compra)+Number(j.venta))/2, fecha: fechaStr, fuente: 'argentinadatos' };
         }
       }
     } catch (e) {}
@@ -1414,7 +1481,7 @@ function generateSelloPDF(r, estado) {
   const W = 210, H = 297;
   const marginX = 22;
   const blockW = W - marginX * 2;  // 166 mm
-  const blockH = 78;                // compacto
+  const blockH = 60;                // más compacto - antes 78
 
   function drawCopy(yStart, tipo) {
     const x = marginX;
@@ -1422,132 +1489,131 @@ function generateSelloPDF(r, estado) {
     doc.setDrawColor(50); doc.setLineWidth(0.4);
     doc.rect(x, yStart, blockW, blockH);
 
-    // Franjas laterales (10 mm cada una)
-    const fxw = 9;
+    // Franjas laterales (8 mm cada una)
+    const fxw = 8;
     doc.setDrawColor(220); doc.setLineWidth(0.2);
     doc.line(x + fxw, yStart, x + fxw, yStart + blockH);
     doc.line(x + blockW - fxw, yStart, x + blockW - fxw, yStart + blockH);
 
     // Texto vertical izquierdo (ORIGINAL/DUPLICADO)
-    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(90);
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(90);
     doc.text(tipo.toUpperCase(), x + fxw/2, yStart + blockH/2, { angle: 90, align: 'center' });
 
     // Texto vertical derecho
-    doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(130);
+    doc.setFontSize(6.5); doc.setFont('helvetica','normal'); doc.setTextColor(130);
     doc.text('TIMBRADO BOLETO DE COMPRA-VENTA', x + blockW - fxw/2, yStart + blockH/2, { angle: 90, align: 'center' });
 
     // Área central
-    const cx = x + fxw + 5;
-    const cw = blockW - (fxw * 2) - 10;
-    let cy = yStart + 7;
+    const cx = x + fxw + 4;
+    const cw = blockW - (fxw * 2) - 8;
+    let cy = yStart + 5;
 
     // ===== Fila 1: PROPIETARIO | FECHA =====
-    doc.setFontSize(6.5); doc.setFont('helvetica','normal'); doc.setTextColor(140);
+    doc.setFontSize(6); doc.setFont('helvetica','normal'); doc.setTextColor(140);
     doc.text('PROPIETARIO', cx, cy);
-    doc.text('FECHA', cx + cw - 26, cy);
-    doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(0);
-    doc.text(r.prop, cx, cy + 4.5);
-    doc.setFontSize(10);
-    doc.text(fmtFecha(r.fecha), cx + cw - 26, cy + 4.5);
-    cy += 9;
+    doc.text('FECHA', cx + cw - 24, cy);
+    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(0);
+    doc.text(r.prop, cx, cy + 4);
+    doc.text(fmtFecha(r.fecha), cx + cw - 24, cy + 4);
+    cy += 7.5;
     doc.setDrawColor(230); doc.setLineWidth(0.15); doc.line(cx, cy, cx + cw, cy);
-    cy += 3;
+    cy += 2;
 
     // ===== Fila 2: UNIDAD =====
-    doc.setFontSize(6.5); doc.setFont('helvetica','normal'); doc.setTextColor(140);
+    doc.setFontSize(6); doc.setFont('helvetica','normal'); doc.setTextColor(140);
     doc.text('UNIDAD', cx, cy);
-    doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(0);
-    doc.text(r.unidad, cx, cy + 4.5);
-    cy += 9;
+    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(0);
+    doc.text(r.unidad, cx, cy + 4);
+    cy += 7.5;
     doc.setDrawColor(230); doc.line(cx, cy, cx + cw, cy);
-    cy += 3;
+    cy += 2;
 
     // ===== Fila 3: MONTO DEL BOLETO =====
-    doc.setFontSize(6.5); doc.setFont('helvetica','normal'); doc.setTextColor(140);
+    doc.setFontSize(6); doc.setFont('helvetica','normal'); doc.setTextColor(140);
     doc.text('MONTO DEL BOLETO', cx, cy);
-    doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(0);
+    doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(0);
     let montoText = `${r.moneda} ${fmt(r.monto)}`;
     if (r.moneda === 'USD') montoText += `   (≈ $${fmt(r.equiv)})`;
-    doc.text(montoText, cx, cy + 5);
+    doc.text(montoText, cx, cy + 4);
     if (r.moneda === 'USD' && r.tc) {
-      doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(120);
-      doc.text(`TC BNA: $${fmt(r.tc)}  ·  ${fmtFecha(r.tcFecha)}`, cx, cy + 10);
-      cy += 14;
+      doc.setFontSize(6.5); doc.setFont('helvetica','normal'); doc.setTextColor(120);
+      doc.text(`TC BNA: $${fmt(r.tc)}  ·  ${fmtFecha(r.tcFecha)}`, cx, cy + 8);
+      cy += 11;
     } else {
-      cy += 9;
+      cy += 7.5;
     }
     doc.setDrawColor(230); doc.line(cx, cy, cx + cw, cy);
-    cy += 3;
+    cy += 2;
 
     // ===== Fila 4: ALÍCUOTA + IMPORTE A PAGAR =====
-    doc.setFontSize(6.5); doc.setFont('helvetica','normal'); doc.setTextColor(140);
+    doc.setFontSize(6); doc.setFont('helvetica','normal'); doc.setTextColor(140);
     doc.text('ALÍCUOTA', cx, cy);
-    doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(0);
-    doc.text(`${fmt(r.alicuota)} %`, cx, cy + 5.5);
+    doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(0);
+    doc.text(`${fmt(r.alicuota)} %`, cx, cy + 4.5);
 
     // Caja IMPORTE A PAGAR (esquina derecha)
-    const boxW = 58, boxH = 12;
+    const boxW = 52, boxH = 10;
     const boxX = cx + cw - boxW;
     const boxY = cy - 2;
     doc.setDrawColor(180, 30, 30); doc.setLineWidth(0.5);
     doc.rect(boxX, boxY, boxW, boxH);
-    doc.setFontSize(6.5); doc.setFont('helvetica','normal'); doc.setTextColor(180, 30, 30);
-    doc.text('IMPORTE A PAGAR', boxX + 2, boxY + 3.5);
-    doc.setFontSize(12); doc.setFont('helvetica','bold'); doc.setTextColor(0);
-    doc.text('$' + fmt(r.importe), boxX + boxW - 2, boxY + 9.5, { align: 'right' });
-    cy += 13;
+    doc.setFontSize(6); doc.setFont('helvetica','normal'); doc.setTextColor(180, 30, 30);
+    doc.text('IMPORTE A PAGAR', boxX + 2, boxY + 3);
+    doc.setFontSize(10.5); doc.setFont('helvetica','bold'); doc.setTextColor(0);
+    doc.text('$' + fmt(r.importe), boxX + boxW - 2, boxY + 8, { align: 'right' });
+    cy += 10;
 
     // ===== Solo duplicado: Vence + sello =====
     if (tipo === 'duplicado') {
       doc.setDrawColor(230); doc.line(cx, cy, cx + cw, cy);
-      cy += 3;
-      doc.setFontSize(6.5); doc.setFont('helvetica','normal'); doc.setTextColor(140);
+      cy += 2;
+      doc.setFontSize(6); doc.setFont('helvetica','normal'); doc.setTextColor(140);
       doc.text('VENCE', cx, cy);
-      doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(0);
-      doc.text(fmtFecha(r.venc), cx, cy + 4.5);
+      doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(0);
+      doc.text(fmtFecha(r.venc), cx, cy + 4);
 
       // Sello a la derecha
-      const stW = 45, stH = 9;
+      const stW = 40, stH = 7.5;
       const stX = cx + cw - stW;
       const stY = cy - 1;
       if (estado === 'pagado') {
-        doc.setDrawColor(40, 110, 60); doc.setLineWidth(0.8);
+        doc.setDrawColor(40, 110, 60); doc.setLineWidth(0.7);
         doc.rect(stX, stY, stW, stH);
-        doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(40, 110, 60);
-        doc.text('PAGADO', stX + stW/2, stY + 6, { align: 'center' });
+        doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(40, 110, 60);
+        doc.text('PAGADO', stX + stW/2, stY + 5, { align: 'center' });
       } else {
-        doc.setDrawColor(180, 30, 30); doc.setLineWidth(0.8);
+        doc.setDrawColor(180, 30, 30); doc.setLineWidth(0.7);
         doc.rect(stX, stY, stW, stH);
-        doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(180, 30, 30);
-        doc.text('NO REALIZADO', stX + stW/2, stY + 6, { align: 'center' });
+        doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(180, 30, 30);
+        doc.text('NO REALIZADO', stX + stW/2, stY + 5, { align: 'center' });
       }
     }
   }
 
   // ===== Encabezado de la página =====
-  doc.setFontSize(13); doc.setFont('helvetica','bold'); doc.setTextColor(20);
-  doc.text('GRUPO EDISUR', W/2, 18, { align: 'center' });
-  doc.setFontSize(8); doc.setFont('helvetica','normal'); doc.setTextColor(120);
-  doc.text('Timbrado de Boleto de Compra-Venta', W/2, 23, { align: 'center' });
+  doc.setFontSize(12); doc.setFont('helvetica','bold'); doc.setTextColor(20);
+  doc.text('GRUPO EDISUR', W/2, 16, { align: 'center' });
+  doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(120);
+  doc.text('Timbrado de Boleto de Compra-Venta', W/2, 20.5, { angle: 0, align: 'center' });
 
   // ===== Dibujar copias =====
-  const y1 = 32;
+  const y1 = 27;
   drawCopy(y1, 'original');
 
   // Línea de corte
-  const cutY = y1 + blockH + 9;
+  const cutY = y1 + blockH + 7;
   doc.setDrawColor(170); doc.setLineWidth(0.25);
   doc.setLineDashPattern([2, 2], 0);
   doc.line(marginX, cutY, W - marginX, cutY);
   doc.setLineDashPattern([], 0);
-  doc.setFontSize(7); doc.setTextColor(140); doc.setFont('helvetica','normal');
-  doc.text('✂  corte', W/2, cutY - 1.2, { align: 'center' });
+  doc.setFontSize(6.5); doc.setTextColor(140); doc.setFont('helvetica','normal');
+  doc.text('✂  corte', W/2, cutY - 1, { align: 'center' });
 
-  drawCopy(cutY + 6, 'duplicado');
+  drawCopy(cutY + 5, 'duplicado');
 
   // Footer
-  doc.setFontSize(6.5); doc.setTextColor(160);
-  doc.text(`Generado: ${new Date().toLocaleString('es-AR')}  ·  Grupo Edisur`, marginX, H - 10);
+  doc.setFontSize(6); doc.setTextColor(160);
+  doc.text(`Generado: ${new Date().toLocaleString('es-AR')}  ·  Grupo Edisur`, marginX, cutY + 5 + blockH + 6);
 
   while (doc.internal.getNumberOfPages() > 1) doc.deletePage(doc.internal.getNumberOfPages());
   doc.save(`sello-${r.unidad.replace(/\s+/g,'_')}-${r.fecha}.pdf`);
