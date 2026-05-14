@@ -1131,15 +1131,21 @@ function diasHabilesDesde(fechaISO, dias) {
 }
 
 // =================================================================
-// BNA (con fallback a dolarapi)
+// TC del día hábil anterior (misma fuente que el cálculo de boletos)
 // =================================================================
-async function fetchBNA() {
-  try {
-    const r = await fetch('https://dolarapi.com/v1/dolares/oficial');
-    if (!r.ok) throw new Error();
-    const j = await r.json();
-    state.bnaActual = { compra: j.compra, venta: j.venta, prom: (j.compra+j.venta)/2, fuente: 'dolarapi', fecha: j.fechaActualizacion };
-  } catch (e) {
+async function fetchBNA(fechaRef = null) {
+  const fecha = fechaRef || $('#sello-fecha')?.value || todayISO();
+  const cot = await fetchCotizacionFecha(fecha);
+  if (cot) {
+    state.bnaActual = {
+      compra: cot.compra,
+      venta: cot.venta,
+      prom: cot.promedio,
+      fuente: 'argentinadatos.com',
+      fechaCot: cot.fecha,    // fecha de la cotización (día hábil anterior)
+      fechaRef: fecha          // fecha de referencia (la del boleto)
+    };
+  } else {
     state.bnaActual = null;
     toast('No se pudo obtener cotización BNA', 'warn');
   }
@@ -1152,13 +1158,12 @@ function renderBNA() {
   ['bna-compra','cot-bna-c'].forEach(id => $('#'+id) && ($('#'+id).textContent = '$' + fmt(b.compra)));
   ['bna-venta','cot-bna-v'].forEach(id => $('#'+id) && ($('#'+id).textContent = '$' + fmt(b.venta)));
   ['bna-prom','cot-bna-p'].forEach(id => $('#'+id) && ($('#'+id).textContent = '$' + fmt(b.prom)));
-  const meta = `Fuente: ${b.fuente} · ${b.fecha ? new Date(b.fecha).toLocaleString('es-AR') : ''}`;
-  $('#bna-fuente') && ($('#bna-fuente').textContent = meta);
-  $('#cot-bna-meta') && ($('#cot-bna-meta').textContent = meta);
+  $('#bna-fuente') && ($('#bna-fuente').innerHTML = `Cotización del <b>${fmtFecha(b.fechaCot)}</b> (día hábil anterior al boleto). Fuente: ${b.fuente}`);
+  $('#cot-bna-meta') && ($('#cot-bna-meta').innerHTML = `Última disponible: <b>${fmtFecha(b.fechaCot)}</b> · Fuente: ${b.fuente}`);
 }
 
-$('#bna-refresh').addEventListener('click', fetchBNA);
-$('#cot-refresh').addEventListener('click', fetchBNA);
+$('#bna-refresh').addEventListener('click', () => fetchBNA($('#sello-fecha')?.value));
+$('#cot-refresh').addEventListener('click', () => fetchBNA());
 
 // =================================================================
 // MODULO: ICC
@@ -1291,7 +1296,18 @@ window.deleteIcc = async function(id) {
 // =================================================================
 // MODULO: SELLOS
 // =================================================================
-$('#sello-fecha').addEventListener('change', updateAlicuotaForFecha);
+$('#sello-fecha').addEventListener('change', async () => {
+  updateAlicuotaForFecha();
+  // Si moneda es USD, actualizar el panel BNA con la cotización del día hábil anterior a la fecha del boleto
+  if ($('#sello-moneda').value === 'USD' && $('#sello-fecha').value) {
+    await fetchBNA($('#sello-fecha').value);
+  }
+});
+$('#sello-moneda').addEventListener('change', async () => {
+  if ($('#sello-moneda').value === 'USD' && $('#sello-fecha').value) {
+    await fetchBNA($('#sello-fecha').value);
+  }
+});
 function updateAlicuotaForFecha() {
   const f = $('#sello-fecha').value;
   if (!f) return;
@@ -1304,7 +1320,6 @@ function updateAlicuotaForFecha() {
 // Itera hacia atrás hasta encontrar un día hábil con cotización válida (máx 10 días por seguridad).
 async function fetchCotizacionFecha(fechaISO) {
   const d = new Date(fechaISO + 'T00:00:00');
-  // Asegurar que tenemos feriados de los años involucrados
   await loadFeriados(d.getFullYear());
   await loadFeriados(d.getFullYear() - 1);
   for (let i = 0; i < 10; i++) {
@@ -1338,17 +1353,18 @@ async function calcSello() {
   if (!fecha || !prop || !unidad || !monto || !alicuota) { toast('Completá todos los campos', 'warn'); return null; }
   let tc = null, tcFecha = null, equiv;
   if (moneda === 'USD') {
-    toast('Buscando cotización del día hábil anterior...', 'info');
-    const cot = await fetchCotizacionFecha(fecha);
-    if (!cot) { toast('No se encontró cotización para el día hábil anterior', 'err'); return null; }
-    tc = cot.promedio;
-    tcFecha = cot.fecha;
+    // Asegurar que la cotización del panel está alineada con la fecha del boleto
+    if (!state.bnaActual || state.bnaActual.fechaRef !== fecha) {
+      await fetchBNA(fecha);
+    }
+    if (!state.bnaActual) { toast('No se encontró cotización para el día hábil anterior', 'err'); return null; }
+    tc = state.bnaActual.prom;
+    tcFecha = state.bnaActual.fechaCot;
     equiv = monto * tc;
   } else {
     equiv = monto;
   }
   const importe = equiv * alicuota / 100;
-  // Feriados para cálculo de vencimiento (15 días hábiles)
   const yBoleto = Number(fecha.slice(0,4));
   await loadFeriados(yBoleto);
   await loadFeriados(yBoleto + 1);
@@ -2016,6 +2032,51 @@ function badgeFecha(fechaISO) {
   return `<span class="fecha">⏰ ${fmtd} (en ${d}d)</span>`;
 }
 
+// Replica las tareas mensuales del mes anterior más cercano si el mes actual está vacío.
+// Solo replica hacia adelante (no para meses pasados). Devuelve true si replicó.
+let _replicandoTareas = false;
+async function replicarMensualesSiNecesario(mes, anio) {
+  if (_replicandoTareas) return false;
+  // Solo replicar para mes actual o futuro
+  const hoy = new Date();
+  const fechaMes = new Date(anio, mes - 1, 1);
+  const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  if (fechaMes < fechaHoy) return false;
+  // ¿Ya hay tareas mensuales en ese mes/año?
+  const yaHay = state.tareas.some(t => t.tipo === 'mensual' && t.mes === mes && t.anio === anio);
+  if (yaHay) return false;
+  // Buscar el mes anterior más cercano que tenga tareas mensuales (hasta 24 meses atrás)
+  let mAnt = mes, aAnt = anio;
+  for (let i = 0; i < 24; i++) {
+    if (mAnt === 1) { mAnt = 12; aAnt--; } else { mAnt--; }
+    const tareasAnt = state.tareas.filter(t => t.tipo === 'mensual' && t.mes === mAnt && t.anio === aAnt);
+    if (tareasAnt.length) {
+      _replicandoTareas = true;
+      try {
+        const nuevas = tareasAnt.map(t => ({
+          titulo: t.titulo,
+          tipo: 'mensual',
+          responsable: t.responsable,
+          mes, anio,
+          fecha_objetivo: null,
+          en_proceso: false,
+          finalizada: false,
+          observaciones: null,
+          created_by: state.user.id,
+        }));
+        const { error } = await sb.from('tareas').insert(nuevas);
+        if (error) { console.error(error); return false; }
+        toast(`Replicadas ${nuevas.length} tareas de ${MESES[mAnt-1]} ${aAnt}`, 'ok');
+        await loadTareas();
+        return true;
+      } finally {
+        _replicandoTareas = false;
+      }
+    }
+  }
+  return false;
+}
+
 function renderTareas() {
   if (!$('#tareas-mes').children.length) initTareasFiltro();
   const mes = Number($('#tareas-mes').value);
@@ -2163,8 +2224,18 @@ window.saveTarea = async function(id) {
 };
 
 $('#tarea-add').addEventListener('click', () => editTarea(null));
-$('#tareas-mes').addEventListener('change', renderTareas);
-$('#tareas-anio').addEventListener('change', renderTareas);
+$('#tareas-mes').addEventListener('change', async () => {
+  const mes = Number($('#tareas-mes').value);
+  const anio = Number($('#tareas-anio').value);
+  await replicarMensualesSiNecesario(mes, anio);
+  renderTareas();
+});
+$('#tareas-anio').addEventListener('change', async () => {
+  const mes = Number($('#tareas-mes').value);
+  const anio = Number($('#tareas-anio').value);
+  await replicarMensualesSiNecesario(mes, anio);
+  renderTareas();
+});
 $('#tareas-filtro-estado').addEventListener('change', renderTareas);
 
 // === Responsables (admin) ===
@@ -2492,6 +2563,12 @@ function renderAll() {
   initConceptosMesRef();
   renderConceptos();
   initTareasFiltro();
+  // Replicar tareas mensuales del mes actual si está vacío (no bloquea el render)
+  const mesActual = new Date().getMonth() + 1;
+  const anioActual = new Date().getFullYear();
+  replicarMensualesSiNecesario(mesActual, anioActual).then(replicado => {
+    if (replicado) renderTareas();
+  });
   renderTareas();
   if (state.profile?.rol === 'admin') {
     renderEmpresas();
