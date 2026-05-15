@@ -247,6 +247,19 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
 
 /* ===== Tareas ===== */
 .tarea-item{display:flex;align-items:flex-start;justify-content:space-between;padding:14px 0;border-top:1px solid var(--line-2);gap:14px}
+
+/* ===== Transferencias: botones grandes de concepto ===== */
+.concepto-buttons{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}
+.concepto-btn{padding:14px 8px;border:2px solid var(--line);background:var(--surface);border-radius:var(--radius);cursor:pointer;font-weight:600;font-size:.88rem;color:var(--ink-2);transition:all .15s;text-align:center;font-family:inherit}
+.concepto-btn:hover{border-color:var(--accent);color:var(--ink)}
+.concepto-btn.selected{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 2px 6px rgba(184,92,46,.25)}
+.transf-done td{color:var(--ink-3)}
+.transf-done td:nth-child(2),
+.transf-done td:nth-child(4){text-decoration:line-through;text-decoration-color:rgba(0,0,0,.25)}
+@media (max-width:540px){
+  .concepto-buttons{grid-template-columns:repeat(2,1fr)}
+  .concepto-btn{padding:12px 8px;font-size:.82rem}
+}
 .tarea-item:first-child{border-top:none;padding-top:6px}
 .tarea-item.finalizada{opacity:.55}
 .tarea-item.finalizada .titulo{text-decoration:line-through;color:var(--ink-3)}
@@ -416,6 +429,7 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
     <button class="nav-item" data-tab="cotizacion">💵 Cotización</button>
     <button class="nav-item" data-tab="gastos">💼 Gastos del mes</button>
     <button class="nav-item" data-tab="tareas">📋 Tareas</button>
+    <button class="nav-item" data-tab="transferencias">💸 Transferencias</button>
     <div class="nav-section" id="admin-section" style="display:none">Admin</div>
     <button class="nav-item" data-tab="ajustes" id="ajustes-nav" style="display:none">⚙️ Ajustes</button>
     <button class="nav-item" data-tab="audit" id="audit-nav" style="display:none">📜 Audit log</button>
@@ -476,8 +490,13 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
 
       <div class="subtab-content" id="icc-historico" style="display:none">
         <div class="card">
-          <h3>Valores ICC (absoluto)</h3>
-          <p class="sub">Cargá el valor absoluto del ICC publicado por INDEC cada mes. <a href="https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31" target="_blank" rel="noopener">Ver publicación oficial ↗</a></p>
+          <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:10px;margin-bottom:8px">
+            <div>
+              <h3 style="margin-bottom:4px">Valores ICC (absoluto)</h3>
+              <p class="sub" style="margin:0">Cargá el valor absoluto del ICC publicado por INDEC cada mes. <a href="https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31" target="_blank" rel="noopener">Ver publicación oficial ↗</a></p>
+            </div>
+            <button class="btn ghost sm" id="icc-pdf-24m">↓ PDF últimos 24 meses</button>
+          </div>
           <div class="grid-4" style="align-items:end">
             <div class="field"><label>Mes</label><select id="icc-mes"></select></div>
             <div class="field"><label>Año</label><input type="number" id="icc-anio" min="2000" max="2100"></div>
@@ -715,6 +734,59 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
       </div>
     </section>
 
+    <!-- TRANSFERENCIAS TAB -->
+    <section class="tab-content" id="tab-transferencias" style="display:none">
+      <div class="page-head">
+        <div><h1>Transferencias</h1><p>Registro de transferencias recibidas</p></div>
+        <button class="btn accent" id="transf-add">+ Nueva transferencia</button>
+      </div>
+
+      <div class="card" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+        <div class="field" style="margin-bottom:0;min-width:180px">
+          <label>Buscar</label>
+          <input type="text" id="transf-search" placeholder="Nombre, unidad...">
+        </div>
+        <div class="field" style="margin-bottom:0;min-width:140px">
+          <label>Estado</label>
+          <select id="transf-filtro-estado">
+            <option value="">Todas</option>
+            <option value="pendiente">Pendientes</option>
+            <option value="realizado">Realizadas</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:0;min-width:140px">
+          <label>Concepto</label>
+          <select id="transf-filtro-concepto">
+            <option value="">Todos</option>
+            <option value="cuota">Cuota</option>
+            <option value="fr">FR</option>
+            <option value="amoj">Amojonado</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span id="transf-resumen" style="font-size:.82rem;color:var(--ink-3)"></span>
+          <button class="btn ghost sm" id="transf-excel">↓ Excel</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="tbl-wrap"><table class="tbl" id="transf-tabla">
+          <thead><tr>
+            <th>Fecha</th>
+            <th>Persona</th>
+            <th>Concepto</th>
+            <th>Unidad</th>
+            <th class="num">Monto</th>
+            <th>Obs.</th>
+            <th>Estado</th>
+            <th class="actions"></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+    </section>
+
     <!-- AJUSTES TAB -->
     <section class="tab-content" id="tab-ajustes" style="display:none">
       <div class="page-head"><div><h1>Ajustes</h1><p>Administración del sistema</p></div></div>
@@ -851,6 +923,7 @@ const state = {
   conceptos: [],
   tareas: [],
   responsables: [],
+  transferencias: [],
   users: [],
   feriados: {}, // {year: [{fecha, nombre}]}
   bnaActual: null,
@@ -935,8 +1008,8 @@ async function initAuth() {
 // MATRIZ DE ACCESOS POR ÁREA
 // =================================================================
 const ACCESOS = {
-  admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','ajustes','audit'],
-  finanzas: ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas'],
+  admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','transferencias','ajustes','audit'],
+  finanzas: ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','transferencias'],
   legales:  ['icc','sellos','cesiones','cuentas','cotizacion','gastos'],
   ventas:   ['icc','sellos','cuentas','cotizacion','gastos'],
   sac:      ['icc','cuentas','gastos'],
@@ -996,7 +1069,7 @@ async function afterLogin() {
   await Promise.all([
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
-    loadTareas(), loadResponsables(),
+    loadTareas(), loadResponsables(), loadTransferencias(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -1153,6 +1226,10 @@ async function loadTareas() {
 async function loadResponsables() {
   const { data } = await sb.from('tareas_responsables').select('*').order('orden').order('nombre');
   state.responsables = data || [];
+}
+async function loadTransferencias() {
+  const { data } = await sb.from('transferencias').select('*').order('fecha', { ascending: false });
+  state.transferencias = data || [];
 }
 async function loadUsers() {
   if (state.profile?.rol !== 'admin') return;
@@ -1376,6 +1453,102 @@ $('#icc-save').addEventListener('click', async () => {
   toast('Valor ICC guardado', 'ok');
   $('#icc-valor').value = '';
   await loadIcc(); renderIccTabla();
+});
+
+// Genera PDF con los últimos 24 meses y su variación mensual
+$('#icc-pdf-24m').addEventListener('click', () => {
+  if (!state.icc.length) { toast('No hay valores ICC cargados', 'warn'); return; }
+  // Ordenar por anio,mes ascendente
+  const ordenado = [...state.icc].sort((a,b) => a.anio - b.anio || a.mes - b.mes);
+  // Calcular variación de cada mes respecto al anterior
+  const filas = [];
+  for (let i = 0; i < ordenado.length; i++) {
+    const actual = ordenado[i];
+    const anterior = ordenado[i-1];
+    let pct = null;
+    if (anterior) {
+      pct = (Number(actual.valor_absoluto) / Number(anterior.valor_absoluto) - 1) * 100;
+    }
+    filas.push({ mes: actual.mes, anio: actual.anio, pct });
+  }
+  // Quedarnos con los últimos 24
+  const ultimos = filas.slice(-24);
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const W = 210, H = 297;
+  // Encabezado
+  doc.setFontSize(14); doc.setFont('helvetica','bold'); doc.setTextColor(20);
+  doc.text('Histórico ICC · Variación mensual', W/2, 18, { align: 'center' });
+  doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(120);
+  doc.text(`Últimos ${ultimos.length} meses · Grupo Edisur`, W/2, 24, { align: 'center' });
+
+  // Tabla en dos columnas para que entren los 24 meses prolijos
+  const colW = 76;
+  const colGap = 8;
+  const colsPerSide = 12; // 12 por columna, 2 columnas = 24
+  const xLeft = (W - colW * 2 - colGap) / 2;
+  const xRight = xLeft + colW + colGap;
+  const startY = 36;
+  const rowH = 9;
+
+  // Función para dibujar una columna
+  function drawColumn(x, items) {
+    // Header
+    doc.setFillColor(245, 240, 235);
+    doc.rect(x, startY, colW, 8, 'F');
+    doc.setDrawColor(200); doc.setLineWidth(0.2);
+    doc.rect(x, startY, colW, 8);
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(80);
+    doc.text('MES', x + 3, startY + 5.5);
+    doc.text('VARIACIÓN', x + colW - 3, startY + 5.5, { align: 'right' });
+
+    let y = startY + 8;
+    items.forEach((f, idx) => {
+      // Alternar color de fila
+      if (idx % 2 === 1) {
+        doc.setFillColor(250, 248, 245);
+        doc.rect(x, y, colW, rowH, 'F');
+      }
+      doc.setDrawColor(230); doc.setLineWidth(0.15);
+      doc.line(x, y + rowH, x + colW, y + rowH);
+
+      doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(20);
+      doc.text(`${MESES[f.mes-1]} ${f.anio}`, x + 3, y + 6);
+
+      if (f.pct === null) {
+        doc.setTextColor(160);
+        doc.text('—', x + colW - 3, y + 6, { align: 'right' });
+      } else {
+        const sign = f.pct >= 0 ? '+' : '';
+        const txt = `${sign}${f.pct.toFixed(2)}%`;
+        doc.setFont('helvetica','bold');
+        doc.setTextColor(f.pct >= 0 ? 30 : 180, f.pct >= 0 ? 110 : 30, f.pct >= 0 ? 60 : 30);
+        doc.text(txt, x + colW - 3, y + 6, { align: 'right' });
+      }
+      y += rowH;
+    });
+    // Borde exterior
+    doc.setDrawColor(180); doc.setLineWidth(0.3);
+    doc.rect(x, startY, colW, 8 + items.length * rowH);
+  }
+
+  // Si hay menos de 13, una sola columna; sino, dos
+  if (ultimos.length <= 12) {
+    drawColumn(xLeft + colW/2 + colGap/2, ultimos);
+  } else {
+    const mitad = Math.ceil(ultimos.length / 2);
+    drawColumn(xLeft, ultimos.slice(0, mitad));
+    drawColumn(xRight, ultimos.slice(mitad));
+  }
+
+  // Footer
+  doc.setFontSize(7); doc.setTextColor(150); doc.setFont('helvetica','normal');
+  doc.text(`Generado: ${new Date().toLocaleString('es-AR')}`, W/2, H - 12, { align: 'center' });
+  doc.text('Fuente: INDEC · Convención Edisur', W/2, H - 8, { align: 'center' });
+
+  doc.save(`icc-historico-${new Date().toISOString().slice(0,10)}.pdf`);
+  toast('PDF generado', 'ok');
 });
 
 function renderIccTabla() {
@@ -2403,6 +2576,191 @@ window.deleteResp = async function(id) {
 };
 
 // =================================================================
+// MODULO: TRANSFERENCIAS
+// =================================================================
+const CONCEPTOS_TRANSF = {
+  cuota: 'Cuota',
+  fr: 'FR',
+  amoj: 'Amojonado',
+  otro: 'Otro'
+};
+
+function badgeConcepto(c) {
+  const label = CONCEPTOS_TRANSF[c] || c;
+  const cls = { cuota: 'accent', fr: 'ok', amoj: 'muted', otro: 'warn' }[c] || 'muted';
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function renderTransferencias() {
+  const q = $('#transf-search').value.toLowerCase();
+  const fEst = $('#transf-filtro-estado').value;
+  const fCon = $('#transf-filtro-concepto').value;
+  const tb = $('#transf-tabla tbody');
+  let filt = state.transferencias.filter(t => {
+    if (q && !`${t.nombre_persona} ${t.unidad} ${t.concepto_detalle||''}`.toLowerCase().includes(q)) return false;
+    if (fEst === 'pendiente' && t.realizado) return false;
+    if (fEst === 'realizado' && !t.realizado) return false;
+    if (fCon && t.concepto !== fCon) return false;
+    return true;
+  });
+  if (!filt.length) {
+    tb.innerHTML = '<tr><td colspan="8" class="empty">Sin transferencias</td></tr>';
+  } else {
+    tb.innerHTML = filt.map(t => {
+      const conceptoTxt = t.concepto === 'otro' && t.concepto_detalle
+        ? `${badgeConcepto(t.concepto)} <span class="muted" style="font-size:.78rem">${t.concepto_detalle}</span>`
+        : badgeConcepto(t.concepto);
+      return `<tr class="${t.realizado?'transf-done':''}">
+        <td>${fmtFecha(t.fecha)}</td>
+        <td><b>${t.nombre_persona}</b></td>
+        <td>${conceptoTxt}</td>
+        <td>${t.unidad}</td>
+        <td class="num">${t.monto ? '$' + fmt(t.monto) : '—'}</td>
+        <td class="muted" style="font-size:.78rem">${t.observaciones||''}</td>
+        <td>
+          <label class="pos-chk" title="Marcar realizada">
+            <input type="checkbox" ${t.realizado?'checked':''} onchange="toggleTransfRealizado('${t.id}',this.checked)">
+            <span>${t.realizado?'Realizada':'Pendiente'}</span>
+          </label>
+        </td>
+        <td class="actions">
+          <button class="btn ghost sm" onclick="editTransf('${t.id}')" title="Editar">✎</button>
+          ${state.profile?.rol==='admin'?`<button class="btn ghost sm" onclick="deleteTransf('${t.id}')" title="Eliminar">×</button>`:''}
+        </td>
+      </tr>`;
+    }).join('');
+  }
+  const pend = filt.filter(t => !t.realizado).length;
+  const real = filt.filter(t => t.realizado).length;
+  $('#transf-resumen').textContent = `${pend} pendientes · ${real} realizadas (${filt.length} total)`;
+}
+
+window.toggleTransfRealizado = async function(id, val) {
+  const update = { realizado: val };
+  if (val) {
+    update.realizado_at = new Date().toISOString();
+    update.realizado_by = state.user.id;
+  } else {
+    update.realizado_at = null;
+    update.realizado_by = null;
+  }
+  const { error } = await sb.from('transferencias').update(update).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  const t = state.transferencias.find(x => x.id === id);
+  if (t) Object.assign(t, update);
+  renderTransferencias();
+  toast(val ? '✓ Marcada como realizada' : 'Desmarcada', 'ok');
+};
+
+window.deleteTransf = async function(id) {
+  if (!await confirmAction('¿Eliminar esta transferencia?')) return;
+  const { error } = await sb.from('transferencias').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  await loadTransferencias(); renderTransferencias(); toast('Eliminada', 'ok');
+};
+
+window.editTransf = function(id) {
+  const t = id ? state.transferencias.find(x => x.id === id) : {
+    fecha: todayISO(), nombre_persona: '', concepto: '', concepto_detalle: '',
+    unidad: '', monto: null, observaciones: ''
+  };
+
+  const conceptoBtns = Object.entries(CONCEPTOS_TRANSF).map(([k, lab]) =>
+    `<button type="button" class="concepto-btn ${t.concepto===k?'selected':''}" data-concepto="${k}">${lab}</button>`
+  ).join('');
+
+  showModal(`<div class="modal-head"><h3>${id?'Editar':'Nueva'} transferencia</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field"><label>Fecha</label><input type="date" id="tr-fecha" value="${t.fecha||todayISO()}"></div>
+        <div class="field"><label>Unidad</label><input type="text" id="tr-unidad" value="${t.unidad||''}" placeholder="Ej: M5-L23"></div>
+      </div>
+      <div class="field"><label>Nombre de la persona que transfiere</label><input type="text" id="tr-nombre" value="${t.nombre_persona||''}" placeholder="Apellido y Nombre"></div>
+      <div class="field">
+        <label>Concepto</label>
+        <div class="concepto-buttons" id="tr-concepto-btns">${conceptoBtns}</div>
+        <input type="hidden" id="tr-concepto" value="${t.concepto||''}">
+      </div>
+      <div class="field" id="tr-detalle-wrap" style="display:${t.concepto==='otro'?'block':'none'}">
+        <label>Detalle del concepto</label>
+        <input type="text" id="tr-detalle" value="${t.concepto_detalle||''}" placeholder="Especificar...">
+      </div>
+      <div class="field"><label>Monto (opcional)</label><input type="number" id="tr-monto" value="${t.monto||''}" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>Observaciones</label><textarea id="tr-obs" rows="2">${t.observaciones||''}</textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      ${id && state.profile?.rol==='admin' ? `<button class="btn danger" onclick="deleteTransf('${id}'); closeModal()">Eliminar</button>` : ''}
+      <button class="btn" onclick="saveTransf('${id||''}')">Guardar</button>
+    </div>`);
+
+  // Handler de botones de concepto
+  $('#tr-concepto-btns').querySelectorAll('.concepto-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      $('#tr-concepto-btns').querySelectorAll('.concepto-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      const v = btn.dataset.concepto;
+      $('#tr-concepto').value = v;
+      $('#tr-detalle-wrap').style.display = v === 'otro' ? 'block' : 'none';
+    });
+  });
+};
+
+window.saveTransf = async function(id) {
+  const concepto = $('#tr-concepto').value;
+  if (!concepto) { toast('Elegí un concepto', 'warn'); return; }
+  const payload = {
+    fecha: $('#tr-fecha').value,
+    nombre_persona: $('#tr-nombre').value.trim(),
+    concepto,
+    concepto_detalle: concepto === 'otro' ? ($('#tr-detalle').value.trim() || null) : null,
+    unidad: $('#tr-unidad').value.trim(),
+    monto: $('#tr-monto').value ? parseFloat($('#tr-monto').value) : null,
+    observaciones: $('#tr-obs').value.trim() || null,
+  };
+  if (!payload.fecha || !payload.nombre_persona || !payload.unidad) {
+    toast('Completá fecha, nombre y unidad', 'warn'); return;
+  }
+  const { error } = id
+    ? await sb.from('transferencias').update(payload).eq('id', id)
+    : await sb.from('transferencias').insert({ ...payload, created_by: state.user.id });
+  if (error) { toast(error.message, 'err'); return; }
+  closeModal(); toast('Guardada', 'ok');
+  await loadTransferencias(); renderTransferencias();
+};
+
+$('#transf-add').addEventListener('click', () => editTransf(null));
+$('#transf-search').addEventListener('input', renderTransferencias);
+$('#transf-filtro-estado').addEventListener('change', renderTransferencias);
+$('#transf-filtro-concepto').addEventListener('change', renderTransferencias);
+
+$('#transf-excel').addEventListener('click', () => {
+  const q = $('#transf-search').value.toLowerCase();
+  const fEst = $('#transf-filtro-estado').value;
+  const fCon = $('#transf-filtro-concepto').value;
+  const filt = state.transferencias.filter(t => {
+    if (q && !`${t.nombre_persona} ${t.unidad} ${t.concepto_detalle||''}`.toLowerCase().includes(q)) return false;
+    if (fEst === 'pendiente' && t.realizado) return false;
+    if (fEst === 'realizado' && !t.realizado) return false;
+    if (fCon && t.concepto !== fCon) return false;
+    return true;
+  });
+  if (!filt.length) { toast('Nada para exportar', 'warn'); return; }
+  const datos = filt.map(t => ({
+    Fecha: fmtFecha(t.fecha),
+    Persona: t.nombre_persona,
+    Concepto: CONCEPTOS_TRANSF[t.concepto] || t.concepto,
+    Detalle: t.concepto_detalle || '',
+    Unidad: t.unidad,
+    Monto: t.monto || '',
+    Observaciones: t.observaciones || '',
+    Estado: t.realizado ? 'Realizada' : 'Pendiente',
+    'Realizada el': t.realizado_at ? fmtFechaHora(t.realizado_at) : ''
+  }));
+  exportarExcel(datos, 'transferencias');
+});
+
+// =================================================================
 // MODULO: AJUSTES (admin)
 // =================================================================
 function renderUsers() {
@@ -2698,6 +3056,7 @@ function renderAll() {
     if (replicado) renderTareas();
   });
   renderTareas();
+  renderTransferencias();
   if (state.profile?.rol === 'admin') {
     renderEmpresas();
     renderCuentasAdmin();
@@ -2717,7 +3076,7 @@ function renderAll() {
 // REAL-TIME SUBSCRIPTIONS
 // =================================================================
 function subscribeChanges() {
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','icc_valores','sellos_alicuotas'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','icc_valores','sellos_alicuotas'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -2728,6 +3087,7 @@ function subscribeChanges() {
         if (tabla==='gastos_conceptos') { await loadGastosConceptos(); renderConceptos(); }
         if (tabla==='tareas') { await loadTareas(); renderTareas(); }
         if (tabla==='tareas_responsables') { await loadResponsables(); if(state.profile?.rol==='admin') renderResponsables(); }
+        if (tabla==='transferencias') { await loadTransferencias(); renderTransferencias(); }
         if (tabla==='icc_valores') { await loadIcc(); renderIccTabla(); initConceptosMesRef(); renderConceptos(); }
         if (tabla==='sellos_alicuotas') { await loadAlicuotas(); if(state.profile?.rol==='admin') renderAlicuotas(); updateAlicuotaForFecha(); }
       })
