@@ -261,84 +261,119 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
 .tarea-item .tildes{display:flex;flex-direction:column;gap:4px;align-items:flex-end;min-width:130px}
 .tarea-item .acciones{display:flex;gap:4px}
 
+/* Mobile burger - default oculto, se muestra en mobile */
+.mobile-burger{display:none}
+
 /* ===== Mobile ===== */
 @media (max-width:768px){
+  body{font-size:14px}
   #app.active{grid-template-columns:1fr}
-  aside.sidebar{position:fixed;top:0;left:-260px;width:240px;height:100vh;transition:left .25s;z-index:100;box-shadow:var(--shadow-lg)}
+  aside.sidebar{position:fixed;top:0;left:-280px;width:260px;height:100vh;transition:left .25s;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,.18)}
   aside.sidebar.open{left:0}
-  main.content{padding:64px 14px 24px}
-  .mobile-burger{display:block;position:fixed;top:14px;left:14px;z-index:101;background:var(--ink);color:#fff;border:none;border-radius:var(--radius);padding:8px 11px;cursor:pointer;font-size:1.1rem}
+  main.content{padding:60px 12px 24px}
 
-  /* Page-head apilado */
-  .page-head{flex-direction:column;align-items:stretch;gap:10px;margin-bottom:18px}
-  .page-head h1{font-size:1.35rem}
-  .page-head p{font-size:.82rem}
+  /* Barra superior con burger SIEMPRE visible */
+  .mobile-topbar{display:flex !important;position:fixed;top:0;left:0;right:0;height:48px;background:var(--surface);border-bottom:1px solid var(--line);z-index:99;align-items:center;padding:0 12px;gap:10px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .mobile-topbar .title{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:1rem;color:var(--ink)}
+  .mobile-burger{display:flex !important;align-items:center;justify-content:center;background:var(--ink);color:#fff;border:none;border-radius:8px;width:38px;height:38px;cursor:pointer;font-size:1.2rem;flex-shrink:0}
+
+  /* Sidebar overlay cuando se abre */
+  .sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:99}
+  .sidebar-backdrop.show{display:block}
+
+  /* Page-head apilado y compacto */
+  .page-head{flex-direction:column;align-items:stretch;gap:6px;margin-bottom:14px}
+  .page-head h1{font-size:1.2rem;margin-bottom:0}
+  .page-head p{font-size:.78rem;margin-top:2px}
   .page-head .btn{align-self:flex-start}
 
   /* Cards más compactas */
-  .card{padding:14px}
-  h2{font-size:1.1rem}h3{font-size:1rem}
+  .card{padding:12px;margin-bottom:10px}
+  h2{font-size:1rem}h3{font-size:.95rem;margin-bottom:8px}
+
+  /* Inputs: MÁS COMPACTOS en mobile (más cosas entran) */
+  input, select, textarea{font-size:.9rem !important;padding:9px 11px !important}
+  .field{margin-bottom:10px}
+  .field label{font-size:.7rem;margin-bottom:4px}
 
   /* Stats más chicos */
-  .stat .val{font-size:1.1rem}
-  .stat .lab{font-size:.65rem}
+  .stat{padding:10px 12px}
+  .stat .val{font-size:1.05rem;margin-top:2px}
+  .stat .lab{font-size:.62rem}
+  .stat-input{font-size:1.05rem !important;padding:0 !important}
 
   /* Cards-flex con filtros: apilar todo vertical */
-  .card[style*="display:flex"]{flex-direction:column !important;align-items:stretch !important;gap:10px !important}
+  .card[style*="display:flex"]{flex-direction:column !important;align-items:stretch !important;gap:8px !important}
   .card[style*="display:flex"] .field{margin-bottom:0 !important;min-width:0 !important;width:100%}
   .card[style*="display:flex"] select,
   .card[style*="display:flex"] input{width:100%}
+
+  /* Grid-3 y similares apilados */
+  .grid-3,.grid-2{grid-template-columns:1fr !important;gap:8px}
 
   /* Field row → columna */
   .field-row{flex-direction:column;gap:0}
 
   /* Botones row con wrap */
-  .btn-row{flex-wrap:wrap}
+  .btn-row{flex-wrap:wrap;gap:6px}
   .btn-row .btn{flex:0 0 auto}
+  .btn{padding:9px 14px;font-size:.85rem}
+  .btn.sm{padding:5px 9px;font-size:.75rem}
 
   /* Tareas: tildes abajo del título, en línea */
-  .tarea-item{flex-direction:column;align-items:stretch;gap:10px;padding:12px 0}
-  .tarea-item .tildes{align-items:stretch;min-width:0;flex-direction:row;flex-wrap:wrap;justify-content:space-between;gap:8px;border-top:1px dashed var(--line-2);padding-top:10px}
-  .tarea-item .tildes .pos-chk{flex:1;min-width:120px;justify-content:flex-start}
+  .tarea-item{flex-direction:column;align-items:stretch;gap:8px;padding:10px 0}
+  .tarea-item .titulo{font-size:.92rem}
+  .tarea-item .meta{font-size:.72rem;gap:6px}
+  .tarea-item .tildes{align-items:stretch;min-width:0;flex-direction:row;flex-wrap:wrap;justify-content:space-between;gap:6px;border-top:1px dashed var(--line-2);padding-top:8px}
+  .tarea-item .tildes .pos-chk{flex:1;min-width:110px;justify-content:flex-start}
   .tarea-item .acciones{margin-top:0 !important;margin-left:auto}
 
   /* Conceptos: precio bajo el título */
-  .concepto-item{flex-direction:column;align-items:stretch;gap:6px;padding:14px 0}
+  .concepto-item{flex-direction:column;align-items:stretch;gap:5px;padding:12px 0}
+  .concepto-item .nom{font-size:.85rem}
   .concepto-item .precio-box{text-align:left;min-width:0}
-  .concepto-item .precio{font-size:1.25rem}
+  .concepto-item .precio{font-size:1.15rem}
   .concepto-item .acciones-admin{align-self:flex-start;margin-top:4px}
 
   /* Conceptos total: bajar tamaño */
-  .conceptos-total{padding:12px 14px}
-  .conceptos-total .val{font-size:1.2rem}
+  .conceptos-total{padding:10px 12px}
+  .conceptos-total .val{font-size:1.1rem}
 
   /* Cuentas: card más simple */
   .cuenta-list{grid-template-columns:1fr !important}
-  .cuenta-grupo summary{font-size:.95rem;padding:11px 12px}
+  .cuenta-grupo summary{font-size:.9rem;padding:10px 12px}
+  .cuenta-card{padding:10px 12px}
 
   /* Workflow tildes con wrap */
-  .pos-workflow{gap:6px}
-  .pos-chk{font-size:.72rem;padding:4px 7px}
+  .pos-workflow{gap:5px}
+  .pos-chk{font-size:.7rem;padding:3px 6px}
 
   /* Tablas: hint para hacer scroll */
-  .tbl-wrap{margin:0 -14px;padding:0 14px;-webkit-overflow-scrolling:touch}
-  .tbl{font-size:.8rem}
-  .tbl th{font-size:.68rem;padding:7px 8px}
-  .tbl td{padding:8px}
+  .tbl-wrap{margin:0 -12px;padding:0 12px;-webkit-overflow-scrolling:touch;overflow-x:auto}
+  .tbl{font-size:.78rem;min-width:auto}
+  .tbl th{font-size:.65rem;padding:6px 7px;white-space:nowrap}
+  .tbl td{padding:7px;white-space:nowrap}
 
   /* Modal: padding más chico */
-  .modal-body{padding:16px}
-  .modal-head{padding:14px 16px}
-  .modal-foot{padding:12px 16px;flex-wrap:wrap}
+  .modal{padding:12px}
+  .modal-body{padding:14px;max-height:75vh;overflow-y:auto}
+  .modal-head{padding:12px 14px}
+  .modal-head h3{font-size:1rem}
+  .modal-foot{padding:10px 14px;flex-wrap:wrap}
 
   /* Subtabs scrollables */
-  .tabs{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
-  .tab{white-space:nowrap;flex-shrink:0}
+  .tabs{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;gap:0}
+  .tab{white-space:nowrap;flex-shrink:0;font-size:.82rem;padding:8px 12px}
 
   /* User chip en sidebar más compacto */
-  .user-chip .meta b{font-size:.78rem}
+  .user-chip{padding:10px 12px}
+  .user-chip .meta b{font-size:.82rem}
+  .user-chip .meta .role{font-size:.7rem}
+
+  /* Nav items más compactos */
+  .nav-item{padding:9px 14px;font-size:.85rem}
+  .nav-section{padding:14px 14px 4px;font-size:.65rem}
 }
-.mobile-burger{display:none}
 </style>
 </head>
 <body>
@@ -363,7 +398,11 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
 </div>
 
 <!-- ===================== APP ===================== -->
-<button class="mobile-burger" id="burger">≡</button>
+<div class="mobile-topbar" style="display:none">
+  <button class="mobile-burger" id="burger" aria-label="Menú">≡</button>
+  <div class="title" id="mobile-title">Grupo Edisur</div>
+</div>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 <div id="app">
   <aside class="sidebar" id="sidebar">
     <div class="brand">Grupo <span>Edisur</span></div>
@@ -1029,15 +1068,32 @@ $('#btn-logout').addEventListener('click', async () => { if (await confirmAction
 function switchTab(tab) {
   $$('.tab-content').forEach(el => el.style.display = 'none');
   $$('.nav-item').forEach(el => el.classList.remove('active'));
-  $('#tab-' + tab).style.display = 'block';
-  document.querySelector(`.nav-item[data-tab="${tab}"]`)?.classList.add('active');
-  if (window.innerWidth < 768) $('#sidebar').classList.remove('open');
+  const tabEl = $('#tab-' + tab);
+  if (tabEl) tabEl.style.display = 'block';
+  const navBtn = document.querySelector(`.nav-item[data-tab="${tab}"]`);
+  navBtn?.classList.add('active');
+  // Actualizar título de la topbar mobile con el texto del nav-item
+  if (navBtn && $('#mobile-title')) {
+    $('#mobile-title').textContent = navBtn.textContent.trim();
+  }
+  // Cerrar sidebar en mobile y ocultar backdrop
+  if (window.innerWidth < 768) {
+    $('#sidebar').classList.remove('open');
+    $('#sidebar-backdrop')?.classList.remove('show');
+  }
   if (tab === 'audit') loadAudit();
   if (tab === 'ajustes') loadUsers();
 }
 
 $$('.nav-item').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
-$('#burger').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
+$('#burger').addEventListener('click', () => {
+  const isOpen = $('#sidebar').classList.toggle('open');
+  $('#sidebar-backdrop')?.classList.toggle('show', isOpen);
+});
+$('#sidebar-backdrop')?.addEventListener('click', () => {
+  $('#sidebar').classList.remove('open');
+  $('#sidebar-backdrop').classList.remove('show');
+});
 
 // Subtabs
 document.addEventListener('click', e => {
@@ -1206,14 +1262,20 @@ function initIccTab() {
   }
   $('#icc-mes').value = new Date().getMonth() + 1;
   $('#icc-anio').value = new Date().getFullYear();
-  // Default mes destino = ÚLTIMO mes con ICC cargado (no el mes calendario actual)
-  // Esto respeta el desfase típico de publicación del ICC (1-2 meses)
-  if (state.icc && state.icc.length) {
-    const ultimo = state.icc.reduce((a, b) =>
-      (b.anio > a.anio || (b.anio === a.anio && b.mes > a.mes)) ? b : a
+  // Default mes destino = PENÚLTIMO mes con ICC cargado.
+  // Esto matchea con la convención del Excel histórico de Edisur: deja un mes
+  // de "margen" para asegurar que el dato esté validado.
+  if (state.icc && state.icc.length >= 2) {
+    const ordenado = [...state.icc].sort((a, b) =>
+      b.anio - a.anio || b.mes - a.mes
     );
-    $('#icc-mes-destino').value = ultimo.mes;
-    $('#icc-anio-destino').value = ultimo.anio;
+    const destino = ordenado[1]; // penúltimo
+    $('#icc-mes-destino').value = destino.mes;
+    $('#icc-anio-destino').value = destino.anio;
+  } else if (state.icc && state.icc.length === 1) {
+    const u = state.icc[0];
+    $('#icc-mes-destino').value = u.mes;
+    $('#icc-anio-destino').value = u.anio;
   } else {
     $('#icc-mes-destino').value = new Date().getMonth() + 1;
     $('#icc-anio-destino').value = new Date().getFullYear();
