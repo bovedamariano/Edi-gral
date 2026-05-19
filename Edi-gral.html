@@ -248,6 +248,35 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
 /* ===== Tareas ===== */
 .tarea-item{display:flex;align-items:flex-start;justify-content:space-between;padding:14px 0;border-top:1px solid var(--line-2);gap:14px}
 
+/* ===== Pagos por concepto en Cuentas Bancarias ===== */
+.pago-categoria{padding:14px 0;border-top:1px solid var(--line-2)}
+
+/* ===== Workflow info (cartel instructivo en Sellos) ===== */
+.workflow-info{background:linear-gradient(135deg, var(--accent-soft) 0%, var(--surface-2) 100%);border-left:4px solid var(--accent)}
+
+/* ===== Alerta ICC faltante ===== */
+.icc-alerta-card{background:#fef9e7;border-left:4px solid #d4a017;padding:14px 18px}
+.icc-alerta-card b{color:#8b6914}
+.workflow-step{display:flex;align-items:flex-start;gap:12px;padding:8px 0;border-top:1px dashed rgba(0,0,0,.08)}
+.workflow-step:first-of-type{border-top:none;padding-top:0}
+.ws-num{flex-shrink:0;width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem}
+.ws-text{flex:1;padding-top:3px;font-size:.88rem;color:var(--ink);line-height:1.45}
+.ws-text b{color:var(--ink)}
+@media (max-width:768px){
+  .workflow-info{padding:14px}
+  .ws-text{font-size:.82rem}
+}
+.pago-categoria:first-of-type{border-top:none;padding-top:4px}
+.pago-titulo{font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:1rem;color:var(--ink);margin-bottom:6px}
+.pago-hint{font-size:.8rem;color:var(--ink-3);margin-bottom:10px}
+.pago-opciones{display:flex;flex-wrap:wrap;gap:8px}
+.pago-btn{background:var(--surface-2);border:1px solid var(--line);color:var(--ink);padding:10px 14px;border-radius:var(--radius);cursor:pointer;font-size:.88rem;font-weight:500;transition:all .15s;display:inline-flex;align-items:center;gap:6px;font-family:inherit;text-align:left}
+.pago-btn:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.pago-btn .ico{font-size:.95rem;opacity:.7}
+.pago-btn.no-pdf{background:var(--surface);color:var(--ink-3)}
+.pago-btn.no-pdf:hover{color:var(--ink)}
+.pago-empty{color:var(--ink-3);font-size:.82rem;font-style:italic}
+
 /* ===== Transferencias: botones grandes de concepto ===== */
 .concepto-buttons{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}
 .concepto-btn{padding:14px 8px;border:2px solid var(--line);background:var(--surface);border-radius:var(--radius);cursor:pointer;font-weight:600;font-size:.88rem;color:var(--ink-2);transition:all .15s;text-align:center;font-family:inherit}
@@ -456,6 +485,7 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
       </div>
 
       <div class="subtab-content" id="icc-actualizar">
+        <div class="card icc-alerta-card" id="icc-alerta" style="display:none"></div>
         <div class="card">
           <h3>Actualización por boleto</h3>
           <div class="grid-4">
@@ -511,6 +541,29 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
     <!-- SELLOS TAB -->
     <section class="tab-content" id="tab-sellos" style="display:none">
       <div class="page-head"><div><h1>Imp. Sellos</h1><p>Timbrado de boletos de compra-venta</p></div></div>
+
+      <!-- Instructivo de workflow -->
+      <div class="card workflow-info">
+        <h3 style="margin-bottom:10px">Flujo de trabajo</h3>
+        <div class="workflow-step">
+          <div class="ws-num">1</div>
+          <div class="ws-text">
+            <b>Cargar</b> los datos del impuesto de sello y registrarlo. Queda como <span class="badge warn">Pendiente</span>
+          </div>
+        </div>
+        <div class="workflow-step">
+          <div class="ws-num">2</div>
+          <div class="ws-text">
+            Una vez que se realiza el cupón de pago en la página de Rentas y se entrega a Tesorería, marcarlo como <span class="badge accent">Generado</span>
+          </div>
+        </div>
+        <div class="workflow-step">
+          <div class="ws-num">3</div>
+          <div class="ws-text">
+            Una vez que Tesorería envía a pagar, lo cambia a <span class="badge ok">Pagado</span>
+          </div>
+        </div>
+      </div>
 
       <div class="grid-2">
         <div class="card">
@@ -625,8 +678,40 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
     <!-- CUENTAS BANCARIAS TAB -->
     <section class="tab-content" id="tab-cuentas" style="display:none">
       <div class="page-head"><div><h1>Cuentas bancarias</h1><p>Click en cualquier CBU o Alias para copiar</p></div></div>
-      <div class="search-bar"><input type="text" id="cuentas-search" placeholder="Buscar por empresa, banco, alias..."></div>
-      <div id="cuentas-list"></div>
+
+      <!-- Accesos rápidos por concepto -->
+      <div class="card">
+        <h3 style="margin-bottom:4px">¿Dónde pago?</h3>
+        <p class="sub" style="margin-bottom:14px">Elegí el concepto que vas a pagar</p>
+
+        <div class="pago-categoria">
+          <div class="pago-titulo">Cuota o Fondo de Reserva</div>
+          <div class="pago-hint">Elegí tu barrio:</div>
+          <div class="pago-opciones" id="pago-cuotafr-opciones"></div>
+        </div>
+
+        <div class="pago-categoria">
+          <div class="pago-titulo">Amojonado</div>
+          <div class="pago-opciones" id="pago-amojonado-opciones"></div>
+        </div>
+
+        <div class="pago-categoria">
+          <div class="pago-titulo">Autorización para ceder</div>
+          <div class="pago-opciones" id="pago-cesion-opciones"></div>
+        </div>
+
+        <div class="pago-categoria" id="pago-otros-wrap" style="display:none">
+          <div class="pago-titulo">Otros conceptos</div>
+          <div class="pago-opciones" id="pago-otros-opciones"></div>
+        </div>
+      </div>
+
+      <!-- Listado completo -->
+      <div class="card">
+        <h3 style="margin-bottom:12px">Todas las cuentas</h3>
+        <div class="search-bar" style="margin-bottom:14px"><input type="text" id="cuentas-search" placeholder="Buscar por empresa, banco, alias..."></div>
+        <div id="cuentas-list"></div>
+      </div>
     </section>
 
     <!-- COTIZACION TAB -->
@@ -1339,37 +1424,68 @@ function initIccTab() {
   }
   $('#icc-mes').value = new Date().getMonth() + 1;
   $('#icc-anio').value = new Date().getFullYear();
-  // Default mes destino = PENÚLTIMO mes con ICC cargado.
-  // Esto matchea con la convención del Excel histórico de Edisur: deja un mes
-  // de "margen" para asegurar que el dato esté validado.
-  if (state.icc && state.icc.length >= 2) {
+  // Default mes destino = ÚLTIMO mes con ICC cargado.
+  if (state.icc && state.icc.length) {
     const ordenado = [...state.icc].sort((a, b) =>
       b.anio - a.anio || b.mes - a.mes
     );
-    const destino = ordenado[1]; // penúltimo
+    const destino = ordenado[0]; // último
     $('#icc-mes-destino').value = destino.mes;
     $('#icc-anio-destino').value = destino.anio;
-  } else if (state.icc && state.icc.length === 1) {
-    const u = state.icc[0];
-    $('#icc-mes-destino').value = u.mes;
-    $('#icc-anio-destino').value = u.anio;
   } else {
     $('#icc-mes-destino').value = new Date().getMonth() + 1;
     $('#icc-anio-destino').value = new Date().getFullYear();
   }
   $('#icc-fecha-origen').value = todayISO();
-  if ($('#icc-conceptos').children.length === 0) addConceptoRow();
+  // Precargar 2 conceptos por default: Fondo de Reserva y Amojonado
+  if ($('#icc-conceptos').children.length === 0) {
+    addConceptoRow('Fondo de Reserva');
+    addConceptoRow('Amojonado');
+  }
+  // Mostrar alerta si el mes calendario actual es posterior al último ICC cargado
+  renderIccAlerta();
 }
 
-function addConceptoRow() {
+function renderIccAlerta() {
+  const cont = $('#icc-alerta');
+  if (!cont) return;
+  if (!state.icc || !state.icc.length) {
+    cont.style.display = 'none';
+    return;
+  }
+  const ordenado = [...state.icc].sort((a, b) => b.anio - a.anio || b.mes - a.mes);
+  const ultimo = ordenado[0];
+  const hoy = new Date();
+  const mesActual = hoy.getMonth() + 1;
+  const anioActual = hoy.getFullYear();
+  // ¿El mes calendario actual ya pasó al último mes con ICC?
+  const mesActualPosterior = (anioActual > ultimo.anio) ||
+    (anioActual === ultimo.anio && mesActual > ultimo.mes);
+  if (mesActualPosterior) {
+    cont.style.display = 'block';
+    cont.innerHTML = `<div style="display:flex;gap:10px;align-items:flex-start">
+      <div style="font-size:1.3rem">⚠️</div>
+      <div style="flex:1">
+        <b style="color:var(--warn-dark, #8b6914)">Falta cargar el ICC de ${MESES[mesActual-1]} ${anioActual}</b>
+        <div style="font-size:.82rem;color:var(--ink-2);margin-top:3px">
+          El último valor cargado es <b>${MESES[ultimo.mes-1]} ${ultimo.anio}</b>. Cuando esté publicado el ICC del mes actual, cargalo en <b>Histórico ICC</b>.
+        </div>
+      </div>
+    </div>`;
+  } else {
+    cont.style.display = 'none';
+  }
+}
+
+function addConceptoRow(nombreDefault = '') {
   const div = document.createElement('div');
   div.className = 'field-row';
-  div.innerHTML = `<div class="field" style="flex:2"><input type="text" placeholder="Concepto" class="con-nom"></div>
+  div.innerHTML = `<div class="field" style="flex:2"><input type="text" placeholder="Concepto" class="con-nom" value="${nombreDefault}"></div>
     <div class="field"><input type="number" placeholder="Monto base" class="con-mon" step="0.01"></div>
     <button class="btn ghost sm" onclick="this.parentElement.remove()">×</button>`;
   $('#icc-conceptos').appendChild(div);
 }
-$('#icc-add-concepto').addEventListener('click', addConceptoRow);
+$('#icc-add-concepto').addEventListener('click', () => addConceptoRow());
 
 function iccValor(mes, anio) {
   const v = state.icc.find(v => v.mes === Number(mes) && v.anio === Number(anio))?.valor_absoluto;
@@ -1700,11 +1816,11 @@ $('#sello-calcular').addEventListener('click', async () => {
     fecha: r.fecha, propietario: r.prop, unidad: r.unidad, moneda: r.moneda,
     monto: r.monto, tipo_cambio_bna: r.tc, equivalente_ars: r.equiv,
     alicuota: r.alicuota, importe_pagar: r.importe, fecha_vencimiento: r.venc,
-    observaciones: $('#sello-obs').value, estado: 'generado', created_by: state.user.id,
+    observaciones: $('#sello-obs').value, estado: 'pendiente', created_by: state.user.id,
   });
   if (error) { toast(error.message, 'err'); return; }
-  toast('Boleto registrado', 'ok');
-  generateSelloPDF(r, 'generado');
+  toast('Boleto registrado como pendiente', 'ok');
+  generateSelloPDF(r, 'pendiente');
   await loadBoletos(); renderSellos();
   ['sello-prop','sello-unidad','sello-monto','sello-obs'].forEach(id => $('#'+id).value='');
 });
@@ -1969,21 +2085,63 @@ $('#pos-excel').addEventListener('click', () => exportarExcel(state.posesiones, 
 // =================================================================
 // MODULO: CESIONES
 // =================================================================
-$('#ces-add').addEventListener('click', async () => {
+$('#ces-add').addEventListener('click', () => {
   const fecha = $('#ces-fecha').value, monto = parseFloat($('#ces-monto').value);
   const cedente = $('#ces-cedente').value.trim(), cesionario = $('#ces-cesionario').value.trim();
+  const obs = $('#ces-obs').value.trim();
+  const facturado = $('#ces-facturado').checked;
   if (!fecha || !monto || !cedente) { toast('Completá fecha, monto y cedente', 'warn'); return; }
-  const { error } = await sb.from('cesiones').insert({
-    fecha, monto, cedente, cesionario: cesionario || null,
-    observacion: $('#ces-obs').value, facturado: $('#ces-facturado').checked,
-    created_by: state.user.id
-  });
-  if (error) { toast(error.message, 'err'); return; }
-  ['ces-monto','ces-cedente','ces-cesionario','ces-obs'].forEach(id => $('#'+id).value='');
-  $('#ces-facturado').checked = false;
-  toast('Cesión agregada', 'ok');
-  await loadCesiones(); renderCesiones();
+
+  // Modal de confirmación: muestra los datos antes de guardar
+  showModal(`<div class="modal-head"><h3>Confirmar nueva cesión</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="hint" style="margin-bottom:14px">Revisá los datos antes de guardar:</p>
+      <table class="tbl" style="font-size:.9rem">
+        <tr><td><b>Fecha</b></td><td class="num">${fmtFecha(fecha)}</td></tr>
+        <tr><td><b>Cedente</b></td><td class="num">${cedente}</td></tr>
+        ${cesionario ? `<tr><td><b>Cesionario</b></td><td class="num">${cesionario}</td></tr>` : ''}
+        <tr><td><b>Monto</b></td><td class="num">$${fmt(monto)}</td></tr>
+        <tr><td><b>Facturado</b></td><td class="num">${facturado ? '✓ Sí' : 'No'}</td></tr>
+        ${obs ? `<tr><td><b>Obs.</b></td><td class="num" style="font-style:italic">${obs}</td></tr>` : ''}
+      </table>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" id="ces-confirm-btn" onclick="confirmarCesion()">Confirmar y guardar</button>
+    </div>`);
 });
+
+window.confirmarCesion = async function() {
+  const btn = $('#ces-confirm-btn');
+  if (!btn || btn.disabled) return; // protección anti-doble-click
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  const fecha = $('#ces-fecha').value, monto = parseFloat($('#ces-monto').value);
+  const cedente = $('#ces-cedente').value.trim(), cesionario = $('#ces-cesionario').value.trim();
+  try {
+    const { error } = await sb.from('cesiones').insert({
+      fecha, monto, cedente, cesionario: cesionario || null,
+      observacion: $('#ces-obs').value, facturado: $('#ces-facturado').checked,
+      created_by: state.user.id
+    });
+    if (error) {
+      toast(error.message, 'err');
+      btn.disabled = false;
+      btn.textContent = 'Confirmar y guardar';
+      return;
+    }
+    closeModal();
+    ['ces-monto','ces-cedente','ces-cesionario','ces-obs'].forEach(id => $('#'+id).value='');
+    $('#ces-facturado').checked = false;
+    toast('Cesión agregada', 'ok');
+    await loadCesiones(); renderCesiones();
+  } catch (e) {
+    toast('Error: ' + e.message, 'err');
+    btn.disabled = false;
+    btn.textContent = 'Confirmar y guardar';
+  }
+};
 function renderCesiones() {
   const q = $('#ces-search').value.toLowerCase();
   const filt = state.cesiones.filter(c => !q || `${c.cedente} ${c.cesionario||''} ${c.observacion||''}`.toLowerCase().includes(q));
@@ -2028,6 +2186,7 @@ $('#ces-pdf').addEventListener('click', () => {
 // MODULO: CUENTAS BANCARIAS
 // =================================================================
 function renderCuentas() {
+  renderPagosPorConcepto();
   const q = $('#cuentas-search').value.toLowerCase();
   const cont = $('#cuentas-list');
   cont.innerHTML = '';
@@ -2044,6 +2203,96 @@ function renderCuentas() {
   });
   if (!cont.children.length) cont.innerHTML = '<div class="card"><div class="empty">No hay resultados para "'+q+'"</div></div>';
 }
+
+function renderPagosPorConcepto() {
+  // Helper para generar botón con click handler
+  const btnHTML = (c, emp, label) => {
+    const hasComp = !!c.comprobante_path;
+    const ico = hasComp ? '↓' : 'ℹ';
+    const cls = hasComp ? 'pago-btn' : 'pago-btn no-pdf';
+    const title = hasComp ? 'Descargar comprobante' : 'Ver CBU y alias';
+    return `<button class="${cls}" onclick="abrirPagoConcepto('${c.id}')" title="${title}"><span class="ico">${ico}</span> ${label}</button>`;
+  };
+
+  // 1. Cuota/FR: una opción por empresa (barrio) que tenga cuentas marcadas como cuota_fr
+  const cuotaFrPorEmpresa = {};
+  state.cuentas.filter(c => c.activo && (c.tipo_pago === 'cuota_fr' || !c.tipo_pago)).forEach(c => {
+    if (!cuotaFrPorEmpresa[c.empresa_id]) cuotaFrPorEmpresa[c.empresa_id] = [];
+    cuotaFrPorEmpresa[c.empresa_id].push(c);
+  });
+  const cuotaFrBtns = state.empresas.filter(e => e.activo && cuotaFrPorEmpresa[e.id]?.length).map(emp => {
+    // Para cada empresa, si tiene una cuenta cuota_fr, usar esa
+    const ctas = cuotaFrPorEmpresa[emp.id];
+    if (ctas.length === 1) return btnHTML(ctas[0], emp, emp.nombre);
+    // Si hay varias, mostrar una sola opción que abre modal con todas
+    return `<button class="pago-btn" onclick="abrirMultiplesCuentas('${emp.id}','cuota_fr')" title="Ver cuentas de ${emp.nombre}"><span class="ico">↓</span> ${emp.nombre}</button>`;
+  });
+  $('#pago-cuotafr-opciones').innerHTML = cuotaFrBtns.length ? cuotaFrBtns.join('') : '<span class="pago-empty">Sin cuentas configuradas</span>';
+
+  // 2. Amojonado
+  const amojCtas = state.cuentas.filter(c => c.activo && c.tipo_pago === 'amojonado');
+  $('#pago-amojonado-opciones').innerHTML = amojCtas.length
+    ? amojCtas.map(c => {
+        const emp = state.empresas.find(e => e.id === c.empresa_id);
+        return btnHTML(c, emp, `${emp?.nombre || ''} · ${c.banco}`);
+      }).join('')
+    : '<span class="pago-empty">Configurá una cuenta para Amojonado desde Ajustes</span>';
+
+  // 3. Autorización para ceder
+  const cesionCtas = state.cuentas.filter(c => c.activo && c.tipo_pago === 'autorizacion_cesion');
+  $('#pago-cesion-opciones').innerHTML = cesionCtas.length
+    ? cesionCtas.map(c => {
+        const emp = state.empresas.find(e => e.id === c.empresa_id);
+        return btnHTML(c, emp, `${emp?.nombre || ''} · ${c.banco}`);
+      }).join('')
+    : '<span class="pago-empty">Configurá una cuenta para Autorización desde Ajustes</span>';
+
+  // 4. Otros
+  const otrosCtas = state.cuentas.filter(c => c.activo && c.tipo_pago === 'otro');
+  if (otrosCtas.length) {
+    $('#pago-otros-wrap').style.display = 'block';
+    $('#pago-otros-opciones').innerHTML = otrosCtas.map(c => {
+      const emp = state.empresas.find(e => e.id === c.empresa_id);
+      const label = c.tipo_pago_detalle || `${emp?.nombre || ''} · ${c.banco}`;
+      return btnHTML(c, emp, label);
+    }).join('');
+  } else {
+    $('#pago-otros-wrap').style.display = 'none';
+  }
+}
+
+window.abrirPagoConcepto = function(cuentaId) {
+  const c = state.cuentas.find(x => x.id === cuentaId);
+  if (!c) return;
+  // Si tiene PDF, descargar directo
+  if (c.comprobante_path) {
+    downloadComprobante(cuentaId);
+    return;
+  }
+  // Si no tiene PDF, mostrar modal con datos de la cuenta
+  const emp = state.empresas.find(e => e.id === c.empresa_id);
+  showModal(`<div class="modal-head"><h3>${emp?.nombre || ''} · ${c.banco}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="hint" style="margin-bottom:14px">Esta cuenta no tiene comprobante PDF cargado. Te paso los datos para que copies:</p>
+      ${c.cbu ? `<div class="field"><label>CBU</label><div style="display:flex;gap:8px;align-items:center"><div class="mono" style="flex:1;padding:10px;background:var(--surface-2);border-radius:4px;font-size:.9rem">${c.cbu}</div><button class="btn ghost sm" onclick="copyToClipboard('${c.cbu}')">⎘ Copiar</button></div></div>` : ''}
+      ${c.alias ? `<div class="field"><label>Alias</label><div style="display:flex;gap:8px;align-items:center"><div class="mono" style="flex:1;padding:10px;background:var(--surface-2);border-radius:4px;font-size:.9rem">${c.alias}</div><button class="btn ghost sm" onclick="copyToClipboard('${c.alias}')">⎘ Copiar</button></div></div>` : ''}
+      <div class="field" style="margin-bottom:0"><label>Moneda</label><div><span class="badge ${c.moneda==='USD'?'accent':'muted'}">${c.moneda}</span></div></div>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Cerrar</button></div>`);
+};
+
+window.abrirMultiplesCuentas = function(empresaId, tipoPago) {
+  const emp = state.empresas.find(e => e.id === empresaId);
+  const ctas = state.cuentas.filter(c => c.empresa_id === empresaId && c.activo && (c.tipo_pago === tipoPago || (!c.tipo_pago && tipoPago === 'cuota_fr')));
+  showModal(`<div class="modal-head"><h3>${emp?.nombre || ''}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="hint" style="margin-bottom:14px">Elegí la cuenta:</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${ctas.map(c => `<button class="pago-btn" style="width:100%;justify-content:space-between" onclick="closeModal();abrirPagoConcepto('${c.id}')"><span><b>${c.banco}</b> · <span class="badge ${c.moneda==='USD'?'accent':'muted'}">${c.moneda}</span></span><span class="ico">${c.comprobante_path?'↓':'ℹ'}</span></button>`).join('')}
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Cerrar</button></div>`);
+};
 function cuentaCardHTML(emp, c) {
   const isAdmin = state.profile?.rol === 'admin';
   const hasComp = !!c.comprobante_path;
@@ -2832,14 +3081,29 @@ function renderEmpresas() {
 }
 $('#cta-add').addEventListener('click', () => editCuenta(null));
 window.editCuenta = function(id) {
-  const c = id ? state.cuentas.find(x => x.id===id) : { empresa_id:'', banco:'', moneda:'ARS', numero_cuenta:'', cbu:'', alias:'', cuit:'', orden:0, activo:true };
+  const c = id ? state.cuentas.find(x => x.id===id) : { empresa_id:'', banco:'', moneda:'ARS', numero_cuenta:'', cbu:'', alias:'', cuit:'', orden:0, activo:true, tipo_pago:'cuota_fr', tipo_pago_detalle:'' };
   const empOpts = state.empresas.map(e => `<option value="${e.id}" ${c.empresa_id===e.id?'selected':''}>${e.nombre}</option>`).join('');
+  const tipoPago = c.tipo_pago || 'cuota_fr';
   showModal(`<div class="modal-head"><h3>${id?'Editar':'Nueva'} cuenta</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <div class="field"><label>Empresa</label><select id="c-emp">${empOpts}</select></div>
       <div class="field-row">
         <div class="field"><label>Banco</label><input id="c-ban" value="${c.banco||''}"></div>
         <div class="field"><label>Moneda</label><select id="c-mon"><option ${c.moneda==='ARS'?'selected':''}>ARS</option><option ${c.moneda==='USD'?'selected':''}>USD</option></select></div>
+      </div>
+      <div class="field">
+        <label>Tipo de pago (concepto al que aplica)</label>
+        <select id="c-tipopago">
+          <option value="cuota_fr" ${tipoPago==='cuota_fr'?'selected':''}>Cuota o Fondo de Reserva</option>
+          <option value="amojonado" ${tipoPago==='amojonado'?'selected':''}>Amojonado</option>
+          <option value="autorizacion_cesion" ${tipoPago==='autorizacion_cesion'?'selected':''}>Autorización para ceder</option>
+          <option value="otro" ${tipoPago==='otro'?'selected':''}>Otro concepto</option>
+        </select>
+        <div class="hint">Determina en qué sección de "¿Dónde pago?" aparece esta cuenta</div>
+      </div>
+      <div class="field" id="c-tipopago-detalle-wrap" style="display:${tipoPago==='otro'?'block':'none'}">
+        <label>Nombre del concepto (otro)</label>
+        <input id="c-tipopago-detalle" value="${c.tipo_pago_detalle||''}" placeholder="Ej: Gastos comunes, Servicios...">
       </div>
       <div class="field"><label>Nº Cuenta</label><input id="c-num" value="${c.numero_cuenta||''}"></div>
       <div class="field"><label>CBU</label><input id="c-cbu" value="${c.cbu||''}" maxlength="22"></div>
@@ -2863,12 +3127,19 @@ window.editCuenta = function(id) {
     <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Cancelar</button>
     ${id?`<button class="btn danger" onclick="deleteCuenta('${id}')">Eliminar</button>`:''}
     <button class="btn" id="save-cta-btn" onclick="saveCuenta('${id||''}')">Guardar</button></div>`, { wide: true });
+  // Mostrar/ocultar campo "detalle" según tipo
+  $('#c-tipopago').addEventListener('change', () => {
+    $('#c-tipopago-detalle-wrap').style.display = $('#c-tipopago').value === 'otro' ? 'block' : 'none';
+  });
 };
 window.saveCuenta = async function(id) {
+  const tipoPago = $('#c-tipopago').value;
   const payload = {
     empresa_id: $('#c-emp').value, banco: $('#c-ban').value, moneda: $('#c-mon').value,
     numero_cuenta: $('#c-num').value, cbu: $('#c-cbu').value, alias: $('#c-ali').value,
-    cuit: $('#c-cui').value, orden: Number($('#c-ord').value), activo: $('#c-act').checked
+    cuit: $('#c-cui').value, orden: Number($('#c-ord').value), activo: $('#c-act').checked,
+    tipo_pago: tipoPago,
+    tipo_pago_detalle: tipoPago === 'otro' ? ($('#c-tipopago-detalle').value.trim() || null) : null
   };
   const file = $('#c-pdf')?.files?.[0];
   if (file) {
@@ -3088,7 +3359,7 @@ function subscribeChanges() {
         if (tabla==='tareas') { await loadTareas(); renderTareas(); }
         if (tabla==='tareas_responsables') { await loadResponsables(); if(state.profile?.rol==='admin') renderResponsables(); }
         if (tabla==='transferencias') { await loadTransferencias(); renderTransferencias(); }
-        if (tabla==='icc_valores') { await loadIcc(); renderIccTabla(); initConceptosMesRef(); renderConceptos(); }
+        if (tabla==='icc_valores') { await loadIcc(); renderIccTabla(); initConceptosMesRef(); renderConceptos(); renderIccAlerta(); }
         if (tabla==='sellos_alicuotas') { await loadAlicuotas(); if(state.profile?.rol==='admin') renderAlicuotas(); updateAlicuotaForFecha(); }
       })
       .subscribe();
