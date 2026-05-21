@@ -251,6 +251,25 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
 /* ===== Pagos por concepto en Cuentas Bancarias ===== */
 .pago-categoria{padding:14px 0;border-top:1px solid var(--line-2)}
 
+/* ===== Buscador emprendimiento -> empresa ===== */
+.empr-buscador{display:flex;gap:16px;align-items:stretch;flex-wrap:wrap}
+.empr-input-wrap{flex:1;min-width:240px;position:relative}
+.empr-resultados{position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 6px 18px rgba(0,0,0,.12);max-height:280px;overflow-y:auto;z-index:20;margin-top:4px;display:none}
+.empr-resultados.show{display:block}
+.empr-opcion{padding:10px 14px;cursor:pointer;font-size:.88rem;border-bottom:1px solid var(--line-2);display:flex;justify-content:space-between;gap:10px;align-items:center}
+.empr-opcion:last-child{border-bottom:none}
+.empr-opcion:hover,.empr-opcion.active{background:var(--accent-soft)}
+.empr-opcion .e-nom{font-weight:500;color:var(--ink)}
+.empr-opcion .e-emp{font-size:.76rem;color:var(--ink-3)}
+.empr-resultado-empresa{flex:1;min-width:240px;background:var(--surface-2);border-radius:var(--radius);border:1px solid var(--line-2);padding:16px 18px;display:flex;flex-direction:column;justify-content:center}
+.empr-resultado-empresa .lab{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:600;margin-bottom:4px}
+.empr-resultado-empresa .val{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:1.25rem;color:var(--ink)}
+.empr-resultado-empresa.activo{background:var(--accent-soft);border-color:var(--accent)}
+.empr-resultado-empresa.activo .val{color:var(--accent)}
+@media (max-width:768px){
+  .empr-resultado-empresa .val{font-size:1.05rem}
+}
+
 /* ===== Workflow info (cartel instructivo en Sellos) ===== */
 .workflow-info{background:linear-gradient(135deg, var(--accent-soft) 0%, var(--surface-2) 100%);border-left:4px solid var(--accent)}
 
@@ -679,6 +698,22 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
     <section class="tab-content" id="tab-cuentas" style="display:none">
       <div class="page-head"><div><h1>Cuentas bancarias</h1><p>Click en cualquier CBU o Alias para copiar</p></div></div>
 
+      <!-- Buscador emprendimiento -> empresa -->
+      <div class="card">
+        <h3 style="margin-bottom:4px">Buscar emprendimiento</h3>
+        <p class="sub" style="margin-bottom:12px">Escribí el nombre del barrio para ver a qué empresa corresponde</p>
+        <div class="empr-buscador">
+          <div class="empr-input-wrap">
+            <input type="text" id="empr-search" placeholder="Ej: Las Tipas, Manantiales..." autocomplete="off">
+            <div class="empr-resultados" id="empr-resultados"></div>
+          </div>
+          <div class="empr-resultado-empresa" id="empr-empresa">
+            <div class="lab">Empresa</div>
+            <div class="val" id="empr-empresa-val">—</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Accesos rápidos por concepto -->
       <div class="card">
         <h3 style="margin-bottom:4px">¿Dónde pago?</h3>
@@ -691,7 +726,7 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
         </div>
 
         <div class="pago-categoria">
-          <div class="pago-titulo">Amojonado</div>
+          <div class="pago-titulo">Amojonado y costo de cesión</div>
           <div class="pago-opciones" id="pago-amojonado-opciones"></div>
         </div>
 
@@ -880,6 +915,7 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
         <button class="tab" data-subtab="aj-empresas">Empresas y cuentas</button>
         <button class="tab" data-subtab="aj-alicuotas">Alícuotas sellos</button>
         <button class="tab" data-subtab="aj-responsables">Responsables tareas</button>
+        <button class="tab" data-subtab="aj-emprendimientos">Emprendimientos</button>
         <button class="tab" data-subtab="aj-datos">Datos / Backup</button>
       </div>
       <div class="subtab-content" id="aj-usuarios">
@@ -930,6 +966,27 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
           </div>
           <div class="tbl-wrap"><table class="tbl" id="resp-tabla">
             <thead><tr><th>Nombre</th><th>Estado</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+      <div class="subtab-content" id="aj-emprendimientos" style="display:none">
+        <div class="card">
+          <h3>Emprendimientos / Barrios</h3>
+          <p class="sub">Relación entre cada emprendimiento y su empresa. Aparece en el buscador de la pestaña Cuentas bancarias.</p>
+          <div style="display:flex;gap:8px;align-items:end;margin-bottom:14px;flex-wrap:wrap">
+            <div class="field" style="flex:1;margin-bottom:0;min-width:180px">
+              <label>Emprendimiento</label>
+              <input type="text" id="empr-nuevo-nombre" placeholder="Ej: Las Tipas">
+            </div>
+            <div class="field" style="flex:1;margin-bottom:0;min-width:180px">
+              <label>Empresa</label>
+              <input type="text" id="empr-nuevo-empresa" placeholder="Ej: Edisur S.A." list="empr-empresas-list">
+              <datalist id="empr-empresas-list"></datalist>
+            </div>
+            <button class="btn" id="empr-add">+ Agregar</button>
+          </div>
+          <div class="search-bar" style="margin-bottom:10px"><input type="text" id="empr-admin-search" placeholder="Buscar..."></div>
+          <div class="tbl-wrap"><table class="tbl" id="empr-tabla">
+            <thead><tr><th>Emprendimiento</th><th>Empresa</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
       <div class="subtab-content" id="aj-datos" style="display:none">
@@ -1009,6 +1066,7 @@ const state = {
   tareas: [],
   responsables: [],
   transferencias: [],
+  emprendimientos: [],
   users: [],
   feriados: {}, // {year: [{fecha, nombre}]}
   bnaActual: null,
@@ -1154,7 +1212,7 @@ async function afterLogin() {
   await Promise.all([
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
-    loadTareas(), loadResponsables(), loadTransferencias(),
+    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -1315,6 +1373,10 @@ async function loadResponsables() {
 async function loadTransferencias() {
   const { data } = await sb.from('transferencias').select('*').order('fecha', { ascending: false });
   state.transferencias = data || [];
+}
+async function loadEmprendimientos() {
+  const { data } = await sb.from('emprendimientos').select('*').order('emprendimiento');
+  state.emprendimientos = data || [];
 }
 async function loadUsers() {
   if (state.profile?.rol !== 'admin') return;
@@ -1884,11 +1946,11 @@ function generateSelloPDF(r, estado) {
     doc.text('MONTO DEL BOLETO', cx, cy);
     doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(0);
     let montoText = `${r.moneda} ${fmt(r.monto)}`;
-    if (r.moneda === 'USD') montoText += `   (≈ $${fmt(r.equiv)})`;
+    if (r.moneda === 'USD') montoText += ` ($${fmt(r.equiv)})`;
     doc.text(montoText, cx, cy + 4);
     if (r.moneda === 'USD' && r.tc) {
       doc.setFontSize(6.5); doc.setFont('helvetica','normal'); doc.setTextColor(120);
-      doc.text(`TC BNA: $${fmt(r.tc)}  ·  ${fmtFecha(r.tcFecha)}`, cx, cy + 8);
+      doc.text(`TC BNA: $${fmt(r.tc)} - ${fmtFecha(r.tcFecha)}`, cx, cy + 8);
       cy += 11;
     } else {
       cy += 7.5;
@@ -1958,7 +2020,7 @@ function generateSelloPDF(r, estado) {
   doc.line(marginX, cutY, W - marginX, cutY);
   doc.setLineDashPattern([], 0);
   doc.setFontSize(6.5); doc.setTextColor(140); doc.setFont('helvetica','normal');
-  doc.text('✂  corte', W/2, cutY - 1, { align: 'center' });
+  doc.text('- - - - - - corte - - - - - -', W/2, cutY - 1, { align: 'center' });
 
   drawCopy(cutY + 5, 'duplicado');
 
@@ -3010,6 +3072,141 @@ $('#transf-excel').addEventListener('click', () => {
 });
 
 // =================================================================
+// MODULO: EMPRENDIMIENTOS (buscador + admin)
+// =================================================================
+let _emprActiveIdx = -1;
+function renderEmprBuscador() {
+  const q = $('#empr-search').value.trim().toLowerCase();
+  const cont = $('#empr-resultados');
+  if (!q) {
+    cont.classList.remove('show');
+    cont.innerHTML = '';
+    _emprActiveIdx = -1;
+    return;
+  }
+  const matches = state.emprendimientos
+    .filter(e => e.activo !== false && e.emprendimiento.toLowerCase().includes(q))
+    .slice(0, 12);
+  if (!matches.length) {
+    cont.innerHTML = '<div class="empr-opcion"><span class="muted">Sin coincidencias</span></div>';
+    cont.classList.add('show');
+    return;
+  }
+  cont.innerHTML = matches.map((e, i) =>
+    `<div class="empr-opcion ${i===_emprActiveIdx?'active':''}" data-empresa="${e.empresa.replace(/"/g,'&quot;')}" data-nombre="${e.emprendimiento.replace(/"/g,'&quot;')}">
+      <span class="e-nom">${e.emprendimiento}</span>
+      <span class="e-emp">${e.empresa}</span>
+    </div>`
+  ).join('');
+  cont.classList.add('show');
+  cont.querySelectorAll('.empr-opcion').forEach(op => {
+    op.addEventListener('click', () => {
+      seleccionarEmpr(op.dataset.nombre, op.dataset.empresa);
+    });
+  });
+}
+
+function seleccionarEmpr(nombre, empresa) {
+  $('#empr-search').value = nombre;
+  $('#empr-resultados').classList.remove('show');
+  $('#empr-empresa-val').textContent = empresa;
+  $('#empr-empresa').classList.add('activo');
+}
+
+$('#empr-search').addEventListener('input', () => {
+  _emprActiveIdx = -1;
+  $('#empr-empresa').classList.remove('activo');
+  $('#empr-empresa-val').textContent = '—';
+  renderEmprBuscador();
+});
+$('#empr-search').addEventListener('keydown', (e) => {
+  const opciones = $('#empr-resultados').querySelectorAll('.empr-opcion[data-nombre]');
+  if (!opciones.length) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); _emprActiveIdx = Math.min(_emprActiveIdx+1, opciones.length-1); renderEmprBuscador(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); _emprActiveIdx = Math.max(_emprActiveIdx-1, 0); renderEmprBuscador(); }
+  else if (e.key === 'Enter' && _emprActiveIdx >= 0) {
+    e.preventDefault();
+    const op = opciones[_emprActiveIdx];
+    if (op) seleccionarEmpr(op.dataset.nombre, op.dataset.empresa);
+  } else if (e.key === 'Escape') {
+    $('#empr-resultados').classList.remove('show');
+  }
+});
+// Cerrar resultados al click afuera
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.empr-input-wrap')) {
+    $('#empr-resultados')?.classList.remove('show');
+  }
+});
+
+// === Admin: gestión de emprendimientos ===
+function renderEmprAdmin() {
+  const q = ($('#empr-admin-search')?.value || '').toLowerCase();
+  const tb = $('#empr-tabla tbody');
+  if (!tb) return;
+  const filt = state.emprendimientos.filter(e =>
+    !q || `${e.emprendimiento} ${e.empresa}`.toLowerCase().includes(q)
+  );
+  if (!filt.length) {
+    tb.innerHTML = '<tr><td colspan="3" class="empty">Sin emprendimientos</td></tr>';
+  } else {
+    tb.innerHTML = filt.map(e => `<tr>
+      <td><b>${e.emprendimiento}</b></td>
+      <td>${e.empresa}</td>
+      <td class="actions">
+        <button class="btn ghost sm" onclick="editEmpr('${e.id}')" title="Editar">✎</button>
+        <button class="btn ghost sm" onclick="deleteEmpr('${e.id}')" title="Eliminar">×</button>
+      </td>
+    </tr>`).join('');
+  }
+  // Datalist de empresas existentes (para autocompletar)
+  const empresas = [...new Set(state.emprendimientos.map(e => e.empresa))].sort();
+  const dl = $('#empr-empresas-list');
+  if (dl) dl.innerHTML = empresas.map(e => `<option value="${e}">`).join('');
+}
+
+$('#empr-add')?.addEventListener('click', async () => {
+  const nombre = $('#empr-nuevo-nombre').value.trim();
+  const empresa = $('#empr-nuevo-empresa').value.trim();
+  if (!nombre || !empresa) { toast('Completá emprendimiento y empresa', 'warn'); return; }
+  const { error } = await sb.from('emprendimientos').insert({ emprendimiento: nombre, empresa });
+  if (error) { toast(error.message, 'err'); return; }
+  $('#empr-nuevo-nombre').value = ''; $('#empr-nuevo-empresa').value = '';
+  toast('Emprendimiento agregado', 'ok');
+  await loadEmprendimientos(); renderEmprAdmin();
+});
+$('#empr-admin-search')?.addEventListener('input', renderEmprAdmin);
+
+window.editEmpr = function(id) {
+  const e = state.emprendimientos.find(x => x.id === id);
+  if (!e) return;
+  showModal(`<div class="modal-head"><h3>Editar emprendimiento</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Emprendimiento</label><input id="ee-nombre" value="${e.emprendimiento.replace(/"/g,'&quot;')}"></div>
+      <div class="field"><label>Empresa</label><input id="ee-empresa" value="${e.empresa.replace(/"/g,'&quot;')}"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn" onclick="saveEmpr('${id}')">Guardar</button>
+    </div>`);
+};
+window.saveEmpr = async function(id) {
+  const nombre = $('#ee-nombre').value.trim();
+  const empresa = $('#ee-empresa').value.trim();
+  if (!nombre || !empresa) { toast('Completá ambos campos', 'warn'); return; }
+  const { error } = await sb.from('emprendimientos').update({ emprendimiento: nombre, empresa }).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  closeModal(); toast('Guardado', 'ok');
+  await loadEmprendimientos(); renderEmprAdmin();
+};
+window.deleteEmpr = async function(id) {
+  if (!await confirmAction('¿Eliminar este emprendimiento?')) return;
+  const { error } = await sb.from('emprendimientos').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  await loadEmprendimientos(); renderEmprAdmin(); toast('Eliminado', 'ok');
+};
+
+// =================================================================
 // MODULO: AJUSTES (admin)
 // =================================================================
 function renderUsers() {
@@ -3095,7 +3292,7 @@ window.editCuenta = function(id) {
         <label>Tipo de pago (concepto al que aplica)</label>
         <select id="c-tipopago">
           <option value="cuota_fr" ${tipoPago==='cuota_fr'?'selected':''}>Cuota o Fondo de Reserva</option>
-          <option value="amojonado" ${tipoPago==='amojonado'?'selected':''}>Amojonado</option>
+          <option value="amojonado" ${tipoPago==='amojonado'?'selected':''}>Amojonado y costo de cesión</option>
           <option value="autorizacion_cesion" ${tipoPago==='autorizacion_cesion'?'selected':''}>Autorización para ceder</option>
           <option value="otro" ${tipoPago==='otro'?'selected':''}>Otro concepto</option>
         </select>
@@ -3334,6 +3531,7 @@ function renderAll() {
     initAlicuotas();
     renderAlicuotas();
     renderResponsables();
+    renderEmprAdmin();
   }
   // defaults de fecha
   $('#sello-fecha').value = todayISO();
@@ -3347,7 +3545,7 @@ function renderAll() {
 // REAL-TIME SUBSCRIPTIONS
 // =================================================================
 function subscribeChanges() {
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','icc_valores','sellos_alicuotas'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','emprendimientos','icc_valores','sellos_alicuotas'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -3359,6 +3557,7 @@ function subscribeChanges() {
         if (tabla==='tareas') { await loadTareas(); renderTareas(); }
         if (tabla==='tareas_responsables') { await loadResponsables(); if(state.profile?.rol==='admin') renderResponsables(); }
         if (tabla==='transferencias') { await loadTransferencias(); renderTransferencias(); }
+        if (tabla==='emprendimientos') { await loadEmprendimientos(); if(state.profile?.rol==='admin') renderEmprAdmin(); }
         if (tabla==='icc_valores') { await loadIcc(); renderIccTabla(); initConceptosMesRef(); renderConceptos(); renderIccAlerta(); }
         if (tabla==='sellos_alicuotas') { await loadAlicuotas(); if(state.profile?.rol==='admin') renderAlicuotas(); updateAlicuotaForFecha(); }
       })
