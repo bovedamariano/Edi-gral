@@ -590,6 +590,15 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
           <div class="field"><label>Fecha</label><input type="date" id="sello-fecha"></div>
           <div class="field"><label>Propietario</label><input type="text" id="sello-prop" placeholder="Apellido y Nombre"></div>
           <div class="field"><label>Unidad</label><input type="text" id="sello-unidad" placeholder="Ej: M5-L23"></div>
+          <div class="field">
+            <label>Tipo de operación</label>
+            <div class="concepto-buttons" id="sello-tipo-btns" style="grid-template-columns:repeat(3,1fr)">
+              <button type="button" class="concepto-btn" data-tipo="cesion">Cesión</button>
+              <button type="button" class="concepto-btn" data-tipo="venta_nueva">Venta nueva</button>
+              <button type="button" class="concepto-btn" data-tipo="pase_reserva">Pase de reserva a boleto</button>
+            </div>
+            <input type="hidden" id="sello-tipo">
+          </div>
           <div class="field-row">
             <div class="field"><label>Moneda</label><select id="sello-moneda"><option value="ARS">$ ARS</option><option value="USD">USD</option></select></div>
             <div class="field"><label>Monto del boleto</label><input type="number" id="sello-monto" step="0.01"></div>
@@ -631,7 +640,7 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
         </div>
         <div class="search-bar"><input type="text" id="sellos-search" placeholder="Buscar por propietario, unidad..."></div>
         <div class="tbl-wrap"><table class="tbl" id="sellos-tabla">
-          <thead><tr><th>Fecha</th><th>Propietario</th><th>Unidad</th><th class="num">Monto</th><th>Moneda</th><th class="num">A pagar</th><th>Vence</th><th>Estado</th><th class="actions"></th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Propietario</th><th>Unidad</th><th>Operación</th><th class="num">Monto</th><th>Moneda</th><th class="num">A pagar</th><th>Vence</th><th>Estado</th><th class="actions"></th></tr></thead>
           <tbody></tbody>
         </table></div>
       </div>
@@ -1830,7 +1839,9 @@ async function calcSello() {
   const moneda = $('#sello-moneda').value;
   const monto = parseFloat($('#sello-monto').value);
   const alicuota = parseFloat($('#sello-alicuota').value);
+  const tipoOperacion = $('#sello-tipo').value;
   if (!fecha || !prop || !unidad || !monto || !alicuota) { toast('Completá todos los campos', 'warn'); return null; }
+  if (!tipoOperacion) { toast('Elegí el tipo de operación', 'warn'); return null; }
   let tc = null, tcFecha = null, equiv;
   if (moneda === 'USD') {
     // Asegurar que la cotización del panel está alineada con la fecha del boleto
@@ -1849,13 +1860,25 @@ async function calcSello() {
   await loadFeriados(yBoleto);
   await loadFeriados(yBoleto + 1);
   const venc = diasHabilesDesde(fecha, 15);
-  return { fecha, prop, unidad, moneda, monto, tc, tcFecha, equiv, alicuota, importe, venc };
+  return { fecha, prop, unidad, moneda, monto, tc, tcFecha, equiv, alicuota, importe, venc, tipoOperacion };
 }
+
+const TIPOS_OPERACION = { cesion: 'Cesión', venta_nueva: 'Venta nueva', pase_reserva: 'Pase de reserva a boleto' };
+
+// Handler de los botones de tipo de operación
+$('#sello-tipo-btns').querySelectorAll('.concepto-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $('#sello-tipo-btns').querySelectorAll('.concepto-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    $('#sello-tipo').value = btn.dataset.tipo;
+  });
+});
 
 function renderSelloResumen(r) {
   $('#sello-resumen').innerHTML = `
     <table class="tbl" style="font-size:.85rem">
       <tr><td>Fecha</td><td class="num">${fmtFecha(r.fecha)}</td></tr>
+      <tr><td>Tipo de operación</td><td class="num">${TIPOS_OPERACION[r.tipoOperacion] || '—'}</td></tr>
       <tr><td>Propietario</td><td class="num">${r.prop}</td></tr>
       <tr><td>Unidad</td><td class="num">${r.unidad}</td></tr>
       <tr><td>Monto</td><td class="num">${r.moneda} ${fmt(r.monto)}</td></tr>
@@ -1878,13 +1901,16 @@ $('#sello-calcular').addEventListener('click', async () => {
     fecha: r.fecha, propietario: r.prop, unidad: r.unidad, moneda: r.moneda,
     monto: r.monto, tipo_cambio_bna: r.tc, equivalente_ars: r.equiv,
     alicuota: r.alicuota, importe_pagar: r.importe, fecha_vencimiento: r.venc,
-    observaciones: $('#sello-obs').value, estado: 'pendiente', created_by: state.user.id,
+    observaciones: $('#sello-obs').value, estado: 'pendiente', tipo_operacion: r.tipoOperacion,
+    created_by: state.user.id,
   });
   if (error) { toast(error.message, 'err'); return; }
   toast('Boleto registrado como pendiente', 'ok');
   generateSelloPDF(r, 'pendiente');
   await loadBoletos(); renderSellos();
   ['sello-prop','sello-unidad','sello-monto','sello-obs'].forEach(id => $('#'+id).value='');
+  $('#sello-tipo').value = '';
+  $('#sello-tipo-btns').querySelectorAll('.concepto-btn').forEach(b => b.classList.remove('selected'));
 });
 
 // PDF formato Edisur: dos copias (Original + Duplicado) en una página A4
@@ -2036,7 +2062,7 @@ function renderSellos() {
   const q = $('#sellos-search').value.toLowerCase();
   const filt = state.boletos.filter(b => !q || `${b.propietario} ${b.unidad}`.toLowerCase().includes(q));
   const tb = $('#sellos-tabla tbody');
-  if (!filt.length) { tb.innerHTML = '<tr><td colspan="9" class="empty">Sin boletos</td></tr>'; return; }
+  if (!filt.length) { tb.innerHTML = '<tr><td colspan="10" class="empty">Sin boletos</td></tr>'; return; }
   const badgeFor = e => {
     if (e === 'pagado') return '<span class="badge ok">Pagado</span>';
     if (e === 'generado') return '<span class="badge accent">Generado</span>';
@@ -2044,8 +2070,10 @@ function renderSellos() {
   };
   tb.innerHTML = filt.map(b => {
     const est = b.estado || 'pendiente';
+    const tipoOp = TIPOS_OPERACION[b.tipo_operacion] || '—';
     return `<tr>
       <td>${fmtFecha(b.fecha)}</td><td>${b.propietario}</td><td>${b.unidad}</td>
+      <td><span class="badge muted" style="font-size:.7rem">${tipoOp}</span></td>
       <td class="num">${fmt(b.monto)}</td><td>${b.moneda}</td>
       <td class="num">$${fmt(b.importe_pagar)}</td>
       <td>${fmtFecha(b.fecha_vencimiento)}</td>
