@@ -2,6 +2,9 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Grupo Edisur · ICC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -253,6 +256,17 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
 
 /* ===== Buscador emprendimiento -> empresa ===== */
 .empr-buscador{display:flex;gap:16px;align-items:stretch;flex-wrap:wrap}
+
+/* ===== Identificador de transferencias ===== */
+.ident-card{padding:0}
+.ident-summary{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;cursor:pointer;list-style:none;user-select:none}
+.ident-summary::-webkit-details-marker{display:none}
+.ident-count{font-size:.78rem;color:var(--ink-3);font-weight:400;margin-left:6px}
+.ident-toggle{transition:transform .2s;color:var(--ink-3)}
+details[open] .ident-toggle{transform:rotate(180deg)}
+.ident-body{padding:0 18px 18px}
+.ident-buscador{display:flex;gap:16px;align-items:stretch;flex-wrap:wrap}
+.ident-lab{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:600;margin-bottom:4px}
 .empr-input-wrap{flex:1;min-width:240px;position:relative}
 .empr-resultados{position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 6px 18px rgba(0,0,0,.12);max-height:280px;overflow-y:auto;z-index:20;margin-top:4px;display:none}
 .empr-resultados.show{display:block}
@@ -592,10 +606,11 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
           <div class="field"><label>Unidad</label><input type="text" id="sello-unidad" placeholder="Ej: M5-L23"></div>
           <div class="field">
             <label>Tipo de operación</label>
-            <div class="concepto-buttons" id="sello-tipo-btns" style="grid-template-columns:repeat(3,1fr)">
+            <div class="concepto-buttons" id="sello-tipo-btns" style="grid-template-columns:repeat(2,1fr)">
               <button type="button" class="concepto-btn" data-tipo="cesion">Cesión</button>
               <button type="button" class="concepto-btn" data-tipo="venta_nueva">Venta nueva</button>
               <button type="button" class="concepto-btn" data-tipo="pase_reserva">Pase de reserva a boleto</button>
+              <button type="button" class="concepto-btn" data-tipo="canje">Canje</button>
             </div>
             <input type="hidden" id="sello-tipo">
           </div>
@@ -870,6 +885,47 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
         <button class="btn accent" id="transf-add">+ Nueva transferencia</button>
       </div>
 
+      <!-- Identificador de transferencias -->
+      <details class="card ident-card" id="ident-card">
+        <summary class="ident-summary">
+          <span><b>Identificador de transferencias</b> <span class="ident-count" id="ident-count"></span></span>
+          <span class="ident-toggle">▾</span>
+        </summary>
+        <div class="ident-body">
+          <p class="sub" style="margin-bottom:12px">Cuando alguien transfiere a nombre de otra persona. Ej: si "José" transfiere, sabés que se imputa al boleto de "María". Solo informativo.</p>
+
+          <div class="ident-buscador">
+            <div class="empr-input-wrap" style="flex:1;min-width:200px">
+              <label class="ident-lab">Buscar quién transfiere</label>
+              <input type="text" id="ident-search" placeholder="Ej: José..." autocomplete="off">
+              <div class="empr-resultados" id="ident-resultados"></div>
+            </div>
+            <div class="empr-resultado-empresa" id="ident-resultado" style="flex:1;min-width:200px">
+              <div class="lab">Se imputa al boleto de</div>
+              <div class="val" id="ident-resultado-val">—</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:end;margin:16px 0 6px;flex-wrap:wrap">
+            <div class="field" style="flex:1;margin-bottom:0;min-width:160px">
+              <label>Quién transfiere</label>
+              <input type="text" id="ident-nuevo-transfiere" placeholder="Ej: José Pérez">
+            </div>
+            <div style="padding-bottom:10px;color:var(--ink-3);font-weight:600">→</div>
+            <div class="field" style="flex:1;margin-bottom:0;min-width:160px">
+              <label>A nombre de (titular)</label>
+              <input type="text" id="ident-nuevo-titular" placeholder="Ej: María García">
+            </div>
+            <button class="btn" id="ident-add">+ Agregar</button>
+          </div>
+
+          <div class="tbl-wrap" style="margin-top:10px"><table class="tbl" id="ident-tabla">
+            <thead><tr><th>Quién transfiere</th><th>Se imputa a</th><th>Obs.</th><th class="actions"></th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+      </details>
+
       <div class="card" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
         <div class="field" style="margin-bottom:0;min-width:180px">
           <label>Buscar</label>
@@ -1076,6 +1132,7 @@ const state = {
   responsables: [],
   transferencias: [],
   emprendimientos: [],
+  identificadores: [],
   users: [],
   feriados: {}, // {year: [{fecha, nombre}]}
   bnaActual: null,
@@ -1221,7 +1278,7 @@ async function afterLogin() {
   await Promise.all([
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
-    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(),
+    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -1386,6 +1443,10 @@ async function loadTransferencias() {
 async function loadEmprendimientos() {
   const { data } = await sb.from('emprendimientos').select('*').order('emprendimiento');
   state.emprendimientos = data || [];
+}
+async function loadIdentificadores() {
+  const { data } = await sb.from('identificadores_transf').select('*').order('nombre_transfiere');
+  state.identificadores = data || [];
 }
 async function loadUsers() {
   if (state.profile?.rol !== 'admin') return;
@@ -1863,7 +1924,7 @@ async function calcSello() {
   return { fecha, prop, unidad, moneda, monto, tc, tcFecha, equiv, alicuota, importe, venc, tipoOperacion };
 }
 
-const TIPOS_OPERACION = { cesion: 'Cesión', venta_nueva: 'Venta nueva', pase_reserva: 'Pase de reserva a boleto' };
+const TIPOS_OPERACION = { cesion: 'Cesión', venta_nueva: 'Venta nueva', pase_reserva: 'Pase de reserva a boleto', canje: 'Canje' };
 
 // Handler de los botones de tipo de operación
 $('#sello-tipo-btns').querySelectorAll('.concepto-btn').forEach(btn => {
@@ -2481,6 +2542,11 @@ function calcularConceptoValor(c, mesRef, anioRef) {
   return Number(c.valor_base) * (Number(iccRef) / Number(iccBase));
 }
 
+function redondearA100(v) {
+  if (v == null) return v;
+  return Math.round(v / 100) * 100;
+}
+
 function renderConceptos() {
   if (!state.conceptos) return;
   const mesRefVal = $('#concepto-mes-ref').value;
@@ -2504,14 +2570,14 @@ function renderConceptos() {
   $('#conceptos-principales').innerHTML = renderConceptoList(principales, mesRef, anioRef, ant, isAdmin);
   $('#conceptos-otros').innerHTML = otros.length ? renderConceptoList(otros, mesRef, anioRef, ant, isAdmin) : '<div class="empty">Sin otros conceptos</div>';
 
-  // Total de principales
+  // Total de principales (suma de los valores YA REDONDEADOS a 100)
   if (principales.length >= 2) {
     let total = 0;
     let allCalculados = true;
     principales.forEach(c => {
       const v = calcularConceptoValor(c, mesRef, anioRef);
       if (v == null) allCalculados = false;
-      else total += v;
+      else total += redondearA100(v);
     });
     $('#conceptos-total').style.display = 'flex';
     $('#conceptos-total-label').textContent = principales.map((_,i) => i+1).join(' + ');
@@ -2524,8 +2590,13 @@ function renderConceptos() {
 function renderConceptoList(items, mesRef, anioRef, ant, isAdmin) {
   if (!items.length) return '<div class="empty">Sin conceptos cargados</div>';
   return items.map(c => {
-    const v = calcularConceptoValor(c, mesRef, anioRef);
-    const vAnt = c.tipo_actualizacion === 'fijo' ? v : calcularConceptoValor(c, ant.mes, ant.anio);
+    let v = calcularConceptoValor(c, mesRef, anioRef);
+    let vAnt = c.tipo_actualizacion === 'fijo' ? v : calcularConceptoValor(c, ant.mes, ant.anio);
+    // Aplicar redondeo a múltiplo de 100 SOLO a los conceptos principales
+    if (c.categoria === 'principal') {
+      v = redondearA100(v);
+      vAnt = redondearA100(vAnt);
+    }
     let badgesHTML = '';
     let varHTML = '';
     let precioStr = v != null ? '$' + fmt(v) : '—';
@@ -2958,7 +3029,7 @@ function renderTransferencias() {
         <td class="muted" style="font-size:.78rem">${t.observaciones||''}</td>
         <td>
           <label class="pos-chk" title="Marcar realizada">
-            <input type="checkbox" ${t.realizado?'checked':''} onchange="toggleTransfRealizado('${t.id}',this.checked)">
+            <input type="checkbox" ${t.realizado?'checked':''} onchange="toggleTransfRealizado('${t.id}',this.checked,this)">
             <span>${t.realizado?'Realizada':'Pendiente'}</span>
           </label>
         </td>
@@ -2974,7 +3045,23 @@ function renderTransferencias() {
   $('#transf-resumen').textContent = `${pend} pendientes · ${real} realizadas (${filt.length} total)`;
 }
 
-window.toggleTransfRealizado = async function(id, val) {
+window.toggleTransfRealizado = async function(id, val, checkbox) {
+  const t = state.transferencias.find(x => x.id === id);
+  if (!t) return;
+
+  // Pedir confirmación con un resumen
+  const resumen = `${fmtFecha(t.fecha)} · ${t.nombre_persona} · ${CONCEPTOS_TRANSF[t.concepto] || t.concepto} · ${t.unidad}`;
+  const mensaje = val
+    ? `¿Confirmás marcar como REALIZADA esta transferencia?\n\n${resumen}`
+    : `¿Confirmás desmarcar y volver a PENDIENTE esta transferencia?\n\n${resumen}\n\n(Se va a borrar el registro de quién y cuándo la marcó como realizada)`;
+
+  const ok = await confirmAction(mensaje);
+  if (!ok) {
+    // Revertir el checkbox visual al estado anterior
+    if (checkbox) checkbox.checked = !val;
+    return;
+  }
+
   const update = { realizado: val };
   if (val) {
     update.realizado_at = new Date().toISOString();
@@ -2984,9 +3071,12 @@ window.toggleTransfRealizado = async function(id, val) {
     update.realizado_by = null;
   }
   const { error } = await sb.from('transferencias').update(update).eq('id', id);
-  if (error) { toast(error.message, 'err'); return; }
-  const t = state.transferencias.find(x => x.id === id);
-  if (t) Object.assign(t, update);
+  if (error) {
+    toast(error.message, 'err');
+    if (checkbox) checkbox.checked = !val;
+    return;
+  }
+  Object.assign(t, update);
   renderTransferencias();
   toast(val ? '✓ Marcada como realizada' : 'Desmarcada', 'ok');
 };
@@ -3098,6 +3188,131 @@ $('#transf-excel').addEventListener('click', () => {
   }));
   exportarExcel(datos, 'transferencias');
 });
+
+// =================================================================
+// MODULO: IDENTIFICADOR DE TRANSFERENCIAS
+// =================================================================
+let _identActiveIdx = -1;
+function renderIdentBuscador() {
+  const q = $('#ident-search').value.trim().toLowerCase();
+  const cont = $('#ident-resultados');
+  if (!q) {
+    cont.classList.remove('show'); cont.innerHTML = ''; _identActiveIdx = -1;
+    return;
+  }
+  const matches = state.identificadores
+    .filter(i => i.nombre_transfiere.toLowerCase().includes(q))
+    .slice(0, 12);
+  if (!matches.length) {
+    cont.innerHTML = '<div class="empr-opcion"><span class="muted">Sin coincidencias</span></div>';
+    cont.classList.add('show');
+    return;
+  }
+  cont.innerHTML = matches.map((i, idx) =>
+    `<div class="empr-opcion ${idx===_identActiveIdx?'active':''}" data-titular="${i.nombre_titular.replace(/"/g,'&quot;')}" data-transfiere="${i.nombre_transfiere.replace(/"/g,'&quot;')}">
+      <span class="e-nom">${i.nombre_transfiere}</span>
+      <span class="e-emp">→ ${i.nombre_titular}</span>
+    </div>`
+  ).join('');
+  cont.classList.add('show');
+  cont.querySelectorAll('.empr-opcion[data-transfiere]').forEach(op => {
+    op.addEventListener('click', () => seleccionarIdent(op.dataset.transfiere, op.dataset.titular));
+  });
+}
+function seleccionarIdent(transfiere, titular) {
+  $('#ident-search').value = transfiere;
+  $('#ident-resultados').classList.remove('show');
+  $('#ident-resultado-val').textContent = titular;
+  $('#ident-resultado').classList.add('activo');
+}
+$('#ident-search')?.addEventListener('input', () => {
+  _identActiveIdx = -1;
+  $('#ident-resultado').classList.remove('activo');
+  $('#ident-resultado-val').textContent = '—';
+  renderIdentBuscador();
+});
+$('#ident-search')?.addEventListener('keydown', (e) => {
+  const opciones = $('#ident-resultados').querySelectorAll('.empr-opcion[data-transfiere]');
+  if (!opciones.length) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); _identActiveIdx = Math.min(_identActiveIdx+1, opciones.length-1); renderIdentBuscador(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); _identActiveIdx = Math.max(_identActiveIdx-1, 0); renderIdentBuscador(); }
+  else if (e.key === 'Enter' && _identActiveIdx >= 0) {
+    e.preventDefault();
+    const op = opciones[_identActiveIdx];
+    if (op) seleccionarIdent(op.dataset.transfiere, op.dataset.titular);
+  } else if (e.key === 'Escape') { $('#ident-resultados').classList.remove('show'); }
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#ident-card .empr-input-wrap')) {
+    $('#ident-resultados')?.classList.remove('show');
+  }
+});
+
+function renderIdentLista() {
+  const tb = $('#ident-tabla tbody');
+  if (!tb) return;
+  if (!state.identificadores.length) {
+    tb.innerHTML = '<tr><td colspan="4" class="empty">Sin identificadores cargados</td></tr>';
+  } else {
+    tb.innerHTML = state.identificadores.map(i => `<tr>
+      <td><b>${i.nombre_transfiere}</b></td>
+      <td>${i.nombre_titular}</td>
+      <td class="muted" style="font-size:.78rem">${i.observaciones||''}</td>
+      <td class="actions">
+        <button class="btn ghost sm" onclick="editIdent('${i.id}')" title="Editar">✎</button>
+        <button class="btn ghost sm" onclick="deleteIdent('${i.id}')" title="Eliminar">×</button>
+      </td>
+    </tr>`).join('');
+  }
+  const c = $('#ident-count');
+  if (c) c.textContent = state.identificadores.length ? `(${state.identificadores.length})` : '';
+}
+
+$('#ident-add')?.addEventListener('click', async () => {
+  const transfiere = $('#ident-nuevo-transfiere').value.trim();
+  const titular = $('#ident-nuevo-titular').value.trim();
+  if (!transfiere || !titular) { toast('Completá ambos nombres', 'warn'); return; }
+  const { error } = await sb.from('identificadores_transf').insert({
+    nombre_transfiere: transfiere, nombre_titular: titular, created_by: state.user.id
+  });
+  if (error) { toast(error.message, 'err'); return; }
+  $('#ident-nuevo-transfiere').value = ''; $('#ident-nuevo-titular').value = '';
+  toast('Identificador agregado', 'ok');
+  await loadIdentificadores(); renderIdentLista();
+});
+
+window.editIdent = function(id) {
+  const i = state.identificadores.find(x => x.id === id);
+  if (!i) return;
+  showModal(`<div class="modal-head"><h3>Editar identificador</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Quién transfiere</label><input id="ei-transfiere" value="${i.nombre_transfiere.replace(/"/g,'&quot;')}"></div>
+      <div class="field"><label>A nombre de (titular)</label><input id="ei-titular" value="${i.nombre_titular.replace(/"/g,'&quot;')}"></div>
+      <div class="field"><label>Observaciones (opcional)</label><input id="ei-obs" value="${(i.observaciones||'').replace(/"/g,'&quot;')}"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn" onclick="saveIdent('${id}')">Guardar</button>
+    </div>`);
+};
+window.saveIdent = async function(id) {
+  const transfiere = $('#ei-transfiere').value.trim();
+  const titular = $('#ei-titular').value.trim();
+  if (!transfiere || !titular) { toast('Completá ambos nombres', 'warn'); return; }
+  const { error } = await sb.from('identificadores_transf').update({
+    nombre_transfiere: transfiere, nombre_titular: titular,
+    observaciones: $('#ei-obs').value.trim() || null
+  }).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  closeModal(); toast('Guardado', 'ok');
+  await loadIdentificadores(); renderIdentLista();
+};
+window.deleteIdent = async function(id) {
+  if (!await confirmAction('¿Eliminar este identificador?')) return;
+  const { error } = await sb.from('identificadores_transf').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  await loadIdentificadores(); renderIdentLista(); toast('Eliminado', 'ok');
+};
 
 // =================================================================
 // MODULO: EMPRENDIMIENTOS (buscador + admin)
@@ -3553,6 +3768,7 @@ function renderAll() {
   });
   renderTareas();
   renderTransferencias();
+  renderIdentLista();
   if (state.profile?.rol === 'admin') {
     renderEmpresas();
     renderCuentasAdmin();
@@ -3573,7 +3789,7 @@ function renderAll() {
 // REAL-TIME SUBSCRIPTIONS
 // =================================================================
 function subscribeChanges() {
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','emprendimientos','icc_valores','sellos_alicuotas'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','emprendimientos','icc_valores','sellos_alicuotas'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -3585,6 +3801,7 @@ function subscribeChanges() {
         if (tabla==='tareas') { await loadTareas(); renderTareas(); }
         if (tabla==='tareas_responsables') { await loadResponsables(); if(state.profile?.rol==='admin') renderResponsables(); }
         if (tabla==='transferencias') { await loadTransferencias(); renderTransferencias(); }
+        if (tabla==='identificadores_transf') { await loadIdentificadores(); renderIdentLista(); }
         if (tabla==='emprendimientos') { await loadEmprendimientos(); if(state.profile?.rol==='admin') renderEmprAdmin(); }
         if (tabla==='icc_valores') { await loadIcc(); renderIccTabla(); initConceptosMesRef(); renderConceptos(); renderIccAlerta(); }
         if (tabla==='sellos_alicuotas') { await loadAlicuotas(); if(state.profile?.rol==='admin') renderAlicuotas(); updateAlicuotaForFecha(); }
