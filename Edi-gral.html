@@ -2930,7 +2930,37 @@ window.saveTarea = async function(id) {
     ? await sb.from('tareas').update(payload).eq('id', id)
     : await sb.from('tareas').insert({ ...payload, created_by: state.user.id });
   if (error) { toast(error.message, 'err'); return; }
-  closeModal(); toast('Guardado', 'ok');
+
+  // Si es una tarea mensual NUEVA, propagarla a todos los meses futuros que ya tengan tareas
+  let mensajeExtra = '';
+  if (!id && tipo === 'mensual') {
+    const mesesFuturos = new Set();
+    state.tareas.forEach(t => {
+      if (t.tipo !== 'mensual' || !t.mes || !t.anio) return;
+      const esFuturo = (t.anio > payload.anio) || (t.anio === payload.anio && t.mes > payload.mes);
+      if (esFuturo) mesesFuturos.add(`${t.anio}-${t.mes}`);
+    });
+    if (mesesFuturos.size > 0) {
+      const copias = Array.from(mesesFuturos).map(k => {
+        const [a, m] = k.split('-').map(Number);
+        return {
+          titulo: payload.titulo,
+          tipo: 'mensual',
+          responsable: payload.responsable,
+          mes: m, anio: a,
+          fecha_objetivo: null,
+          observaciones: payload.observaciones,
+          created_by: state.user.id
+        };
+      });
+      const { error: errProp } = await sb.from('tareas').insert(copias);
+      if (errProp) console.warn('No se pudo propagar a todos los meses futuros:', errProp.message);
+      else mensajeExtra = ` (replicada en ${copias.length} mes${copias.length>1?'es':''} futuro${copias.length>1?'s':''})`;
+    }
+  }
+
+  closeModal();
+  toast('Guardado' + mensajeExtra, 'ok');
   await loadTareas(); renderTareas();
 };
 
