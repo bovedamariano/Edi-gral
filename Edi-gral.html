@@ -863,7 +863,10 @@ details[open] .ident-toggle{transform:rotate(180deg)}
             <option value="finalizada">Finalizadas</option>
           </select>
         </div>
-        <div style="margin-left:auto;font-size:.82rem" id="tareas-resumen"></div>
+        <div style="margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn ghost sm" id="tareas-replicar" title="Trae las tareas mensuales del mes anterior que falten">↻ Sincronizar desde mes anterior</button>
+          <div style="font-size:.82rem" id="tareas-resumen"></div>
+        </div>
       </div>
 
       <div class="card">
@@ -2753,36 +2756,51 @@ async function replicarMensualesSiNecesario(mes, anio) {
   const fechaMes = new Date(anio, mes - 1, 1);
   const fechaHoy = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
   if (fechaMes < fechaHoy) return false;
-  // ¿Ya hay tareas mensuales en ese mes/año?
-  const yaHay = state.tareas.some(t => t.tipo === 'mensual' && t.mes === mes && t.anio === anio);
-  if (yaHay) return false;
-  // Buscar el mes anterior más cercano que tenga tareas mensuales (hasta 24 meses atrás)
+
+  // Tareas que ya hay en el mes destino (para comparar por título)
+  const tareasActuales = state.tareas.filter(t => t.tipo === 'mensual' && t.mes === mes && t.anio === anio);
+  const titulosActuales = new Set(tareasActuales.map(t => (t.titulo || '').trim().toLowerCase()));
+
+  // Buscar el mes anterior MÁS CERCANO que tenga tareas mensuales (hasta 24 meses atrás)
   let mAnt = mes, aAnt = anio;
   for (let i = 0; i < 24; i++) {
     if (mAnt === 1) { mAnt = 12; aAnt--; } else { mAnt--; }
     const tareasAnt = state.tareas.filter(t => t.tipo === 'mensual' && t.mes === mAnt && t.anio === aAnt);
-    if (tareasAnt.length) {
-      _replicandoTareas = true;
-      try {
-        const nuevas = tareasAnt.map(t => ({
-          titulo: t.titulo,
-          tipo: 'mensual',
-          responsable: t.responsable,
-          mes, anio,
-          fecha_objetivo: null,
-          en_proceso: false,
-          finalizada: false,
-          observaciones: null,
-          created_by: state.user.id,
-        }));
-        const { error } = await sb.from('tareas').insert(nuevas);
-        if (error) { console.error(error); return false; }
-        toast(`Replicadas ${nuevas.length} tareas de ${MESES[mAnt-1]} ${aAnt}`, 'ok');
-        await loadTareas();
-        return true;
-      } finally {
-        _replicandoTareas = false;
+    if (!tareasAnt.length) continue;
+
+    // Filtrar las del mes anterior que NO están todavía en el mes actual (por título)
+    const faltantes = tareasAnt.filter(t =>
+      !titulosActuales.has((t.titulo || '').trim().toLowerCase())
+    );
+    if (!faltantes.length) return false; // ya están todas
+
+    _replicandoTareas = true;
+    try {
+      const nuevas = faltantes.map(t => ({
+        titulo: t.titulo,
+        tipo: 'mensual',
+        responsable: t.responsable,
+        mes, anio,
+        fecha_objetivo: null,
+        en_proceso: false,
+        finalizada: false,
+        observaciones: null,
+        created_by: state.user.id,
+      }));
+      const { error } = await sb.from('tareas').insert(nuevas);
+      if (error) {
+        console.error('Error replicando tareas:', error);
+        toast('Error al replicar: ' + error.message, 'err');
+        return false;
       }
+      const desc = tareasActuales.length
+        ? `Agregadas ${nuevas.length} tareas faltantes desde ${MESES[mAnt-1]} ${aAnt}`
+        : `Replicadas ${nuevas.length} tareas de ${MESES[mAnt-1]} ${aAnt}`;
+      toast(desc, 'ok');
+      await loadTareas();
+      return true;
+    } finally {
+      _replicandoTareas = false;
     }
   }
   return false;
@@ -2978,6 +2996,16 @@ $('#tareas-anio').addEventListener('change', async () => {
   renderTareas();
 });
 $('#tareas-filtro-estado').addEventListener('change', renderTareas);
+$('#tareas-replicar').addEventListener('click', async () => {
+  const mes = Number($('#tareas-mes').value);
+  const anio = Number($('#tareas-anio').value);
+  const hizo = await replicarMensualesSiNecesario(mes, anio);
+  if (hizo) {
+    renderTareas();
+  } else {
+    toast('No hay tareas faltantes del mes anterior (o el mes es del pasado)', 'warn');
+  }
+});
 
 // === Responsables (admin) ===
 $('#resp-add').addEventListener('click', async () => {
