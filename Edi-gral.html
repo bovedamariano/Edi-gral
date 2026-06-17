@@ -259,6 +259,25 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
 
 /* ===== Identificador de transferencias ===== */
 .ident-card{padding:0}
+
+/* ===== DDJJ Rentas (sellos) ===== */
+.ddjj-card{padding:0;background:var(--surface-2);border:1px dashed var(--line)}
+.ddjj-summary{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;cursor:pointer;list-style:none;user-select:none}
+.ddjj-summary::-webkit-details-marker{display:none}
+.ddjj-body{padding:0 16px 16px}
+.ddjj-partes{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px}
+.ddjj-bloque{background:var(--surface);border:1px solid var(--line-2);border-radius:var(--radius);padding:12px}
+.ddjj-bloque-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.ddjj-parte{display:grid;grid-template-columns:90px 1fr 70px 2fr 32px;gap:8px;align-items:end;margin-bottom:8px}
+.ddjj-parte .field{margin-bottom:0}
+.ddjj-parte .field label{font-size:.65rem}
+.ddjj-parte .field input,.ddjj-parte .field select{padding:7px 10px;font-size:.85rem}
+.ddjj-parte-rm{padding:7px 9px;color:var(--err);background:transparent;border:none;cursor:pointer;font-size:1rem}
+.ddjj-parte-rm:hover{color:var(--ink)}
+@media (max-width:768px){
+  .ddjj-parte{grid-template-columns:1fr 1fr;gap:6px}
+  .ddjj-parte > *:last-child{grid-column:span 2;justify-self:end}
+}
 .ident-summary{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;cursor:pointer;list-style:none;user-select:none}
 .ident-summary::-webkit-details-marker{display:none}
 .ident-count{font-size:.78rem;color:var(--ink-3);font-weight:400;margin-left:6px}
@@ -624,6 +643,60 @@ details[open] .ident-toggle{transform:rotate(180deg)}
             <div class="hint" id="sello-alicuota-hint" style="display:none">Solo el administrador puede modificar este valor</div>
           </div>
           <div class="field"><label>Observaciones (opcional)</label><textarea id="sello-obs" rows="2"></textarea></div>
+
+          <!-- Sección colapsable: Datos para DDJJ Rentas -->
+          <details class="card ddjj-card" style="margin-bottom:14px">
+            <summary class="ddjj-summary">
+              <span><b>Datos para DDJJ Rentas</b> <span class="muted" style="font-size:.78rem;font-weight:400">(sellos_bot.py)</span></span>
+              <span class="ident-toggle">▾</span>
+            </summary>
+            <div class="ddjj-body">
+              <div class="grid-3">
+                <div class="field">
+                  <label>Tipo de contrato</label>
+                  <select id="ddjj-tipo-contrato">
+                    <option value="">—</option>
+                    <option value="1045">1045</option>
+                    <option value="1161">1161</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Barrio (N° de cuenta)</label>
+                  <select id="ddjj-barrio">
+                    <option value="">— Seleccionar —</option>
+                  </select>
+                  <div class="hint" id="ddjj-num-cuenta-hint" style="margin-top:4px"></div>
+                  <input type="hidden" id="ddjj-num-cuenta">
+                  <div id="ddjj-otra-wrap" style="display:none;margin-top:6px">
+                    <input type="text" id="ddjj-num-cuenta-otra" maxlength="12" pattern="\d{12}" placeholder="Ingresá el N° de cuenta (12 dígitos)">
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Mail responsable</label>
+                  <input type="email" id="ddjj-mail" placeholder="responsable@grupoedisur.com.ar">
+                </div>
+              </div>
+
+              <div class="ddjj-partes">
+                <div class="ddjj-bloque">
+                  <div class="ddjj-bloque-head">
+                    <b>Compradores</b>
+                    <button type="button" class="btn ghost sm" id="ddjj-add-c" title="Agregar comprador">+ Comprador</button>
+                  </div>
+                  <div id="ddjj-compradores"></div>
+                </div>
+
+                <div class="ddjj-bloque">
+                  <div class="ddjj-bloque-head">
+                    <b>Vendedores</b>
+                    <button type="button" class="btn ghost sm" id="ddjj-add-v" title="Agregar vendedor">+ Vendedor</button>
+                  </div>
+                  <div id="ddjj-vendedores"></div>
+                </div>
+              </div>
+            </div>
+          </details>
+
           <div class="btn-row">
             <button class="btn accent" id="sello-calcular">Calcular y registrar ↗</button>
             <button class="btn ghost" id="sello-pdf-only">Solo PDF informativo</button>
@@ -647,10 +720,11 @@ details[open] .ident-toggle{transform:rotate(180deg)}
       </div>
 
       <div class="card" style="margin-top:18px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
           <h3 style="margin:0">Boletos registrados</h3>
           <div class="btn-row">
-            <button class="btn ghost sm" id="sellos-excel">↓ Excel</button>
+            <button class="btn ghost sm" id="sellos-excel">↓ Excel general</button>
+            <button class="btn accent sm" id="sellos-excel-ddjj">↓ Excel DDJJ (sellos_bot.py)</button>
           </div>
         </div>
         <div class="search-bar"><input type="text" id="sellos-search" placeholder="Buscar por propietario, unidad..."></div>
@@ -984,6 +1058,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <button class="tab" data-subtab="aj-alicuotas">Alícuotas sellos</button>
         <button class="tab" data-subtab="aj-responsables">Responsables tareas</button>
         <button class="tab" data-subtab="aj-emprendimientos">Emprendimientos</button>
+        <button class="tab" data-subtab="aj-cuentas-rentas">Cuentas Rentas</button>
         <button class="tab" data-subtab="aj-datos">Datos / Backup</button>
       </div>
       <div class="subtab-content" id="aj-usuarios">
@@ -1024,16 +1099,20 @@ details[open] .ident-toggle{transform:rotate(180deg)}
       <div class="subtab-content" id="aj-responsables" style="display:none">
         <div class="card">
           <h3>Responsables de tareas</h3>
-          <p class="sub">Estos nombres aparecen en el dropdown al asignar tareas en la pestaña Tareas.</p>
-          <div style="display:flex;gap:8px;align-items:end;margin-bottom:14px">
-            <div class="field" style="flex:1;margin-bottom:0">
+          <p class="sub">Estos nombres aparecen en el dropdown al asignar tareas en la pestaña Tareas. El email se usa para notificar por mail.</p>
+          <div style="display:flex;gap:8px;align-items:end;margin-bottom:14px;flex-wrap:wrap">
+            <div class="field" style="flex:1;margin-bottom:0;min-width:180px">
               <label>Nombre</label>
               <input type="text" id="resp-nombre" placeholder="Ej: Juan Pérez">
+            </div>
+            <div class="field" style="flex:1;margin-bottom:0;min-width:200px">
+              <label>Email (opcional)</label>
+              <input type="email" id="resp-email" placeholder="juan@edisur.com.ar">
             </div>
             <button class="btn" id="resp-add">+ Agregar</button>
           </div>
           <div class="tbl-wrap"><table class="tbl" id="resp-tabla">
-            <thead><tr><th>Nombre</th><th>Estado</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
+            <thead><tr><th>Nombre</th><th>Email</th><th>Estado</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
       <div class="subtab-content" id="aj-emprendimientos" style="display:none">
@@ -1055,6 +1134,26 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <div class="search-bar" style="margin-bottom:10px"><input type="text" id="empr-admin-search" placeholder="Buscar..."></div>
           <div class="tbl-wrap"><table class="tbl" id="empr-tabla">
             <thead><tr><th>Emprendimiento</th><th>Empresa</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+      <div class="subtab-content" id="aj-cuentas-rentas" style="display:none">
+        <div class="card">
+          <h3>Cuentas de Rentas Córdoba por barrio</h3>
+          <p class="sub">Asociación entre cada barrio y su N° de cuenta de 12 dígitos. Se usa al cargar el Imp. de Sellos para que el Excel DDJJ lleve el número correcto automáticamente.</p>
+          <div style="display:flex;gap:8px;align-items:end;margin-bottom:14px;flex-wrap:wrap">
+            <div class="field" style="flex:1;margin-bottom:0;min-width:180px">
+              <label>Barrio</label>
+              <input type="text" id="cr-nuevo-barrio" placeholder="Ej: Las Tipas">
+            </div>
+            <div class="field" style="flex:1;margin-bottom:0;min-width:180px">
+              <label>N° de cuenta (12 dígitos)</label>
+              <input type="text" id="cr-nuevo-cuenta" maxlength="12" pattern="\d{12}" placeholder="110103056110">
+            </div>
+            <button class="btn" id="cr-add">+ Agregar</button>
+          </div>
+          <div class="search-bar" style="margin-bottom:10px"><input type="text" id="cr-search" placeholder="Buscar barrio o cuenta..."></div>
+          <div class="tbl-wrap"><table class="tbl" id="cr-tabla">
+            <thead><tr><th>Barrio</th><th>N° de cuenta</th><th>Estado</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
       <div class="subtab-content" id="aj-datos" style="display:none">
@@ -1136,6 +1235,7 @@ const state = {
   transferencias: [],
   emprendimientos: [],
   identificadores: [],
+  cuentasRentas: [],
   users: [],
   feriados: {}, // {year: [{fecha, nombre}]}
   bnaActual: null,
@@ -1281,7 +1381,7 @@ async function afterLogin() {
   await Promise.all([
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
-    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(),
+    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -1450,6 +1550,10 @@ async function loadEmprendimientos() {
 async function loadIdentificadores() {
   const { data } = await sb.from('identificadores_transf').select('*').order('nombre_transfiere');
   state.identificadores = data || [];
+}
+async function loadCuentasRentas() {
+  const { data } = await sb.from('cuentas_rentas').select('*').order('orden').order('barrio');
+  state.cuentasRentas = data || [];
 }
 async function loadUsers() {
   if (state.profile?.rol !== 'admin') return;
@@ -1908,7 +2012,6 @@ async function calcSello() {
   if (!tipoOperacion) { toast('Elegí el tipo de operación', 'warn'); return null; }
   let tc = null, tcFecha = null, equiv;
   if (moneda === 'USD') {
-    // Asegurar que la cotización del panel está alineada con la fecha del boleto
     if (!state.bnaActual || state.bnaActual.fechaRef !== fecha) {
       await fetchBNA(fecha);
     }
@@ -1924,8 +2027,195 @@ async function calcSello() {
   await loadFeriados(yBoleto);
   await loadFeriados(yBoleto + 1);
   const venc = diasHabilesDesde(fecha, 15);
-  return { fecha, prop, unidad, moneda, monto, tc, tcFecha, equiv, alicuota, importe, venc, tipoOperacion };
+
+  // Datos del DDJJ
+  const ddjj = leerDDJJ();
+
+  return { fecha, prop, unidad, moneda, monto, tc, tcFecha, equiv, alicuota, importe, venc, tipoOperacion, ddjj };
 }
+
+function leerDDJJ() {
+  const partes = (selector, prefijo) => {
+    const out = {};
+    document.querySelectorAll(`#${selector} .ddjj-parte`).forEach((row, i) => {
+      const n = i + 1;
+      if (n > 4) return;
+      out[`${prefijo}${n}_tipo_doc`] = row.querySelector('.parte-tipo')?.value || null;
+      out[`${prefijo}${n}_num_doc`] = row.querySelector('.parte-num')?.value.trim() || null;
+      out[`${prefijo}${n}_sexo`] = row.querySelector('.parte-sexo')?.value || null;
+      out[`${prefijo}${n}_nombre`] = row.querySelector('.parte-nombre')?.value.trim() || null;
+    });
+    return out;
+  };
+  // El N° de cuenta puede venir del selector de barrio o del input manual ("Otra")
+  const barrioSel = $('#ddjj-barrio').value;
+  let numCuenta = null;
+  if (barrioSel === 'otra') {
+    numCuenta = $('#ddjj-num-cuenta-otra').value.trim() || null;
+  } else if (barrioSel) {
+    const cr = state.cuentasRentas.find(c => c.barrio === barrioSel);
+    numCuenta = cr ? cr.num_cuenta : null;
+  }
+  return {
+    tipo_contrato: $('#ddjj-tipo-contrato').value || null,
+    num_cuenta: numCuenta,
+    mail_responsable: $('#ddjj-mail').value.trim() || null,
+    ...partes('ddjj-compradores', 'c'),
+    ...partes('ddjj-vendedores', 'v')
+  };
+}
+
+function addParteRow(contenedorId, datos = {}) {
+  const cont = $('#' + contenedorId);
+  if (cont.querySelectorAll('.ddjj-parte').length >= 4) {
+    toast('Máximo 4 partes', 'warn');
+    return;
+  }
+  const div = document.createElement('div');
+  div.className = 'ddjj-parte';
+  div.innerHTML = `
+    <div class="field"><label>Tipo Doc</label>
+      <select class="parte-tipo">
+        <option value="DNI" ${datos.tipo_doc==='DNI'?'selected':''}>DNI</option>
+        <option value="CUIT" ${datos.tipo_doc==='CUIT'?'selected':''}>CUIT</option>
+      </select>
+    </div>
+    <div class="field"><label>N° Documento</label>
+      <input type="text" class="parte-num" value="${datos.num_doc||''}" placeholder="26964727">
+    </div>
+    <div class="field"><label>Sexo</label>
+      <select class="parte-sexo">
+        <option value="M" ${datos.sexo==='M'?'selected':''}>M</option>
+        <option value="F" ${datos.sexo==='F'?'selected':''}>F</option>
+        <option value="J" ${datos.sexo==='J'?'selected':''}>J</option>
+      </select>
+    </div>
+    <div class="field"><label>Apellido y Nombre / Razón Social</label>
+      <input type="text" class="parte-nombre" value="${(datos.nombre||'').replace(/"/g,'&quot;')}" placeholder="Pérez Juan">
+    </div>
+    <button type="button" class="ddjj-parte-rm" title="Quitar">×</button>`;
+  div.querySelector('.ddjj-parte-rm').addEventListener('click', () => div.remove());
+  cont.appendChild(div);
+}
+
+// Inicializar con 1 comprador y 1 vendedor por defecto
+addParteRow('ddjj-compradores');
+addParteRow('ddjj-vendedores');
+$('#ddjj-add-c').addEventListener('click', () => addParteRow('ddjj-compradores'));
+$('#ddjj-add-v').addEventListener('click', () => addParteRow('ddjj-vendedores'));
+
+// Poblar selector de barrios y manejar cambio
+function poblarBarriosDDJJ() {
+  const sel = $('#ddjj-barrio');
+  if (!sel) return;
+  const valActual = sel.value;
+  sel.innerHTML = '<option value="">— Seleccionar —</option>' +
+    state.cuentasRentas.filter(c => c.activo).map(c =>
+      `<option value="${c.barrio}">${c.barrio}</option>`
+    ).join('') +
+    '<option value="otra">Otra (ingresar manualmente)</option>';
+  if (valActual) sel.value = valActual;
+}
+$('#ddjj-barrio').addEventListener('change', () => {
+  const v = $('#ddjj-barrio').value;
+  const hint = $('#ddjj-num-cuenta-hint');
+  const otra = $('#ddjj-otra-wrap');
+  if (v === 'otra') {
+    hint.innerHTML = '';
+    otra.style.display = 'block';
+  } else if (v) {
+    const cr = state.cuentasRentas.find(c => c.barrio === v);
+    hint.innerHTML = cr ? `N° de cuenta: <b>${cr.num_cuenta}</b>` : '<span style="color:var(--err)">Barrio sin cuenta cargada</span>';
+    otra.style.display = 'none';
+  } else {
+    hint.innerHTML = '';
+    otra.style.display = 'none';
+  }
+});
+
+function limpiarDDJJ() {
+  $('#ddjj-tipo-contrato').value = '';
+  $('#ddjj-barrio').value = '';
+  $('#ddjj-num-cuenta-hint').innerHTML = '';
+  $('#ddjj-otra-wrap').style.display = 'none';
+  $('#ddjj-num-cuenta-otra').value = '';
+  $('#ddjj-mail').value = '';
+  $('#ddjj-compradores').innerHTML = '';
+  $('#ddjj-vendedores').innerHTML = '';
+  addParteRow('ddjj-compradores');
+  addParteRow('ddjj-vendedores');
+}
+
+// === Admin: gestión de cuentas Rentas por barrio ===
+function renderCuentasRentas() {
+  const q = ($('#cr-search')?.value || '').toLowerCase();
+  const tb = $('#cr-tabla tbody');
+  if (!tb) return;
+  const filt = state.cuentasRentas.filter(c =>
+    !q || `${c.barrio} ${c.num_cuenta}`.toLowerCase().includes(q)
+  );
+  if (!filt.length) {
+    tb.innerHTML = '<tr><td colspan="4" class="empty">Sin cuentas cargadas</td></tr>';
+  } else {
+    tb.innerHTML = filt.map(c => `<tr>
+      <td><b>${c.barrio}</b></td>
+      <td class="mono">${c.num_cuenta}</td>
+      <td><span class="badge ${c.activo?'ok':'muted'}">${c.activo?'Activa':'Inactiva'}</span></td>
+      <td class="actions">
+        <button class="btn ghost sm" onclick="editCuentaRenta('${c.id}')" title="Editar">✎</button>
+        <button class="btn ghost sm" onclick="toggleCuentaRenta('${c.id}',${!c.activo})">${c.activo?'Desactivar':'Activar'}</button>
+        <button class="btn ghost sm" onclick="deleteCuentaRenta('${c.id}')" title="Eliminar">×</button>
+      </td>
+    </tr>`).join('');
+  }
+}
+$('#cr-add')?.addEventListener('click', async () => {
+  const barrio = $('#cr-nuevo-barrio').value.trim();
+  const num = $('#cr-nuevo-cuenta').value.trim();
+  if (!barrio || !num) { toast('Completá barrio y N° de cuenta', 'warn'); return; }
+  if (!/^\d{12}$/.test(num)) { toast('El N° de cuenta debe tener 12 dígitos', 'warn'); return; }
+  const { error } = await sb.from('cuentas_rentas').insert({ barrio, num_cuenta: num });
+  if (error) { toast(error.message, 'err'); return; }
+  $('#cr-nuevo-barrio').value = ''; $('#cr-nuevo-cuenta').value = '';
+  toast('Barrio agregado', 'ok');
+  await loadCuentasRentas(); renderCuentasRentas(); poblarBarriosDDJJ();
+});
+$('#cr-search')?.addEventListener('input', renderCuentasRentas);
+
+window.editCuentaRenta = function(id) {
+  const c = state.cuentasRentas.find(x => x.id === id);
+  if (!c) return;
+  showModal(`<div class="modal-head"><h3>Editar barrio</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Barrio</label><input id="ecr-barrio" value="${c.barrio.replace(/"/g,'&quot;')}"></div>
+      <div class="field"><label>N° de cuenta (12 dígitos)</label><input id="ecr-cuenta" value="${c.num_cuenta}" maxlength="12"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn" onclick="saveCuentaRenta('${id}')">Guardar</button>
+    </div>`);
+};
+window.saveCuentaRenta = async function(id) {
+  const barrio = $('#ecr-barrio').value.trim();
+  const num = $('#ecr-cuenta').value.trim();
+  if (!barrio || !num) { toast('Completá ambos campos', 'warn'); return; }
+  if (!/^\d{12}$/.test(num)) { toast('El N° de cuenta debe tener 12 dígitos', 'warn'); return; }
+  const { error } = await sb.from('cuentas_rentas').update({ barrio, num_cuenta: num }).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  closeModal(); toast('Guardado', 'ok');
+  await loadCuentasRentas(); renderCuentasRentas(); poblarBarriosDDJJ();
+};
+window.toggleCuentaRenta = async function(id, val) {
+  await sb.from('cuentas_rentas').update({ activo: val }).eq('id', id);
+  await loadCuentasRentas(); renderCuentasRentas(); poblarBarriosDDJJ();
+};
+window.deleteCuentaRenta = async function(id) {
+  if (!await confirmAction('¿Eliminar este barrio?')) return;
+  const { error } = await sb.from('cuentas_rentas').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  await loadCuentasRentas(); renderCuentasRentas(); poblarBarriosDDJJ();
+  toast('Eliminado', 'ok');
+};
 
 const TIPOS_OPERACION = { cesion: 'Cesión', venta_nueva: 'Venta nueva', pase_reserva: 'Pase de reserva a boleto', canje: 'Canje' };
 
@@ -1966,6 +2256,7 @@ $('#sello-calcular').addEventListener('click', async () => {
     monto: r.monto, tipo_cambio_bna: r.tc, equivalente_ars: r.equiv,
     alicuota: r.alicuota, importe_pagar: r.importe, fecha_vencimiento: r.venc,
     observaciones: $('#sello-obs').value, estado: 'pendiente', tipo_operacion: r.tipoOperacion,
+    ...r.ddjj,
     created_by: state.user.id,
   });
   if (error) { toast(error.message, 'err'); return; }
@@ -1975,6 +2266,7 @@ $('#sello-calcular').addEventListener('click', async () => {
   ['sello-prop','sello-unidad','sello-monto','sello-obs'].forEach(id => $('#'+id).value='');
   $('#sello-tipo').value = '';
   $('#sello-tipo-btns').querySelectorAll('.concepto-btn').forEach(b => b.classList.remove('selected'));
+  limpiarDDJJ();
 });
 
 // PDF formato Edisur: dos copias (Original + Duplicado) en una página A4
@@ -2182,6 +2474,93 @@ window.deleteSello = async function(id) {
 };
 
 $('#sellos-excel').addEventListener('click', () => exportarExcel(state.boletos, 'boletos'));
+
+// Export Excel con formato EXACTO del template sellos_bot.py (DDJJ Rentas)
+$('#sellos-excel-ddjj').addEventListener('click', () => {
+  // Solo boletos que tengan al menos los datos mínimos del DDJJ
+  const filt = state.boletos.filter(b => b.tipo_contrato && b.num_cuenta);
+  if (!filt.length) {
+    toast('No hay boletos con datos DDJJ cargados', 'warn');
+    return;
+  }
+
+  // === ARMAR ESTRUCTURA DEL EXCEL ===
+  // Fila 1: título
+  // Fila 2: categorías (DATOS GENERALES, COMPRADOR 1, etc.)
+  // Fila 3: headers de cada columna
+  // Fila 4+: datos
+
+  const fmtDate = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso + 'T00:00:00');
+    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  };
+
+  // Headers fila 3
+  const headerGen = ['Fecha Boleto\n(DD/MM/AAAA)', 'Tipo Contrato\n(1045/1161)', 'N° Cuenta\n(12 dígitos)', 'Importe ($)', 'Mail responsable'];
+  const headerParte = ['Tipo Doc\n(DNI/CUIT)', 'N° Documento', 'Sexo\n(M/F/J)', 'Apellido y Nombre\n/ Razón Social', 'Rol'];
+  const headerRow = [...headerGen];
+  for (let i = 0; i < 4; i++) headerRow.push(...headerParte);  // compradores 1-4
+  for (let i = 0; i < 4; i++) headerRow.push(...headerParte);  // vendedores 1-4
+
+  // Fila 2: categorías (5 cols vacías + COMPRADOR 1, ..., COMPRADOR 4, VENDEDOR 1, ..., VENDEDOR 4)
+  const catRow = ['DATOS GENERALES','','','',''];
+  for (let i = 1; i <= 4; i++) catRow.push(`COMPRADOR ${i}`,'','','','');
+  for (let i = 1; i <= 4; i++) catRow.push(`VENDEDOR ${i}`,'','','','');
+
+  // Filas de datos
+  const dataRows = filt.map(b => {
+    // Importe: el monto en pesos (equivalente_ars), redondeado sin decimales
+    const importe = b.equivalente_ars ? Math.round(b.equivalente_ars) : (b.monto ? Math.round(b.monto) : '');
+    const row = [
+      fmtDate(b.fecha),
+      b.tipo_contrato || '',
+      b.num_cuenta || '',
+      importe,
+      b.mail_responsable || ''
+    ];
+    // Compradores
+    for (let i = 1; i <= 4; i++) {
+      const nombre = b[`c${i}_nombre`];
+      if (nombre) {
+        row.push(b[`c${i}_tipo_doc`]||'', b[`c${i}_num_doc`]||'', b[`c${i}_sexo`]||'', nombre, 'comprador');
+      } else {
+        row.push('','','','','');
+      }
+    }
+    // Vendedores
+    for (let i = 1; i <= 4; i++) {
+      const nombre = b[`v${i}_nombre`];
+      if (nombre) {
+        row.push(b[`v${i}_tipo_doc`]||'', b[`v${i}_num_doc`]||'', b[`v${i}_sexo`]||'', nombre, 'vendedor');
+      } else {
+        row.push('','','','','');
+      }
+    }
+    return row;
+  });
+
+  // Armar matriz completa
+  const titleRow = ['DDJJ Impuesto de Sellos — Rentas Córdoba'];
+  const matrix = [titleRow, catRow, headerRow, ...dataRows];
+
+  // Crear workbook con SheetJS
+  const ws = XLSX.utils.aoa_to_sheet(matrix);
+
+  // Ajustar anchos de columna
+  ws['!cols'] = [
+    {wch: 13}, {wch: 10}, {wch: 14}, {wch: 14}, {wch: 28},  // generales
+    ...Array(40).fill(null).map((_, i) => {
+      const colInBlock = i % 5;
+      return {wch: [10, 13, 7, 26, 11][colInBlock]};
+    })
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'DDJJs');
+  XLSX.writeFile(wb, `sellos-ddjj-${todayISO()}.xlsx`);
+  toast(`Exportados ${filt.length} boleto${filt.length>1?'s':''} para sellos_bot.py`, 'ok');
+});
 
 // =================================================================
 // MODULO: POSESIONES
@@ -2851,6 +3230,8 @@ function renderTareas() {
 }
 
 function renderTareaItem(t) {
+  const respObj = t.responsable ? state.responsables.find(r => r.nombre === t.responsable) : null;
+  const tieneEmail = respObj && respObj.email;
   const resp = t.responsable ? `<span class="resp">👤 ${t.responsable}</span>` : '<span class="muted">sin responsable</span>';
   const fecha = badgeFecha(t.fecha_objetivo);
   return `<div class="tarea-item ${t.finalizada?'finalizada':''}">
@@ -2862,13 +3243,65 @@ function renderTareaItem(t) {
     <div class="tildes">
       <label class="pos-chk"><input type="checkbox" ${t.en_proceso?'checked':''} onchange="toggleTareaCampo('${t.id}','en_proceso',this.checked)"><span>En proceso</span></label>
       <label class="pos-chk"><input type="checkbox" ${t.finalizada?'checked':''} onchange="toggleTareaCampo('${t.id}','finalizada',this.checked)"><span>Finalizada</span></label>
-      <div class="acciones" style="margin-top:4px">
+      <div class="acciones" style="margin-top:4px;flex-wrap:wrap">
+        ${tieneEmail
+          ? `<button class="btn accent sm" onclick="notificarTarea('${t.id}','asignar')" title="Asignar tarea por email a ${respObj.nombre}">✉ Asignar</button>
+             <button class="btn ghost sm" onclick="notificarTarea('${t.id}','recordar')" title="Recordatorio por email a ${respObj.nombre}">🔔 Recordar</button>`
+          : (t.responsable ? `<button class="btn ghost sm" onclick="alertSinEmail('${t.responsable.replace(/'/g,"\\'")}')" title="Este responsable no tiene email" style="opacity:.5">✉</button>` : '')}
         <button class="btn ghost sm" onclick="editTarea('${t.id}')" title="Editar">✎</button>
         ${state.profile?.rol==='admin'?`<button class="btn ghost sm" onclick="deleteTarea('${t.id}')" title="Eliminar">×</button>`:''}
       </div>
     </div>
   </div>`;
 }
+
+window.alertSinEmail = function(nombreResp) {
+  toast(`${nombreResp} no tiene email cargado. Agregalo en Ajustes → Responsables tareas.`, 'warn');
+};
+
+window.notificarTarea = function(id, modo) {
+  const t = state.tareas.find(x => x.id === id);
+  if (!t) return;
+  const resp = state.responsables.find(r => r.nombre === t.responsable);
+  if (!resp || !resp.email) {
+    toast('El responsable no tiene email cargado', 'warn');
+    return;
+  }
+  const tipoTxt = t.tipo === 'mensual'
+    ? `tarea mensual de ${MESES[t.mes-1]} ${t.anio}`
+    : 'tarea excepcional';
+  const fechaTxt = t.fecha_objetivo ? `\n\nFecha objetivo: ${fmtFecha(t.fecha_objetivo)}` : '';
+  const obsTxt = t.observaciones ? `\n\nObservaciones: ${t.observaciones}` : '';
+  const firmaTxt = `\n\nSaludos,\n${state.profile?.nombre || 'Grupo Edisur'}`;
+
+  let asunto, cuerpo;
+
+  if (modo === 'asignar') {
+    asunto = `[Grupo Edisur] Nueva tarea asignada: ${t.titulo}`;
+    cuerpo = `Hola ${resp.nombre},
+
+Te quería avisar que te asigné la siguiente ${tipoTxt}:
+
+▸ ${t.titulo}${fechaTxt}${obsTxt}
+
+Cualquier duda sobre cómo encararla, avisame.${firmaTxt}`;
+  } else {
+    // recordar
+    const estadoTxt = t.finalizada ? '(YA FINALIZADA)' : (t.en_proceso ? '(en proceso)' : '(pendiente)');
+    asunto = `[Grupo Edisur] Recordatorio: ${t.titulo}`;
+    cuerpo = `Hola ${resp.nombre},
+
+Te recuerdo la siguiente ${tipoTxt} a tu cargo ${estadoTxt}:
+
+▸ ${t.titulo}${fechaTxt}${obsTxt}
+
+Cualquier consulta, avisame.${firmaTxt}`;
+  }
+
+  const url = `mailto:${encodeURIComponent(resp.email)}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
+  window.location.href = url;
+  toast(`Abriendo mail para ${resp.nombre}...`, 'ok');
+};
 
 window.toggleTareaCampo = async function(id, campo, val) {
   const update = { [campo]: val };
@@ -3010,10 +3443,15 @@ $('#tareas-replicar').addEventListener('click', async () => {
 // === Responsables (admin) ===
 $('#resp-add').addEventListener('click', async () => {
   const nombre = $('#resp-nombre').value.trim();
+  const email = $('#resp-email').value.trim() || null;
   if (!nombre) { toast('Ingresá un nombre', 'warn'); return; }
-  const { error } = await sb.from('tareas_responsables').insert({ nombre });
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    toast('Email inválido', 'warn'); return;
+  }
+  const { error } = await sb.from('tareas_responsables').insert({ nombre, email });
   if (error) { toast(error.message, 'err'); return; }
   $('#resp-nombre').value = '';
+  $('#resp-email').value = '';
   toast('Responsable agregado', 'ok');
   await loadResponsables(); renderResponsables();
 });
@@ -3021,18 +3459,47 @@ $('#resp-add').addEventListener('click', async () => {
 function renderResponsables() {
   const tb = $('#resp-tabla tbody');
   if (!state.responsables.length) {
-    tb.innerHTML = '<tr><td colspan="3" class="empty">Sin responsables cargados</td></tr>';
+    tb.innerHTML = '<tr><td colspan="4" class="empty">Sin responsables cargados</td></tr>';
     return;
   }
   tb.innerHTML = state.responsables.map(r => `<tr>
     <td><b>${r.nombre}</b></td>
+    <td>${r.email
+      ? `<span style="font-size:.82rem">${r.email}</span>`
+      : '<span class="muted" style="font-size:.78rem;font-style:italic">sin email</span>'}</td>
     <td><span class="badge ${r.activo?'ok':'muted'}">${r.activo?'Activo':'Inactivo'}</span></td>
     <td class="actions">
+      <button class="btn ghost sm" onclick="editRespEmail('${r.id}')" title="Editar email">✉</button>
       <button class="btn ghost sm" onclick="toggleResp('${r.id}',${!r.activo})">${r.activo?'Desactivar':'Activar'}</button>
       <button class="btn ghost sm" onclick="deleteResp('${r.id}')">×</button>
     </td>
   </tr>`).join('');
 }
+window.editRespEmail = function(id) {
+  const r = state.responsables.find(x => x.id === id);
+  if (!r) return;
+  showModal(`<div class="modal-head"><h3>Editar ${r.nombre}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Nombre</label><input id="er-nombre" value="${r.nombre.replace(/"/g,'&quot;')}"></div>
+      <div class="field"><label>Email</label><input type="email" id="er-email" value="${(r.email||'').replace(/"/g,'&quot;')}" placeholder="ejemplo@edisur.com.ar"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn" onclick="saveRespEdit('${id}')">Guardar</button>
+    </div>`);
+};
+window.saveRespEdit = async function(id) {
+  const nombre = $('#er-nombre').value.trim();
+  const email = $('#er-email').value.trim() || null;
+  if (!nombre) { toast('Falta el nombre', 'warn'); return; }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    toast('Email inválido', 'warn'); return;
+  }
+  const { error } = await sb.from('tareas_responsables').update({ nombre, email }).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  closeModal(); toast('Guardado', 'ok');
+  await loadResponsables(); renderResponsables(); renderTareas();
+};
 window.toggleResp = async function(id, val) {
   await sb.from('tareas_responsables').update({ activo: val }).eq('id', id);
   await loadResponsables(); renderResponsables();
@@ -3827,6 +4294,7 @@ function renderAll() {
   renderTareas();
   renderTransferencias();
   renderIdentLista();
+  poblarBarriosDDJJ();
   if (state.profile?.rol === 'admin') {
     renderEmpresas();
     renderCuentasAdmin();
@@ -3834,6 +4302,7 @@ function renderAll() {
     renderAlicuotas();
     renderResponsables();
     renderEmprAdmin();
+    renderCuentasRentas();
   }
   // defaults de fecha
   $('#sello-fecha').value = todayISO();
@@ -3847,7 +4316,7 @@ function renderAll() {
 // REAL-TIME SUBSCRIPTIONS
 // =================================================================
 function subscribeChanges() {
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','emprendimientos','icc_valores','sellos_alicuotas'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','icc_valores','sellos_alicuotas'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -3860,6 +4329,7 @@ function subscribeChanges() {
         if (tabla==='tareas_responsables') { await loadResponsables(); if(state.profile?.rol==='admin') renderResponsables(); }
         if (tabla==='transferencias') { await loadTransferencias(); renderTransferencias(); }
         if (tabla==='identificadores_transf') { await loadIdentificadores(); renderIdentLista(); }
+        if (tabla==='cuentas_rentas') { await loadCuentasRentas(); poblarBarriosDDJJ(); if(state.profile?.rol==='admin') renderCuentasRentas(); }
         if (tabla==='emprendimientos') { await loadEmprendimientos(); if(state.profile?.rol==='admin') renderEmprAdmin(); }
         if (tabla==='icc_valores') { await loadIcc(); renderIccTabla(); initConceptosMesRef(); renderConceptos(); renderIccAlerta(); }
         if (tabla==='sellos_alicuotas') { await loadAlicuotas(); if(state.profile?.rol==='admin') renderAlicuotas(); updateAlicuotaForFecha(); }
