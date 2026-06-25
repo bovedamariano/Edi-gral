@@ -261,8 +261,8 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
 .ident-card{padding:0}
 
 /* ===== DDJJ Rentas (sellos) ===== */
-.ddjj-card{padding:0;background:var(--surface-2);border:1px dashed var(--line)}
-.ddjj-summary{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;cursor:pointer;list-style:none;user-select:none}
+.ddjj-card{padding:0;background:var(--surface-2);border:1px solid var(--accent);border-left:4px solid var(--accent)}
+.ddjj-summary{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;list-style:none;user-select:none;background:var(--accent-soft);border-bottom:1px solid var(--line-2)}
 .ddjj-summary::-webkit-details-marker{display:none}
 .ddjj-body{padding:0 16px 16px}
 .ddjj-partes{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px}
@@ -645,15 +645,14 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <div class="field"><label>Observaciones (opcional)</label><textarea id="sello-obs" rows="2"></textarea></div>
 
           <!-- Sección colapsable: Datos para DDJJ Rentas -->
-          <details class="card ddjj-card" style="margin-bottom:14px">
-            <summary class="ddjj-summary">
-              <span><b>Datos para DDJJ Rentas</b> <span class="muted" style="font-size:.78rem;font-weight:400">(sellos_bot.py)</span></span>
-              <span class="ident-toggle">▾</span>
-            </summary>
+          <div class="card ddjj-card" style="margin-bottom:14px">
+            <div class="ddjj-summary">
+              <span><b>Datos para DDJJ Rentas</b> <span style="color:var(--err);font-weight:600;font-size:.78rem">· obligatorio</span></span>
+            </div>
             <div class="ddjj-body">
               <div class="grid-3">
                 <div class="field">
-                  <label>Tipo de contrato</label>
+                  <label>Tipo de contrato <span style="color:var(--err)">*</span></label>
                   <select id="ddjj-tipo-contrato">
                     <option value="">—</option>
                     <option value="1045">1045</option>
@@ -661,7 +660,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
                   </select>
                 </div>
                 <div class="field">
-                  <label>Barrio (N° de cuenta)</label>
+                  <label>Barrio (N° de cuenta) <span style="color:var(--err)">*</span></label>
                   <select id="ddjj-barrio">
                     <option value="">— Seleccionar —</option>
                   </select>
@@ -672,7 +671,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
                   </div>
                 </div>
                 <div class="field">
-                  <label>Mail responsable</label>
+                  <label>Mail responsable <span style="color:var(--err)">*</span></label>
                   <input type="email" id="ddjj-mail" placeholder="responsable@grupoedisur.com.ar">
                 </div>
               </div>
@@ -680,7 +679,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
               <div class="ddjj-partes">
                 <div class="ddjj-bloque">
                   <div class="ddjj-bloque-head">
-                    <b>Compradores</b>
+                    <b>Compradores <span style="color:var(--err);font-size:.78rem;font-weight:500">(al menos 1) *</span></b>
                     <button type="button" class="btn ghost sm" id="ddjj-add-c" title="Agregar comprador">+ Comprador</button>
                   </div>
                   <div id="ddjj-compradores"></div>
@@ -688,14 +687,14 @@ details[open] .ident-toggle{transform:rotate(180deg)}
 
                 <div class="ddjj-bloque">
                   <div class="ddjj-bloque-head">
-                    <b>Vendedores</b>
+                    <b>Vendedores <span style="color:var(--err);font-size:.78rem;font-weight:500">(al menos 1) *</span></b>
                     <button type="button" class="btn ghost sm" id="ddjj-add-v" title="Agregar vendedor">+ Vendedor</button>
                   </div>
                   <div id="ddjj-vendedores"></div>
                 </div>
               </div>
             </div>
-          </details>
+          </div>
 
           <div class="btn-row">
             <button class="btn accent" id="sello-calcular">Calcular y registrar ↗</button>
@@ -725,6 +724,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <div class="btn-row">
             <button class="btn ghost sm" id="sellos-excel">↓ Excel general</button>
             <button class="btn accent sm" id="sellos-excel-ddjj">↓ Excel DDJJ (sellos_bot.py)</button>
+            <button class="btn accent sm" id="sellos-excel-ddjj-pendientes" title="Solo boletos en estado Pendiente">↓ Excel DDJJ · Solo pendientes</button>
           </div>
         </div>
         <div class="search-bar"><input type="text" id="sellos-search" placeholder="Buscar por propietario, unidad..."></div>
@@ -984,20 +984,24 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           </div>
 
           <div style="display:flex;gap:8px;align-items:end;margin:16px 0 6px;flex-wrap:wrap">
-            <div class="field" style="flex:1;margin-bottom:0;min-width:160px">
+            <div class="field" style="flex:1;margin-bottom:0;min-width:140px">
               <label>Quién transfiere</label>
               <input type="text" id="ident-nuevo-transfiere" placeholder="Ej: José Pérez">
             </div>
             <div style="padding-bottom:10px;color:var(--ink-3);font-weight:600">→</div>
-            <div class="field" style="flex:1;margin-bottom:0;min-width:160px">
+            <div class="field" style="flex:1;margin-bottom:0;min-width:140px">
               <label>A nombre de (titular)</label>
               <input type="text" id="ident-nuevo-titular" placeholder="Ej: María García">
+            </div>
+            <div class="field" style="margin-bottom:0;min-width:120px">
+              <label>N° Cliente (7 dígitos)</label>
+              <input type="text" id="ident-nuevo-nc" maxlength="7" inputmode="numeric" pattern="\d{7}" placeholder="1234567">
             </div>
             <button class="btn" id="ident-add">+ Agregar</button>
           </div>
 
           <div class="tbl-wrap" style="margin-top:10px"><table class="tbl" id="ident-tabla">
-            <thead><tr><th>Quién transfiere</th><th>Se imputa a</th><th>Obs.</th><th class="actions"></th></tr></thead>
+            <thead><tr><th>Quién transfiere</th><th>Se imputa a</th><th>N° Cliente</th><th>Obs.</th><th class="actions"></th></tr></thead>
             <tbody></tbody>
           </table></div>
         </div>
@@ -1189,8 +1193,8 @@ details[open] .ident-toggle{transform:rotate(180deg)}
 // =================================================================
 // CONFIG · Edi-gral v2
 // =================================================================
-const SUPABASE_URL = 'https://uljauhrplryudxjnwsbc.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsamF1aHJwbHJ5dWR4am53c2JjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2Mzg1MDcsImV4cCI6MjA5NDIxNDUwN30.zQoQmkHVsaEVXcaJ-DPe1boHo-65dELjnCdxQC2eTZ0';
+const SUPABASE_URL = 'REEMPLAZAR_CON_TU_URL_DE_SUPABASE';
+const SUPABASE_ANON_KEY = 'REEMPLAZAR_CON_TU_ANON_KEY';
 
 // Validación de credenciales antes de inicializar
 let sb = null;
@@ -2028,10 +2032,48 @@ async function calcSello() {
   await loadFeriados(yBoleto + 1);
   const venc = diasHabilesDesde(fecha, 15);
 
-  // Datos del DDJJ
+  // Datos del DDJJ (con validación obligatoria)
   const ddjj = leerDDJJ();
+  const errorDDJJ = validarDDJJ(ddjj);
+  if (errorDDJJ) {
+    toast(errorDDJJ, 'warn');
+    return null;
+  }
 
   return { fecha, prop, unidad, moneda, monto, tc, tcFecha, equiv, alicuota, importe, venc, tipoOperacion, ddjj };
+}
+
+// Valida que los datos del DDJJ estén completos.
+// Retorna null si todo OK, o un string con el motivo del error.
+function validarDDJJ(ddjj) {
+  if (!ddjj.tipo_contrato) return 'DDJJ: elegí el tipo de contrato (1045 o 1161)';
+  if (!ddjj.num_cuenta) return 'DDJJ: elegí el barrio o ingresá el N° de cuenta';
+  if (ddjj.num_cuenta && !/^\d{12}$/.test(ddjj.num_cuenta)) return 'DDJJ: el N° de cuenta debe tener 12 dígitos';
+  if (!ddjj.mail_responsable) return 'DDJJ: ingresá el mail del responsable';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ddjj.mail_responsable)) return 'DDJJ: el mail del responsable no es válido';
+
+  // Validar partes: al menos 1 comprador y 1 vendedor completos
+  // Y que no haya partes "a medias" (con algunos campos pero faltando otros)
+  const validarPartes = (prefijo, label) => {
+    let cantCompletos = 0;
+    for (let i = 1; i <= 4; i++) {
+      const tipo = ddjj[`${prefijo}${i}_tipo_doc`];
+      const num = ddjj[`${prefijo}${i}_num_doc`];
+      const sexo = ddjj[`${prefijo}${i}_sexo`];
+      const nombre = ddjj[`${prefijo}${i}_nombre`];
+      const cant = [tipo, num, sexo, nombre].filter(v => v && String(v).trim()).length;
+      if (cant === 0) continue; // fila vacía, OK
+      if (cant < 4) return `DDJJ: el ${label} #${i} tiene datos incompletos (Tipo Doc, N° Doc, Sexo y Nombre son obligatorios)`;
+      cantCompletos++;
+    }
+    if (cantCompletos === 0) return `DDJJ: cargá al menos 1 ${label} con todos los datos`;
+    return null;
+  };
+  const err1 = validarPartes('c', 'comprador');
+  if (err1) return err1;
+  const err2 = validarPartes('v', 'vendedor');
+  if (err2) return err2;
+  return null;
 }
 
 function leerDDJJ() {
@@ -2476,63 +2518,53 @@ window.deleteSello = async function(id) {
 $('#sellos-excel').addEventListener('click', () => exportarExcel(state.boletos, 'boletos'));
 
 // Export Excel con formato EXACTO del template sellos_bot.py (DDJJ Rentas)
-$('#sellos-excel-ddjj').addEventListener('click', () => {
-  // Solo boletos que tengan al menos los datos mínimos del DDJJ
-  const filt = state.boletos.filter(b => b.tipo_contrato && b.num_cuenta);
-  if (!filt.length) {
-    toast('No hay boletos con datos DDJJ cargados', 'warn');
+function exportarExcelDDJJ(boletos, sufijoArchivo = '', mensajeToast = null) {
+  if (!boletos.length) {
+    toast(mensajeToast || 'No hay boletos con datos DDJJ cargados', 'warn');
     return;
   }
 
-  // === ARMAR ESTRUCTURA DEL EXCEL ===
-  // Fila 1: título
-  // Fila 2: categorías (DATOS GENERALES, COMPRADOR 1, etc.)
-  // Fila 3: headers de cada columna
-  // Fila 4+: datos
-
-  const fmtDate = (iso) => {
-    if (!iso) return '';
-    const d = new Date(iso + 'T00:00:00');
-    return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-  };
-
-  // Headers fila 3
+  // Headers fila 3 (idénticos al template, incluyendo saltos de línea)
   const headerGen = ['Fecha Boleto\n(DD/MM/AAAA)', 'Tipo Contrato\n(1045/1161)', 'N° Cuenta\n(12 dígitos)', 'Importe ($)', 'Mail responsable'];
   const headerParte = ['Tipo Doc\n(DNI/CUIT)', 'N° Documento', 'Sexo\n(M/F/J)', 'Apellido y Nombre\n/ Razón Social', 'Rol'];
   const headerRow = [...headerGen];
-  for (let i = 0; i < 4; i++) headerRow.push(...headerParte);  // compradores 1-4
-  for (let i = 0; i < 4; i++) headerRow.push(...headerParte);  // vendedores 1-4
+  for (let i = 0; i < 4; i++) headerRow.push(...headerParte);
+  for (let i = 0; i < 4; i++) headerRow.push(...headerParte);
 
-  // Fila 2: categorías (5 cols vacías + COMPRADOR 1, ..., COMPRADOR 4, VENDEDOR 1, ..., VENDEDOR 4)
+  // Fila 2: categorías
   const catRow = ['DATOS GENERALES','','','',''];
   for (let i = 1; i <= 4; i++) catRow.push(`COMPRADOR ${i}`,'','','','');
   for (let i = 1; i <= 4; i++) catRow.push(`VENDEDOR ${i}`,'','','','');
 
-  // Filas de datos
-  const dataRows = filt.map(b => {
-    // Importe: el monto en pesos (equivalente_ars), redondeado sin decimales
+  // Filas de datos — RESPETANDO LOS TIPOS EXACTOS del template
+  const numOrStr = (v) => {
+    if (v == null || v === '') return '';
+    const s = String(v).trim();
+    return /^\d+$/.test(s) ? Number(s) : s;
+  };
+  const dataRows = boletos.map(b => {
+    const fechaDate = b.fecha ? new Date(b.fecha + 'T00:00:00') : '';
     const importe = b.equivalente_ars ? Math.round(b.equivalente_ars) : (b.monto ? Math.round(b.monto) : '');
+    const tipoContrato = b.tipo_contrato ? Number(b.tipo_contrato) : '';
     const row = [
-      fmtDate(b.fecha),
-      b.tipo_contrato || '',
+      fechaDate,
+      tipoContrato,
       b.num_cuenta || '',
       importe,
       b.mail_responsable || ''
     ];
-    // Compradores
     for (let i = 1; i <= 4; i++) {
       const nombre = b[`c${i}_nombre`];
       if (nombre) {
-        row.push(b[`c${i}_tipo_doc`]||'', b[`c${i}_num_doc`]||'', b[`c${i}_sexo`]||'', nombre, 'comprador');
+        row.push(b[`c${i}_tipo_doc`]||'', numOrStr(b[`c${i}_num_doc`]), b[`c${i}_sexo`]||'', nombre, 'comprador');
       } else {
         row.push('','','','','');
       }
     }
-    // Vendedores
     for (let i = 1; i <= 4; i++) {
       const nombre = b[`v${i}_nombre`];
       if (nombre) {
-        row.push(b[`v${i}_tipo_doc`]||'', b[`v${i}_num_doc`]||'', b[`v${i}_sexo`]||'', nombre, 'vendedor');
+        row.push(b[`v${i}_tipo_doc`]||'', numOrStr(b[`v${i}_num_doc`]), b[`v${i}_sexo`]||'', nombre, 'vendedor');
       } else {
         row.push('','','','','');
       }
@@ -2540,16 +2572,23 @@ $('#sellos-excel-ddjj').addEventListener('click', () => {
     return row;
   });
 
-  // Armar matriz completa
   const titleRow = ['DDJJ Impuesto de Sellos — Rentas Córdoba'];
   const matrix = [titleRow, catRow, headerRow, ...dataRows];
 
-  // Crear workbook con SheetJS
-  const ws = XLSX.utils.aoa_to_sheet(matrix);
+  const ws = XLSX.utils.aoa_to_sheet(matrix, { cellDates: true });
 
-  // Ajustar anchos de columna
+  for (let r = 4; r <= 3 + dataRows.length; r++) {
+    const addr = XLSX.utils.encode_cell({ r: r - 1, c: 0 });
+    if (ws[addr] && ws[addr].t === 'd') {
+      ws[addr].z = 'dd/mm/yyyy';
+    } else if (ws[addr] && ws[addr].v instanceof Date) {
+      ws[addr].t = 'd';
+      ws[addr].z = 'dd/mm/yyyy';
+    }
+  }
+
   ws['!cols'] = [
-    {wch: 13}, {wch: 10}, {wch: 14}, {wch: 14}, {wch: 28},  // generales
+    {wch: 13}, {wch: 10}, {wch: 14}, {wch: 14}, {wch: 28},
     ...Array(40).fill(null).map((_, i) => {
       const colInBlock = i % 5;
       return {wch: [10, 13, 7, 26, 11][colInBlock]};
@@ -2558,8 +2597,23 @@ $('#sellos-excel-ddjj').addEventListener('click', () => {
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'DDJJs');
-  XLSX.writeFile(wb, `sellos-ddjj-${todayISO()}.xlsx`);
-  toast(`Exportados ${filt.length} boleto${filt.length>1?'s':''} para sellos_bot.py`, 'ok');
+  const nombreArch = `sellos-ddjj${sufijoArchivo ? '-' + sufijoArchivo : ''}-${todayISO()}.xlsx`;
+  XLSX.writeFile(wb, nombreArch, { cellDates: true });
+  toast(`Exportados ${boletos.length} boleto${boletos.length>1?'s':''} para sellos_bot.py`, 'ok');
+}
+
+// Botón "Excel DDJJ" → todos los boletos con datos DDJJ cargados
+$('#sellos-excel-ddjj').addEventListener('click', () => {
+  const filt = state.boletos.filter(b => b.tipo_contrato && b.num_cuenta);
+  exportarExcelDDJJ(filt);
+});
+
+// Botón "Excel DDJJ · Solo pendientes" → solo boletos en estado pendiente
+$('#sellos-excel-ddjj-pendientes').addEventListener('click', () => {
+  const filt = state.boletos.filter(b =>
+    b.tipo_contrato && b.num_cuenta && (b.estado || 'pendiente') === 'pendiente'
+  );
+  exportarExcelDDJJ(filt, 'pendientes', 'No hay boletos pendientes con datos DDJJ cargados');
 });
 
 // =================================================================
@@ -2686,18 +2740,66 @@ function renderCesiones() {
     <td><span class="badge ${c.facturado?'ok':'muted'}">${c.facturado?'Sí':'No'}</span></td>
     <td class="muted">${c.observacion||''}</td>
     <td class="actions">
-      <button class="btn ghost sm" onclick="toggleCesFact('${c.id}',${!c.facturado})">${c.facturado?'↺':'✓'}</button>
-      ${state.profile?.rol==='admin'?`<button class="btn ghost sm" onclick="deleteCes('${c.id}')">×</button>`:''}
+      <button class="btn ghost sm" onclick="editCes('${c.id}')" title="Editar">✎</button>
+      <button class="btn ghost sm" onclick="toggleCesFact('${c.id}',${!c.facturado})" title="${c.facturado?'Desmarcar facturada':'Marcar facturada'}">${c.facturado?'↺':'✓'}</button>
+      ${state.profile?.rol==='admin'?`<button class="btn ghost sm" onclick="deleteCes('${c.id}')" title="Eliminar">×</button>`:''}
     </td>
   </tr>`).join('');
 }
 $('#ces-search').addEventListener('input', renderCesiones);
+
+window.editCes = function(id) {
+  const c = state.cesiones.find(x => x.id === id);
+  if (!c) return;
+  showModal(`<div class="modal-head"><h3>Editar cesión</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field"><label>Fecha</label><input type="date" id="ec-fecha" value="${c.fecha||''}"></div>
+        <div class="field"><label>Monto</label><input type="number" step="0.01" id="ec-monto" value="${c.monto||''}"></div>
+      </div>
+      <div class="field"><label>Cedente</label><input type="text" id="ec-cedente" value="${(c.cedente||'').replace(/"/g,'&quot;')}"></div>
+      <div class="field"><label>Cesionario</label><input type="text" id="ec-cesionario" value="${(c.cesionario||'').replace(/"/g,'&quot;')}" placeholder="(opcional)"></div>
+      <div class="field"><label>Observación</label><textarea id="ec-obs" rows="2">${c.observacion||''}</textarea></div>
+      <div class="field"><label style="text-transform:none;font-size:.9rem;cursor:pointer"><input type="checkbox" id="ec-fact" ${c.facturado?'checked':''}> Facturado</label></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      ${state.profile?.rol==='admin' ? `<button class="btn danger" onclick="deleteCes('${id}'); closeModal()">Eliminar</button>` : ''}
+      <button class="btn" id="ec-save-btn" onclick="saveCes('${id}')">Guardar</button>
+    </div>`);
+};
+
+window.saveCes = async function(id) {
+  const btn = $('#ec-save-btn');
+  if (!btn || btn.disabled) return;
+  const fecha = $('#ec-fecha').value;
+  const monto = parseFloat($('#ec-monto').value);
+  const cedente = $('#ec-cedente').value.trim();
+  const cesionario = $('#ec-cesionario').value.trim() || null;
+  if (!fecha || !monto || !cedente) { toast('Completá fecha, monto y cedente', 'warn'); return; }
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+  const { error } = await sb.from('cesiones').update({
+    fecha, monto, cedente, cesionario,
+    observacion: $('#ec-obs').value.trim() || null,
+    facturado: $('#ec-fact').checked
+  }).eq('id', id);
+  if (error) {
+    toast(error.message, 'err');
+    btn.disabled = false; btn.textContent = 'Guardar';
+    return;
+  }
+  closeModal();
+  toast('Cesión actualizada', 'ok');
+  await loadCesiones(); renderCesiones();
+};
+
 window.toggleCesFact = async function(id, val) {
   await sb.from('cesiones').update({ facturado: val }).eq('id', id);
   await loadCesiones(); renderCesiones();
 };
 window.deleteCes = async function(id) {
-  if (!await confirmAction('¿Eliminar?')) return;
+  if (!await confirmAction('¿Eliminar esta cesión?')) return;
   await sb.from('cesiones').delete().eq('id', id);
   await loadCesiones(); renderCesiones(); toast('Eliminado', 'ok');
 };
@@ -3734,20 +3836,21 @@ function renderIdentBuscador() {
     return;
   }
   cont.innerHTML = matches.map((i, idx) =>
-    `<div class="empr-opcion ${idx===_identActiveIdx?'active':''}" data-titular="${i.nombre_titular.replace(/"/g,'&quot;')}" data-transfiere="${i.nombre_transfiere.replace(/"/g,'&quot;')}">
-      <span class="e-nom">${i.nombre_transfiere}</span>
+    `<div class="empr-opcion ${idx===_identActiveIdx?'active':''}" data-titular="${i.nombre_titular.replace(/"/g,'&quot;')}" data-transfiere="${i.nombre_transfiere.replace(/"/g,'&quot;')}" data-nc="${i.numero_cliente||''}">
+      <span class="e-nom">${i.nombre_transfiere}${i.numero_cliente?` <span style="font-family:monospace;font-size:.78rem;color:var(--ink-3);font-weight:400">·  ${i.numero_cliente}</span>`:''}</span>
       <span class="e-emp">→ ${i.nombre_titular}</span>
     </div>`
   ).join('');
   cont.classList.add('show');
   cont.querySelectorAll('.empr-opcion[data-transfiere]').forEach(op => {
-    op.addEventListener('click', () => seleccionarIdent(op.dataset.transfiere, op.dataset.titular));
+    op.addEventListener('click', () => seleccionarIdent(op.dataset.transfiere, op.dataset.titular, op.dataset.nc));
   });
 }
-function seleccionarIdent(transfiere, titular) {
+function seleccionarIdent(transfiere, titular, nc) {
   $('#ident-search').value = transfiere;
   $('#ident-resultados').classList.remove('show');
-  $('#ident-resultado-val').textContent = titular;
+  const txt = nc ? `${titular} · N° Cliente: ${nc}` : titular;
+  $('#ident-resultado-val').textContent = txt;
   $('#ident-resultado').classList.add('activo');
 }
 $('#ident-search')?.addEventListener('input', () => {
@@ -3764,7 +3867,7 @@ $('#ident-search')?.addEventListener('keydown', (e) => {
   else if (e.key === 'Enter' && _identActiveIdx >= 0) {
     e.preventDefault();
     const op = opciones[_identActiveIdx];
-    if (op) seleccionarIdent(op.dataset.transfiere, op.dataset.titular);
+    if (op) seleccionarIdent(op.dataset.transfiere, op.dataset.titular, op.dataset.nc);
   } else if (e.key === 'Escape') { $('#ident-resultados').classList.remove('show'); }
 });
 document.addEventListener('click', (e) => {
@@ -3777,11 +3880,12 @@ function renderIdentLista() {
   const tb = $('#ident-tabla tbody');
   if (!tb) return;
   if (!state.identificadores.length) {
-    tb.innerHTML = '<tr><td colspan="4" class="empty">Sin identificadores cargados</td></tr>';
+    tb.innerHTML = '<tr><td colspan="5" class="empty">Sin identificadores cargados</td></tr>';
   } else {
     tb.innerHTML = state.identificadores.map(i => `<tr>
       <td><b>${i.nombre_transfiere}</b></td>
       <td>${i.nombre_titular}</td>
+      <td class="mono">${i.numero_cliente || '<span class="muted" style="font-style:italic">—</span>'}</td>
       <td class="muted" style="font-size:.78rem">${i.observaciones||''}</td>
       <td class="actions">
         <button class="btn ghost sm" onclick="editIdent('${i.id}')" title="Editar">✎</button>
@@ -3793,15 +3897,28 @@ function renderIdentLista() {
   if (c) c.textContent = state.identificadores.length ? `(${state.identificadores.length})` : '';
 }
 
+function validar7Digitos(nc) {
+  return /^\d{7}$/.test(nc);
+}
+
 $('#ident-add')?.addEventListener('click', async () => {
   const transfiere = $('#ident-nuevo-transfiere').value.trim();
   const titular = $('#ident-nuevo-titular').value.trim();
+  const nc = $('#ident-nuevo-nc').value.trim();
   if (!transfiere || !titular) { toast('Completá ambos nombres', 'warn'); return; }
+  if (!nc || !validar7Digitos(nc)) {
+    toast('El N° de cliente debe tener exactamente 7 dígitos', 'warn');
+    $('#ident-nuevo-nc').focus();
+    return;
+  }
   const { error } = await sb.from('identificadores_transf').insert({
-    nombre_transfiere: transfiere, nombre_titular: titular, created_by: state.user.id
+    nombre_transfiere: transfiere, nombre_titular: titular,
+    numero_cliente: nc, created_by: state.user.id
   });
   if (error) { toast(error.message, 'err'); return; }
-  $('#ident-nuevo-transfiere').value = ''; $('#ident-nuevo-titular').value = '';
+  $('#ident-nuevo-transfiere').value = '';
+  $('#ident-nuevo-titular').value = '';
+  $('#ident-nuevo-nc').value = '';
   toast('Identificador agregado', 'ok');
   await loadIdentificadores(); renderIdentLista();
 });
@@ -3813,6 +3930,7 @@ window.editIdent = function(id) {
     <div class="modal-body">
       <div class="field"><label>Quién transfiere</label><input id="ei-transfiere" value="${i.nombre_transfiere.replace(/"/g,'&quot;')}"></div>
       <div class="field"><label>A nombre de (titular)</label><input id="ei-titular" value="${i.nombre_titular.replace(/"/g,'&quot;')}"></div>
+      <div class="field"><label>N° Cliente (7 dígitos)</label><input id="ei-nc" maxlength="7" inputmode="numeric" value="${(i.numero_cliente||'').replace(/"/g,'&quot;')}" placeholder="1234567"></div>
       <div class="field"><label>Observaciones (opcional)</label><input id="ei-obs" value="${(i.observaciones||'').replace(/"/g,'&quot;')}"></div>
     </div>
     <div class="modal-foot">
@@ -3823,9 +3941,16 @@ window.editIdent = function(id) {
 window.saveIdent = async function(id) {
   const transfiere = $('#ei-transfiere').value.trim();
   const titular = $('#ei-titular').value.trim();
+  const nc = $('#ei-nc').value.trim();
   if (!transfiere || !titular) { toast('Completá ambos nombres', 'warn'); return; }
+  if (!nc || !validar7Digitos(nc)) {
+    toast('El N° de cliente debe tener exactamente 7 dígitos', 'warn');
+    $('#ei-nc').focus();
+    return;
+  }
   const { error } = await sb.from('identificadores_transf').update({
     nombre_transfiere: transfiere, nombre_titular: titular,
+    numero_cliente: nc,
     observaciones: $('#ei-obs').value.trim() || null
   }).eq('id', id);
   if (error) { toast(error.message, 'err'); return; }
