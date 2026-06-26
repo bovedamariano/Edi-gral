@@ -722,12 +722,40 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
           <h3 style="margin:0">Boletos registrados</h3>
           <div class="btn-row">
-            <button class="btn ghost sm" id="sellos-excel">↓ Excel general</button>
-            <button class="btn accent sm" id="sellos-excel-ddjj">↓ Excel DDJJ (sellos_bot.py)</button>
+            <button class="btn ghost sm" id="sellos-excel">↓ Excel general (con filtros)</button>
             <button class="btn accent sm" id="sellos-excel-ddjj-pendientes" title="Solo boletos en estado Pendiente">↓ Excel DDJJ · Solo pendientes</button>
           </div>
         </div>
-        <div class="search-bar"><input type="text" id="sellos-search" placeholder="Buscar por propietario, unidad..."></div>
+
+        <!-- Filtros -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 2fr;gap:10px;align-items:end;margin-bottom:12px">
+          <div class="field" style="margin-bottom:0">
+            <label>Fecha desde</label>
+            <input type="date" id="sellos-fecha-desde">
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>Fecha hasta</label>
+            <input type="date" id="sellos-fecha-hasta">
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>Estado</label>
+            <select id="sellos-filtro-estado">
+              <option value="">Todos</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="generado">Generado</option>
+              <option value="pagado">Pagado</option>
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>Buscar</label>
+            <input type="text" id="sellos-search" placeholder="Propietario, unidad...">
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <button class="btn ghost sm" id="sellos-clear-filtros">× Limpiar filtros</button>
+          <span id="sellos-resumen" style="font-size:.82rem;color:var(--ink-3)"></span>
+        </div>
+
         <div class="tbl-wrap"><table class="tbl" id="sellos-tabla">
           <thead><tr><th>Fecha</th><th>Propietario</th><th>Unidad</th><th>Operación</th><th class="num">Monto</th><th>Moneda</th><th class="num">A pagar</th><th>Vence</th><th>Estado</th><th class="actions"></th></tr></thead>
           <tbody></tbody>
@@ -2456,11 +2484,36 @@ function generateSelloPDF(r, estado) {
   doc.save(`sello-${r.unidad.replace(/\s+/g,'_')}-${r.fecha}.pdf`);
 }
 
-function renderSellos() {
+function aplicarFiltrosBoletos() {
   const q = $('#sellos-search').value.toLowerCase();
-  const filt = state.boletos.filter(b => !q || `${b.propietario} ${b.unidad}`.toLowerCase().includes(q));
+  const desde = $('#sellos-fecha-desde').value;
+  const hasta = $('#sellos-fecha-hasta').value;
+  const estadoF = $('#sellos-filtro-estado').value;
+  return state.boletos.filter(b => {
+    if (q && !`${b.propietario} ${b.unidad}`.toLowerCase().includes(q)) return false;
+    if (desde && b.fecha < desde) return false;
+    if (hasta && b.fecha > hasta) return false;
+    if (estadoF) {
+      const est = b.estado || 'pendiente';
+      if (est !== estadoF) return false;
+    }
+    return true;
+  });
+}
+
+function renderSellos() {
+  const filt = aplicarFiltrosBoletos();
   const tb = $('#sellos-tabla tbody');
-  if (!filt.length) { tb.innerHTML = '<tr><td colspan="10" class="empty">Sin boletos</td></tr>'; return; }
+  // Resumen arriba
+  const resumen = $('#sellos-resumen');
+  if (resumen) {
+    if (filt.length === state.boletos.length) {
+      resumen.textContent = `${filt.length} boleto${filt.length!==1?'s':''} en total`;
+    } else {
+      resumen.textContent = `${filt.length} de ${state.boletos.length} boletos (filtrados)`;
+    }
+  }
+  if (!filt.length) { tb.innerHTML = '<tr><td colspan="10" class="empty">Sin boletos que coincidan con los filtros</td></tr>'; return; }
   const badgeFor = e => {
     if (e === 'pagado') return '<span class="badge ok">Pagado</span>';
     if (e === 'generado') return '<span class="badge accent">Generado</span>';
@@ -2491,6 +2544,17 @@ function renderSellos() {
   }).join('');
 }
 $('#sellos-search').addEventListener('input', renderSellos);
+$('#sellos-fecha-desde').addEventListener('change', renderSellos);
+$('#sellos-fecha-hasta').addEventListener('change', renderSellos);
+$('#sellos-filtro-estado').addEventListener('change', renderSellos);
+$('#sellos-clear-filtros').addEventListener('click', () => {
+  $('#sellos-search').value = '';
+  $('#sellos-fecha-desde').value = '';
+  $('#sellos-fecha-hasta').value = '';
+  $('#sellos-filtro-estado').value = '';
+  renderSellos();
+});
+
 window.cambiarEstadoBoleto = async function(id, nuevoEstado) {
   const { error } = await sb.from('boletos').update({ estado: nuevoEstado }).eq('id', id);
   if (error) { toast(error.message, 'err'); return; }
@@ -2515,7 +2579,26 @@ window.deleteSello = async function(id) {
   await loadBoletos(); renderSellos(); toast('Eliminado', 'ok');
 };
 
-$('#sellos-excel').addEventListener('click', () => exportarExcel(state.boletos, 'boletos'));
+// Botón "Excel general (con filtros)" → solo columnas relevantes, respeta filtros
+$('#sellos-excel').addEventListener('click', () => {
+  const filt = aplicarFiltrosBoletos();
+  if (!filt.length) { toast('No hay boletos para exportar con esos filtros', 'warn'); return; }
+  const datos = filt.map(b => ({
+    fecha: fmtFecha(b.fecha),
+    propietario: b.propietario,
+    unidad: b.unidad,
+    moneda: b.moneda,
+    monto: b.monto,
+    tipo_cambio_bna: b.tipo_cambio_bna || '',
+    equivalente_ars: b.equivalente_ars || '',
+    importe_pagar: b.importe_pagar,
+    fecha_vencimiento: fmtFecha(b.fecha_vencimiento),
+    estado: b.estado || 'pendiente',
+    tipo_operacion: TIPOS_OPERACION[b.tipo_operacion] || ''
+  }));
+  exportarExcel(datos, 'boletos-filtrados');
+  toast(`Exportados ${filt.length} boleto${filt.length>1?'s':''}`, 'ok');
+});
 
 // Export Excel con formato EXACTO del template sellos_bot.py (DDJJ Rentas)
 function exportarExcelDDJJ(boletos, sufijoArchivo = '', mensajeToast = null) {
@@ -2603,11 +2686,6 @@ function exportarExcelDDJJ(boletos, sufijoArchivo = '', mensajeToast = null) {
 }
 
 // Botón "Excel DDJJ" → todos los boletos con datos DDJJ cargados
-$('#sellos-excel-ddjj').addEventListener('click', () => {
-  const filt = state.boletos.filter(b => b.tipo_contrato && b.num_cuenta);
-  exportarExcelDDJJ(filt);
-});
-
 // Botón "Excel DDJJ · Solo pendientes" → solo boletos en estado pendiente
 $('#sellos-excel-ddjj-pendientes').addEventListener('click', () => {
   const filt = state.boletos.filter(b =>
