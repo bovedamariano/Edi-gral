@@ -260,6 +260,15 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
 /* ===== Identificador de transferencias ===== */
 .ident-card{padding:0}
 
+/* ===== Depósitos sin identificar ===== */
+.depo-card{padding:0;border-left:4px solid #d4a017}
+.depo-card[open]{background:#fefae8}
+.depo-summary{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;cursor:pointer;list-style:none;user-select:none}
+.depo-summary::-webkit-details-marker{display:none}
+.depo-resumen-text{font-size:.82rem;color:var(--ink-3);margin-top:2px}
+.depo-resumen-text.tiene{color:#8b6914;font-weight:600}
+.depo-body{padding:0 18px 18px}
+
 /* ===== DDJJ Rentas (sellos) ===== */
 .ddjj-card{padding:0;background:var(--surface-2);border:1px solid var(--accent);border-left:4px solid var(--accent)}
 .ddjj-summary{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;list-style:none;user-select:none;background:var(--accent-soft);border-bottom:1px solid var(--line-2)}
@@ -1035,6 +1044,35 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         </div>
       </details>
 
+      <!-- Depósitos sin identificar -->
+      <details class="card depo-card" id="depo-card">
+        <summary class="depo-summary">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:1.3rem">🏦</span>
+            <div>
+              <b>Depósitos sin identificar</b>
+              <div id="depo-resumen" class="depo-resumen-text"></div>
+            </div>
+          </div>
+          <span class="ident-toggle">▾</span>
+        </summary>
+        <div class="depo-body">
+          <p class="sub" style="margin-bottom:10px">Transferencias que no se pudieron identificar. Cuando descubras a quién corresponden, apretá <b>"✓ Identificar"</b> y vuelven al listado como pendientes.</p>
+          <div class="tbl-wrap"><table class="tbl" id="depo-tabla">
+            <thead><tr>
+              <th>Fecha</th>
+              <th>Persona</th>
+              <th>Concepto</th>
+              <th>Unidad</th>
+              <th class="num">Monto</th>
+              <th>Obs.</th>
+              <th class="actions"></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+      </details>
+
       <div class="card" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
         <div class="field" style="margin-bottom:0;min-width:180px">
           <label>Buscar</label>
@@ -1045,7 +1083,8 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <select id="transf-filtro-estado">
             <option value="">Todas</option>
             <option value="pendiente">Pendientes</option>
-            <option value="realizado">Realizadas</option>
+            <option value="realizada">Realizadas</option>
+            <option value="deposito_sin_identificar">Depósitos sin identificar</option>
           </select>
         </div>
         <div class="field" style="margin-bottom:0;min-width:140px">
@@ -3706,26 +3745,43 @@ function badgeConcepto(c) {
   return `<span class="badge ${cls}">${label}</span>`;
 }
 
+function estadoTransf(t) {
+  // Compatibilidad: si tiene estado nuevo úsalo, sino derivar de realizado
+  return t.estado || (t.realizado ? 'realizada' : 'pendiente');
+}
+
 function renderTransferencias() {
   const q = $('#transf-search').value.toLowerCase();
   const fEst = $('#transf-filtro-estado').value;
   const fCon = $('#transf-filtro-concepto').value;
   const tb = $('#transf-tabla tbody');
+
+  // En la tabla principal NO mostramos los depósitos sin identificar (van aparte)
+  // EXCEPTO si el filtro de estado los selecciona explícitamente
   let filt = state.transferencias.filter(t => {
+    const est = estadoTransf(t);
+    // Excluir depósitos a menos que el filtro los pida
+    if (est === 'deposito_sin_identificar' && fEst !== 'deposito_sin_identificar' && fEst !== '') return false;
     if (q && !`${t.nombre_persona} ${t.unidad} ${t.concepto_detalle||''}`.toLowerCase().includes(q)) return false;
-    if (fEst === 'pendiente' && t.realizado) return false;
-    if (fEst === 'realizado' && !t.realizado) return false;
+    if (fEst && est !== fEst) return false;
     if (fCon && t.concepto !== fCon) return false;
     return true;
   });
+  // Por default (sin filtro), también excluimos los depósitos (se ven aparte)
+  if (!fEst) {
+    filt = filt.filter(t => estadoTransf(t) !== 'deposito_sin_identificar');
+  }
+
   if (!filt.length) {
     tb.innerHTML = '<tr><td colspan="8" class="empty">Sin transferencias</td></tr>';
   } else {
     tb.innerHTML = filt.map(t => {
+      const est = estadoTransf(t);
       const conceptoTxt = t.concepto === 'otro' && t.concepto_detalle
         ? `${badgeConcepto(t.concepto)} <span class="muted" style="font-size:.78rem">${t.concepto_detalle}</span>`
         : badgeConcepto(t.concepto);
-      return `<tr class="${t.realizado?'transf-done':''}">
+      const realizada = est === 'realizada';
+      return `<tr class="${realizada?'transf-done':''}">
         <td>${fmtFecha(t.fecha)}</td>
         <td><b>${t.nombre_persona}</b></td>
         <td>${conceptoTxt}</td>
@@ -3734,21 +3790,98 @@ function renderTransferencias() {
         <td class="muted" style="font-size:.78rem">${t.observaciones||''}</td>
         <td>
           <label class="pos-chk" title="Marcar realizada">
-            <input type="checkbox" ${t.realizado?'checked':''} onchange="toggleTransfRealizado('${t.id}',this.checked,this)">
-            <span>${t.realizado?'Realizada':'Pendiente'}</span>
+            <input type="checkbox" ${realizada?'checked':''} onchange="toggleTransfRealizado('${t.id}',this.checked,this)">
+            <span>${realizada?'Realizada':'Pendiente'}</span>
           </label>
         </td>
         <td class="actions">
+          ${est === 'pendiente' ? `<button class="btn ghost sm" onclick="enviarADepositos('${t.id}')" title="No la pudiste identificar: enviar a depósitos sin identificar">🏦</button>` : ''}
           <button class="btn ghost sm" onclick="editTransf('${t.id}')" title="Editar">✎</button>
           ${state.profile?.rol==='admin'?`<button class="btn ghost sm" onclick="deleteTransf('${t.id}')" title="Eliminar">×</button>`:''}
         </td>
       </tr>`;
     }).join('');
   }
-  const pend = filt.filter(t => !t.realizado).length;
-  const real = filt.filter(t => t.realizado).length;
-  $('#transf-resumen').textContent = `${pend} pendientes · ${real} realizadas (${filt.length} total)`;
+  const pend = filt.filter(t => estadoTransf(t) === 'pendiente').length;
+  const real = filt.filter(t => estadoTransf(t) === 'realizada').length;
+  const depo = filt.filter(t => estadoTransf(t) === 'deposito_sin_identificar').length;
+  let resumenTxt = `${pend} pendientes · ${real} realizadas`;
+  if (depo) resumenTxt += ` · ${depo} depósitos`;
+  resumenTxt += ` (${filt.length} total)`;
+  $('#transf-resumen').textContent = resumenTxt;
+
+  renderDepositosSinIdentificar();
 }
+
+function renderDepositosSinIdentificar() {
+  const depos = state.transferencias.filter(t => estadoTransf(t) === 'deposito_sin_identificar');
+  const tb = $('#depo-tabla tbody');
+  const card = $('#depo-card');
+  const resumenEl = $('#depo-resumen');
+
+  // Texto resumen + clase visual
+  const totalMonto = depos.reduce((s, t) => s + (Number(t.monto) || 0), 0);
+  if (depos.length === 0) {
+    resumenEl.textContent = 'No hay depósitos sin identificar';
+    resumenEl.classList.remove('tiene');
+    card.removeAttribute('open');
+  } else {
+    resumenEl.textContent = `${depos.length} depósito${depos.length>1?'s':''} sin identificar${totalMonto ? ' — $' + fmt(totalMonto) : ''}`;
+    resumenEl.classList.add('tiene');
+    // Abrir automáticamente si hay al menos 1
+    card.setAttribute('open', '');
+  }
+
+  // Tabla
+  if (!depos.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="empty">No hay depósitos sin identificar</td></tr>';
+    return;
+  }
+  tb.innerHTML = depos.map(t => {
+    const conceptoTxt = t.concepto === 'otro' && t.concepto_detalle
+      ? `${badgeConcepto(t.concepto)} <span class="muted" style="font-size:.78rem">${t.concepto_detalle}</span>`
+      : badgeConcepto(t.concepto);
+    return `<tr>
+      <td>${fmtFecha(t.fecha)}</td>
+      <td><b>${t.nombre_persona}</b></td>
+      <td>${conceptoTxt}</td>
+      <td>${t.unidad}</td>
+      <td class="num">${t.monto ? '$' + fmt(t.monto) : '—'}</td>
+      <td class="muted" style="font-size:.78rem">${t.observaciones||''}</td>
+      <td class="actions">
+        <button class="btn accent sm" onclick="identificarDeposito('${t.id}')" title="Ya la identificaste, volver al listado como pendiente">✓ Identificar</button>
+        <button class="btn ghost sm" onclick="editTransf('${t.id}')" title="Editar">✎</button>
+        ${state.profile?.rol==='admin'?`<button class="btn ghost sm" onclick="deleteTransf('${t.id}')" title="Eliminar">×</button>`:''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+window.enviarADepositos = async function(id) {
+  const t = state.transferencias.find(x => x.id === id);
+  if (!t) return;
+  const resumen = `${fmtFecha(t.fecha)} · ${t.nombre_persona || '(sin nombre)'} · ${CONCEPTOS_TRANSF[t.concepto] || t.concepto} · ${t.unidad}`;
+  const ok = await confirmAction(`¿Confirmás enviar esta transferencia a depósitos sin identificar?\n\n${resumen}\n\nVa a salir del listado principal y aparecer en la sección "Depósitos sin identificar".`);
+  if (!ok) return;
+  const { error } = await sb.from('transferencias').update({ estado: 'deposito_sin_identificar' }).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  Object.assign(t, { estado: 'deposito_sin_identificar' });
+  renderTransferencias();
+  toast('🏦 Enviada a depósitos sin identificar', 'ok');
+};
+
+window.identificarDeposito = async function(id) {
+  const t = state.transferencias.find(x => x.id === id);
+  if (!t) return;
+  const resumen = `${fmtFecha(t.fecha)} · ${t.nombre_persona || '(sin nombre)'} · $${t.monto ? fmt(t.monto) : '—'} · ${t.unidad}`;
+  const ok = await confirmAction(`¿Confirmás que identificaste este depósito?\n\n${resumen}\n\nVa a volver al listado principal como pendiente para que termines de procesarlo.`);
+  if (!ok) return;
+  const { error } = await sb.from('transferencias').update({ estado: 'pendiente', realizado: false }).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  Object.assign(t, { estado: 'pendiente', realizado: false });
+  renderTransferencias();
+  toast('✓ Identificada, volvió a pendientes', 'ok');
+};
 
 window.toggleTransfRealizado = async function(id, val, checkbox) {
   const t = state.transferencias.find(x => x.id === id);
@@ -3762,12 +3895,11 @@ window.toggleTransfRealizado = async function(id, val, checkbox) {
 
   const ok = await confirmAction(mensaje);
   if (!ok) {
-    // Revertir el checkbox visual al estado anterior
     if (checkbox) checkbox.checked = !val;
     return;
   }
 
-  const update = { realizado: val };
+  const update = { realizado: val, estado: val ? 'realizada' : 'pendiente' };
   if (val) {
     update.realizado_at = new Date().toISOString();
     update.realizado_by = state.user.id;
