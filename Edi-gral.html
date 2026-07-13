@@ -262,6 +262,24 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
 
 /* ===== Depósitos sin identificar ===== */
 .depo-card{padding:0;border-left:4px solid #d4a017}
+
+/* ===== Simulador de sello ===== */
+.sim-sello-box{margin-top:16px;padding:12px 14px;background:var(--surface-2);border-radius:var(--radius);border:1px dashed var(--line)}
+.sim-sello-head{display:flex;justify-content:space-between;align-items:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:.88rem;color:var(--ink);margin-bottom:8px}
+.sim-sello-hint{font-size:.7rem;color:var(--ink-3);font-weight:400;font-family:inherit;font-style:italic}
+.sim-sello-grid{display:grid;grid-template-columns:1.1fr 1fr 1.2fr 0.9fr;gap:8px;margin-bottom:10px}
+.sim-field label{display:block;font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:600;margin-bottom:3px}
+.sim-field input,.sim-field select{width:100%;padding:6px 9px;font-size:.85rem;border:1px solid var(--line);border-radius:4px;background:var(--surface);font-family:inherit;color:var(--ink)}
+.sim-sello-result{border-top:1px solid var(--line-2);padding-top:8px}
+.sim-line{display:flex;justify-content:space-between;padding:2px 0;font-size:.82rem;color:var(--ink-2)}
+.sim-line b{color:var(--ink);font-weight:600}
+.sim-line.sim-total{margin-top:5px;padding-top:6px;border-top:1px solid var(--line-2);font-size:.92rem}
+.sim-line.sim-total span{color:var(--ink)}
+.sim-line.sim-total b{color:var(--accent);font-size:1.05rem}
+@media (max-width:640px){
+  .sim-sello-grid{grid-template-columns:1fr 1fr;gap:6px}
+  .sim-sello-grid > *:first-child{grid-column:span 2}
+}
 .depo-card[open]{background:#fefae8}
 .depo-summary{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;cursor:pointer;list-style:none;user-select:none}
 .depo-summary::-webkit-details-marker{display:none}
@@ -724,6 +742,41 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <div class="divider"></div>
           <h3>Resumen del cálculo</h3>
           <div id="sello-resumen" class="muted">Completá el formulario y presioná calcular.</div>
+
+          <!-- Simulador rápido de sello (informativo) -->
+          <div class="sim-sello-box">
+            <div class="sim-sello-head">
+              <span>🧮 Simulador de sello (informativo)</span>
+              <span class="sim-sello-hint">Sin registro ni PDF</span>
+            </div>
+            <div class="sim-sello-grid">
+              <div class="sim-field">
+                <label>Fecha</label>
+                <input type="date" id="sim-fecha">
+              </div>
+              <div class="sim-field">
+                <label>Moneda</label>
+                <select id="sim-moneda">
+                  <option value="ARS">$ ARS</option>
+                  <option value="USD">USD</option>
+                </select>
+              </div>
+              <div class="sim-field">
+                <label>Monto</label>
+                <input type="number" id="sim-monto" step="0.01" placeholder="0">
+              </div>
+              <div class="sim-field">
+                <label>Alícuota %</label>
+                <input type="number" id="sim-alicuota" step="0.01" value="0.70">
+              </div>
+            </div>
+            <div class="sim-sello-result" id="sim-resultado">
+              <div class="sim-line"><span>Monto</span> <b id="sim-r-monto">—</b></div>
+              <div class="sim-line sim-tc-line" id="sim-tc-line" style="display:none"><span id="sim-tc-label">TC BNA</span> <b id="sim-r-tc">—</b></div>
+              <div class="sim-line sim-tc-line" id="sim-equiv-line" style="display:none"><span>Equivalente ARS</span> <b id="sim-r-equiv">—</b></div>
+              <div class="sim-line sim-total"><span>Impuesto estimado</span> <b id="sim-r-importe">—</b></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1394,7 +1447,7 @@ const ACCESOS = {
   admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','transferencias','ajustes','audit'],
   finanzas: ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','transferencias'],
   legales:  ['icc','sellos','cesiones','cuentas','cotizacion','gastos'],
-  ventas:   ['icc','sellos','cuentas','cotizacion','gastos'],
+  ventas:   ['icc','cuentas','cotizacion','gastos'],
   sac:      ['icc','cuentas','gastos'],
 };
 
@@ -2376,6 +2429,111 @@ $('#sello-calcular').addEventListener('click', async () => {
   $('#sello-tipo').value = '';
   $('#sello-tipo-btns').querySelectorAll('.concepto-btn').forEach(b => b.classList.remove('selected'));
   limpiarDDJJ();
+});
+
+// ===== Simulador de sello (informativo, sin PDF ni registro) =====
+// Tiene su propia fecha y consulta la cotización del día hábil anterior a esa
+// fecha usando la MISMA lógica que el impuesto normal (fetchBNA).
+// No comparte estado con el panel principal para no pisarlo.
+const _simBNAcache = {}; // { 'YYYY-MM-DD': { prom, compra, venta, fechaCot } }
+let _simFetching = false;
+
+async function fetchSimBNA(fechaBoleto) {
+  // Si ya está en cache, devolver
+  if (_simBNAcache[fechaBoleto]) return _simBNAcache[fechaBoleto];
+  if (_simFetching) return null;
+  _simFetching = true;
+  try {
+    // Reutilizar la lógica de fetchBNA pero sin tocar state.bnaActual
+    // Estrategia: usar la misma cascada (tabla local → bluelytics → argentinadatos)
+    // pero guardar el resultado solo en el cache local
+    const yBoleto = Number(fechaBoleto.slice(0,4));
+    await loadFeriados(yBoleto);
+    // Guardar el bnaActual del panel principal
+    const bnaOriginal = state.bnaActual;
+    // Llamar fetchBNA que actualiza state.bnaActual
+    await fetchBNA(fechaBoleto);
+    // Copiar el resultado al cache del simulador
+    if (state.bnaActual && state.bnaActual.fechaRef === fechaBoleto) {
+      _simBNAcache[fechaBoleto] = {
+        prom: state.bnaActual.prom,
+        compra: state.bnaActual.compra,
+        venta: state.bnaActual.venta,
+        fechaCot: state.bnaActual.fechaCot,
+        fuente: state.bnaActual.fuente
+      };
+    }
+    // Restaurar el bnaActual original (para no romper el panel principal)
+    if (bnaOriginal) state.bnaActual = bnaOriginal;
+    return _simBNAcache[fechaBoleto] || null;
+  } catch (e) {
+    console.error('Simulador BNA:', e);
+    return null;
+  } finally {
+    _simFetching = false;
+  }
+}
+
+async function calcularSimulador() {
+  const fecha = $('#sim-fecha').value;
+  const moneda = $('#sim-moneda').value;
+  const monto = parseFloat($('#sim-monto').value) || 0;
+  const alicuota = parseFloat($('#sim-alicuota').value) || 0;
+
+  const showTC = moneda === 'USD';
+  $('#sim-tc-line').style.display = showTC ? 'flex' : 'none';
+  $('#sim-equiv-line').style.display = showTC ? 'flex' : 'none';
+
+  if (!monto || !alicuota) {
+    $('#sim-r-monto').textContent = '—';
+    $('#sim-r-tc').textContent = '—';
+    $('#sim-r-equiv').textContent = '—';
+    $('#sim-r-importe').textContent = '—';
+    return;
+  }
+
+  let equiv, tc = null, fechaCot = null;
+  if (moneda === 'USD') {
+    if (!fecha) {
+      $('#sim-r-monto').textContent = `USD ${fmt(monto)}`;
+      $('#sim-r-tc').textContent = 'falta fecha';
+      $('#sim-r-equiv').textContent = '—';
+      $('#sim-r-importe').textContent = '—';
+      return;
+    }
+    $('#sim-r-tc').textContent = 'consultando...';
+    const bna = await fetchSimBNA(fecha);
+    if (!bna) {
+      $('#sim-r-monto').textContent = `USD ${fmt(monto)}`;
+      $('#sim-r-tc').textContent = 'sin cotización';
+      $('#sim-r-equiv').textContent = '—';
+      $('#sim-r-importe').textContent = '—';
+      return;
+    }
+    tc = bna.prom;
+    fechaCot = bna.fechaCot;
+    equiv = monto * tc;
+  } else {
+    equiv = monto;
+  }
+  const importe = equiv * alicuota / 100;
+
+  $('#sim-r-monto').textContent = `${moneda} ${fmt(monto)}`;
+  if (showTC) {
+    $('#sim-tc-label').textContent = `TC BNA${fechaCot ? ' (' + fmtFecha(fechaCot) + ')' : ''}`;
+    $('#sim-r-tc').textContent = '$' + fmt(tc);
+    $('#sim-r-equiv').textContent = '$' + fmt(equiv);
+  }
+  $('#sim-r-importe').textContent = '$' + fmt(importe);
+}
+
+// Default: fecha de hoy
+$('#sim-fecha').value = todayISO();
+
+// Recalcular al cambiar cualquier input
+['sim-fecha','sim-moneda','sim-monto','sim-alicuota'].forEach(id => {
+  $('#' + id).addEventListener('input', calcularSimulador);
+  $('#' + id).addEventListener('change', calcularSimulador);
 });
 
 // PDF formato Edisur: dos copias (Original + Duplicado) en una página A4
