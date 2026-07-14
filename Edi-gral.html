@@ -265,6 +265,21 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
 
 /* ===== Simulador de sello ===== */
 .sim-sello-box{margin-top:16px;padding:12px 14px;background:var(--surface-2);border-radius:var(--radius);border:1px dashed var(--line)}
+
+/* ===== Instructivos ===== */
+.instr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.instr-card{background:var(--surface);border:1px solid var(--line-2);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:8px;transition:box-shadow .15s,border-color .15s}
+.instr-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.06);border-color:var(--accent)}
+.instr-icon{font-size:1.6rem;margin-bottom:2px}
+.instr-titulo{font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:1rem;color:var(--ink);line-height:1.3}
+.instr-desc{font-size:.85rem;color:var(--ink-2);line-height:1.4;flex:1}
+.instr-meta{font-size:.72rem;color:var(--ink-3);border-top:1px dashed var(--line-2);padding-top:8px;margin-top:4px}
+.instr-acciones{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.instr-acciones .btn{flex:1;min-width:80px;padding:7px 10px;font-size:.8rem}
+.instr-empty{grid-column:1/-1;text-align:center;padding:40px 20px;color:var(--ink-3)}
+@media (max-width:640px){
+  .instr-grid{grid-template-columns:1fr}
+}
 .sim-sello-head{display:flex;justify-content:space-between;align-items:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:.88rem;color:var(--ink);margin-bottom:8px}
 .sim-sello-hint{font-size:.7rem;color:var(--ink-3);font-weight:400;font-family:inherit;font-style:italic}
 .sim-sello-grid{display:grid;grid-template-columns:1.1fr 1fr 1.2fr 0.9fr;gap:8px;margin-bottom:10px}
@@ -537,6 +552,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
     <button class="nav-item" data-tab="cotizacion">💵 Cotización</button>
     <button class="nav-item" data-tab="gastos">💼 Gastos del mes</button>
     <button class="nav-item" data-tab="tareas">📋 Tareas</button>
+    <button class="nav-item" data-tab="instructivos">📚 Instructivos</button>
     <button class="nav-item" data-tab="transferencias">💸 Transferencias</button>
     <div class="nav-section" id="admin-section" style="display:none">Admin</div>
     <button class="nav-item" data-tab="ajustes" id="ajustes-nav" style="display:none">⚙️ Ajustes</button>
@@ -1045,6 +1061,21 @@ details[open] .ident-toggle{transform:rotate(180deg)}
       </div>
     </section>
 
+    <!-- INSTRUCTIVOS TAB -->
+    <section class="tab-content" id="tab-instructivos" style="display:none">
+      <div class="page-head">
+        <div><h1>Instructivos</h1><p>Procedimientos paso a paso del área</p></div>
+        <button class="btn accent" id="instr-add">+ Nuevo instructivo</button>
+      </div>
+
+      <div class="card">
+        <div class="search-bar" style="margin-bottom:14px">
+          <input type="text" id="instr-search" placeholder="Buscar por título o descripción...">
+        </div>
+        <div id="instr-lista" class="instr-grid"></div>
+      </div>
+    </section>
+
     <!-- TRANSFERENCIAS TAB -->
     <section class="tab-content" id="tab-transferencias" style="display:none">
       <div class="page-head">
@@ -1360,6 +1391,7 @@ const state = {
   emprendimientos: [],
   identificadores: [],
   cuentasRentas: [],
+  instructivos: [],
   users: [],
   feriados: {}, // {year: [{fecha, nombre}]}
   bnaActual: null,
@@ -1444,8 +1476,8 @@ async function initAuth() {
 // MATRIZ DE ACCESOS POR ÁREA
 // =================================================================
 const ACCESOS = {
-  admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','transferencias','ajustes','audit'],
-  finanzas: ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','transferencias'],
+  admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias','ajustes','audit'],
+  finanzas: ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias'],
   legales:  ['icc','sellos','cesiones','cuentas','cotizacion','gastos'],
   ventas:   ['icc','cuentas','cotizacion','gastos'],
   sac:      ['icc','cuentas','gastos'],
@@ -1505,7 +1537,7 @@ async function afterLogin() {
   await Promise.all([
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
-    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(),
+    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -1678,6 +1710,10 @@ async function loadIdentificadores() {
 async function loadCuentasRentas() {
   const { data } = await sb.from('cuentas_rentas').select('*').order('orden').order('barrio');
   state.cuentasRentas = data || [];
+}
+async function loadInstructivos() {
+  const { data } = await sb.from('instructivos').select('*').order('updated_at', { ascending: false });
+  state.instructivos = data || [];
 }
 async function loadUsers() {
   if (state.profile?.rol !== 'admin') return;
@@ -1924,10 +1960,103 @@ window.iccDescargarPDF = function() {
   doc.save(`actualizacion-icc-${d.fechaOrig}.pdf`);
 };
 
+// =================================================================
+// Autorización con credenciales de admin (reutilizable)
+// =================================================================
+// Uso:
+//   const sbAdmin = await requerirCredencialesAdmin('Cargar valor ICC');
+//   if (!sbAdmin) return;
+//   await sbAdmin.from('...').insert(...);
+//
+// Devuelve un cliente Supabase autenticado como admin (solo para esta acción),
+// o null si el usuario canceló o falló la validación.
+// NO toca la sesión del usuario actual.
+async function requerirCredencialesAdmin(motivo) {
+  return new Promise((resolve) => {
+    showModal(`<div class="modal-head"><h3>Autorización requerida</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+      <div class="modal-body">
+        <p style="margin-bottom:14px">La acción <b>"${motivo}"</b> requiere credenciales de administrador.</p>
+        <div class="field">
+          <label>Usuario admin</label>
+          <input type="text" id="auth-usuario" placeholder="Ej: mariano" autocomplete="username">
+        </div>
+        <div class="field">
+          <label>Contraseña</label>
+          <input type="password" id="auth-password" placeholder="Contraseña del admin" autocomplete="current-password">
+        </div>
+        <div id="auth-error" style="color:var(--err);font-size:.85rem;margin-top:6px;display:none"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost" id="auth-cancel">Cancelar</button>
+        <button class="btn accent" id="auth-confirm">Confirmar</button>
+      </div>`);
+
+    const closeAndResolve = (v) => { closeModal(); resolve(v); };
+
+    $('#auth-cancel').addEventListener('click', () => closeAndResolve(null));
+
+    const confirmar = async () => {
+      const usuario = $('#auth-usuario').value.trim();
+      const pass = $('#auth-password').value;
+      const btn = $('#auth-confirm');
+      const errEl = $('#auth-error');
+      errEl.style.display = 'none';
+      if (!usuario || !pass) {
+        errEl.textContent = 'Completá usuario y contraseña';
+        errEl.style.display = 'block'; return;
+      }
+      btn.disabled = true; btn.textContent = 'Verificando...';
+
+      try {
+        // Cliente Supabase secundario (no persiste sesión ni interfiere con la del usuario)
+        const sbAux = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'sb-admin-aux-' + Date.now() }
+        });
+        const email = usuario.includes('@') ? usuario : `${usuario}@edigral.local`;
+        const { data, error } = await sbAux.auth.signInWithPassword({ email, password: pass });
+        if (error) {
+          errEl.textContent = 'Usuario o contraseña incorrectos';
+          errEl.style.display = 'block';
+          btn.disabled = false; btn.textContent = 'Confirmar';
+          return;
+        }
+        // Verificar que sea admin
+        const { data: profile } = await sbAux.from('profiles').select('rol,activo').eq('id', data.user.id).single();
+        if (!profile || !profile.activo || profile.rol !== 'admin') {
+          errEl.textContent = 'Ese usuario existe pero no es admin';
+          errEl.style.display = 'block';
+          btn.disabled = false; btn.textContent = 'Confirmar';
+          await sbAux.auth.signOut();
+          return;
+        }
+        // OK: devolver el cliente aux con la sesión de admin
+        closeAndResolve(sbAux);
+      } catch (e) {
+        errEl.textContent = 'Error: ' + (e.message || 'desconocido');
+        errEl.style.display = 'block';
+        btn.disabled = false; btn.textContent = 'Confirmar';
+      }
+    };
+
+    $('#auth-confirm').addEventListener('click', confirmar);
+    $('#auth-password').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') confirmar();
+    });
+    // Foco automático
+    setTimeout(() => $('#auth-usuario').focus(), 100);
+  });
+}
+
 $('#icc-save').addEventListener('click', async () => {
   const mes = Number($('#icc-mes').value), anio = Number($('#icc-anio').value), valor = parseFloat($('#icc-valor').value);
   if (!mes || !anio || !valor) { toast('Completá todos los campos', 'warn'); return; }
-  const { error } = await sb.from('icc_valores').upsert({ mes, anio, valor_absoluto: valor, created_by: state.user.id }, { onConflict: 'mes,anio' });
+
+  // Requiere autorización de admin
+  const sbAdmin = await requerirCredencialesAdmin(`Cargar ICC ${MESES[mes-1]} ${anio} = ${valor}`);
+  if (!sbAdmin) return; // canceló
+
+  const { error } = await sbAdmin.from('icc_valores').upsert({ mes, anio, valor_absoluto: valor, created_by: state.user.id }, { onConflict: 'mes,anio' });
+  await sbAdmin.auth.signOut(); // cerrar la sesión aux
   if (error) { toast('Error: ' + error.message, 'err'); return; }
   toast('Valor ICC guardado', 'ok');
   $('#icc-valor').value = '';
@@ -2041,8 +2170,12 @@ function renderIccTabla() {
   </tr>`).join('');
 }
 window.deleteIcc = async function(id) {
-  if (!await confirmAction('¿Eliminar este valor ICC?')) return;
-  const { error } = await sb.from('icc_valores').delete().eq('id', id);
+  const v = state.icc.find(x => x.id === id);
+  const desc = v ? `${MESES[v.mes-1]} ${v.anio} = ${v.valor_absoluto}` : 'este valor';
+  const sbAdmin = await requerirCredencialesAdmin(`Eliminar ICC ${desc}`);
+  if (!sbAdmin) return;
+  const { error } = await sbAdmin.from('icc_valores').delete().eq('id', id);
+  await sbAdmin.auth.signOut();
   if (error) { toast(error.message, 'err'); return; }
   await loadIcc(); renderIccTabla(); toast('Eliminado', 'ok');
 };
@@ -4468,6 +4601,166 @@ window.deleteEmpr = async function(id) {
 };
 
 // =================================================================
+// MODULO: INSTRUCTIVOS (finanzas + admin)
+// =================================================================
+function renderInstructivos() {
+  const q = ($('#instr-search')?.value || '').toLowerCase();
+  const filt = state.instructivos.filter(i =>
+    !q || `${i.titulo} ${i.descripcion || ''}`.toLowerCase().includes(q)
+  );
+  const cont = $('#instr-lista');
+  if (!cont) return;
+  if (!filt.length) {
+    cont.innerHTML = q
+      ? `<div class="instr-empty">Sin resultados para "${q}"</div>`
+      : '<div class="instr-empty">Todavía no hay instructivos cargados.<br>Apretá <b>"+ Nuevo instructivo"</b> para agregar el primero.</div>';
+    return;
+  }
+  cont.innerHTML = filt.map(i => {
+    const fecha = i.updated_at ? fmtFechaHora(i.updated_at) : '';
+    const hasFile = !!i.archivo_path;
+    return `<div class="instr-card">
+      <div class="instr-icon">📄</div>
+      <div class="instr-titulo">${i.titulo}</div>
+      <div class="instr-desc">${i.descripcion || '<span class="muted" style="font-style:italic">Sin descripción</span>'}</div>
+      <div class="instr-meta">Actualizado: ${fecha}</div>
+      <div class="instr-acciones">
+        ${hasFile
+          ? `<button class="btn accent sm" onclick="verInstructivo('${i.id}')" title="Ver el PDF">👁 Ver PDF</button>`
+          : `<button class="btn ghost sm" disabled title="Sin archivo cargado">Sin PDF</button>`}
+        <button class="btn ghost sm" onclick="editInstructivo('${i.id}')" title="Editar">✎</button>
+        ${state.profile?.rol === 'admin' ? `<button class="btn ghost sm" onclick="deleteInstructivo('${i.id}')" title="Eliminar">×</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+$('#instr-search')?.addEventListener('input', renderInstructivos);
+$('#instr-add')?.addEventListener('click', () => editInstructivo(null));
+
+window.editInstructivo = function(id) {
+  const i = id ? state.instructivos.find(x => x.id === id) : { titulo:'', descripcion:'', archivo_path:null };
+  showModal(`<div class="modal-head"><h3>${id ? 'Editar' : 'Nuevo'} instructivo</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Título <span style="color:var(--err)">*</span></label>
+        <input type="text" id="ei-titulo" value="${(i.titulo||'').replace(/"/g,'&quot;')}" placeholder="Ej: Conciliación bancaria mensual">
+      </div>
+      <div class="field">
+        <label>Descripción breve</label>
+        <textarea id="ei-desc" rows="3" placeholder="Ej: Paso a paso para cerrar el banco a fin de mes">${i.descripcion || ''}</textarea>
+      </div>
+      <div class="field" style="background:var(--surface-2);padding:12px;border-radius:var(--radius);border:1px dashed var(--line)">
+        <label>Archivo PDF ${!id ? '<span style="color:var(--err)">*</span>' : ''}</label>
+        ${i.archivo_path
+          ? `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+              <span class="badge ok">✓ PDF cargado</span>
+              <button type="button" class="btn ghost sm" onclick="verInstructivo('${id}')">Ver actual</button>
+            </div>`
+          : '<div class="muted" style="font-size:.8rem;margin-bottom:8px;font-style:italic">Sin archivo cargado</div>'}
+        <input type="file" id="ei-pdf" accept="application/pdf">
+        <div class="hint">Solo PDF, máx 10 MB. ${i.archivo_path ? 'Si subís uno nuevo, reemplaza el actual.' : ''}</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      ${id && state.profile?.rol === 'admin' ? `<button class="btn danger" onclick="deleteInstructivo('${id}')">Eliminar</button>` : ''}
+      <button class="btn" id="ei-save-btn" onclick="saveInstructivo('${id || ''}')">Guardar</button>
+    </div>`);
+};
+
+window.saveInstructivo = async function(id) {
+  const btn = $('#ei-save-btn');
+  if (!btn || btn.disabled) return;
+  const titulo = $('#ei-titulo').value.trim();
+  const descripcion = $('#ei-desc').value.trim() || null;
+  if (!titulo) { toast('Falta el título', 'warn'); return; }
+
+  const file = $('#ei-pdf')?.files?.[0];
+  if (!id && !file) { toast('Cargá el PDF del instructivo', 'warn'); return; }
+  if (file) {
+    if (file.type !== 'application/pdf') { toast('Solo se aceptan archivos PDF', 'err'); return; }
+    if (file.size > 10 * 1024 * 1024) { toast('El PDF no puede superar 10 MB', 'err'); return; }
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  try {
+    let archivoPath = null;
+    if (file) {
+      // Nombre seguro: <uuid>-<timestamp>.pdf
+      const safeTs = Date.now();
+      const key = `${(id || crypto.randomUUID())}-${safeTs}.pdf`;
+      // Borrar archivo anterior si existe
+      if (id) {
+        const prev = state.instructivos.find(x => x.id === id);
+        if (prev?.archivo_path) {
+          await sb.storage.from('instructivos').remove([prev.archivo_path]);
+        }
+      }
+      const { error: upErr } = await sb.storage.from('instructivos').upload(key, file, {
+        contentType: 'application/pdf',
+        upsert: false
+      });
+      if (upErr) throw upErr;
+      archivoPath = key;
+    }
+
+    const payload = { titulo, descripcion };
+    if (archivoPath) payload.archivo_path = archivoPath;
+
+    let error;
+    if (id) {
+      ({ error } = await sb.from('instructivos').update(payload).eq('id', id));
+    } else {
+      ({ error } = await sb.from('instructivos').insert({ ...payload, created_by: state.user.id }));
+    }
+    if (error) throw error;
+
+    closeModal();
+    toast(id ? 'Instructivo actualizado' : 'Instructivo creado', 'ok');
+    await loadInstructivos();
+    renderInstructivos();
+  } catch (e) {
+    toast('Error: ' + (e.message || e), 'err');
+    btn.disabled = false;
+    btn.textContent = 'Guardar';
+  }
+};
+
+window.verInstructivo = async function(id) {
+  const i = state.instructivos.find(x => x.id === id);
+  if (!i || !i.archivo_path) { toast('Sin archivo cargado', 'warn'); return; }
+  try {
+    const { data, error } = await sb.storage.from('instructivos').createSignedUrl(i.archivo_path, 3600);
+    if (error) throw error;
+    window.open(data.signedUrl, '_blank');
+  } catch (e) {
+    toast('No se pudo abrir el PDF: ' + e.message, 'err');
+  }
+};
+
+window.deleteInstructivo = async function(id) {
+  const i = state.instructivos.find(x => x.id === id);
+  if (!i) return;
+  if (!await confirmAction(`¿Eliminar el instructivo "${i.titulo}"?\n\nSe borra el registro y el PDF asociado.`)) return;
+  try {
+    if (i.archivo_path) {
+      await sb.storage.from('instructivos').remove([i.archivo_path]);
+    }
+    const { error } = await sb.from('instructivos').delete().eq('id', id);
+    if (error) throw error;
+    closeModal();
+    toast('Instructivo eliminado', 'ok');
+    await loadInstructivos();
+    renderInstructivos();
+  } catch (e) {
+    toast('Error: ' + e.message, 'err');
+  }
+};
+
+// =================================================================
 // MODULO: AJUSTES (admin)
 // =================================================================
 function renderUsers() {
@@ -4788,6 +5081,7 @@ function renderAll() {
   renderTransferencias();
   renderIdentLista();
   poblarBarriosDDJJ();
+  renderInstructivos();
   if (state.profile?.rol === 'admin') {
     renderEmpresas();
     renderCuentasAdmin();
@@ -4809,7 +5103,7 @@ function renderAll() {
 // REAL-TIME SUBSCRIPTIONS
 // =================================================================
 function subscribeChanges() {
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','icc_valores','sellos_alicuotas'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -4823,6 +5117,7 @@ function subscribeChanges() {
         if (tabla==='transferencias') { await loadTransferencias(); renderTransferencias(); }
         if (tabla==='identificadores_transf') { await loadIdentificadores(); renderIdentLista(); }
         if (tabla==='cuentas_rentas') { await loadCuentasRentas(); poblarBarriosDDJJ(); if(state.profile?.rol==='admin') renderCuentasRentas(); }
+        if (tabla==='instructivos') { await loadInstructivos(); renderInstructivos(); }
         if (tabla==='emprendimientos') { await loadEmprendimientos(); if(state.profile?.rol==='admin') renderEmprAdmin(); }
         if (tabla==='icc_valores') { await loadIcc(); renderIccTabla(); initConceptosMesRef(); renderConceptos(); renderIccAlerta(); }
         if (tabla==='sellos_alicuotas') { await loadAlicuotas(); if(state.profile?.rol==='admin') renderAlicuotas(); updateAlicuotaForFecha(); }
