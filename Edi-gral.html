@@ -277,6 +277,11 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
 .gb-tbl td{font-size:.95rem;padding:12px 10px}
 .gb-total-row td{border-top:2px solid var(--accent);font-size:1.05rem;padding-top:14px !important;color:var(--accent)}
 .gb-total-row b{color:var(--accent)}
+.gb-total-block{margin-top:14px;padding:14px 16px;background:var(--surface-2);border-radius:var(--radius);border-top:2px solid var(--accent)}
+.gb-total-line{display:flex;justify-content:space-between;align-items:baseline;font-size:1.1rem}
+.gb-total-line b{color:var(--accent);font-size:1.4rem;font-family:'Bricolage Grotesque',sans-serif}
+.gb-total-line-sec{display:flex;justify-content:space-between;align-items:baseline;font-size:.95rem;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line-2);color:var(--ink-2)}
+.gb-total-line-sec b{color:var(--accent);font-size:1.15rem;font-family:'Bricolage Grotesque',sans-serif}
 .instr-card{background:var(--surface);border:1px solid var(--line-2);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:8px;transition:box-shadow .15s,border-color .15s}
 .instr-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.06);border-color:var(--accent)}
 .instr-icon{font-size:1.6rem;margin-bottom:2px}
@@ -3551,10 +3556,12 @@ async function calcularGastosBoleto() {
   }
 
   // Cálculos
-  const conexiones = equivARS * 0.02;
-  const fondoReserva = equivARS * 0.005;
-  const sellos = equivARS * 0.007; // 0,70%
-  const total = conexiones + fondoReserva + sellos;
+  // Conexiones (2%) y Fondo de Reserva (0,5%) SIEMPRE respetan la moneda del boleto
+  // Sellos (0,70%) se calcula sobre el equivalente en pesos
+  const conexiones = monto * 0.02;
+  const fondoReserva = monto * 0.005;
+  const sellos = equivARS * 0.007;
+  const simboloBoleto = moneda === 'USD' ? 'USD ' : '$ ';
 
   const rowMonto = moneda === 'USD'
     ? `<div class="gb-monto-info">Monto del boleto: <b>USD ${fmt(monto)}</b> · Equivalente ARS: <b>$${fmt(equivARS)}</b> · TC BNA: <b>$${fmt(tc)}</b></div>`
@@ -3567,21 +3574,40 @@ async function calcularGastosBoleto() {
         <tr><th>Concepto</th><th class="num">Alícuota</th><th class="num">Estimado</th></tr>
       </thead>
       <tbody>
-        <tr><td>Conexiones y horizontalidad</td><td class="num">2,00%</td><td class="num">$ ${fmt(conexiones)}</td></tr>
-        <tr><td>Fondo de reserva</td><td class="num">0,50%</td><td class="num">$ ${fmt(fondoReserva)}</td></tr>
-        <tr><td>Impuesto de sellos</td><td class="num">0,70%</td><td class="num">$ ${fmt(sellos)}</td></tr>
+        <tr><td>Conexiones y horizontalidad</td><td class="num">2,00%</td><td class="num">${simboloBoleto}${fmt(conexiones)}</td></tr>
+        <tr><td>Fondo de reserva</td><td class="num">0,50%</td><td class="num">${simboloBoleto}${fmt(fondoReserva)}</td></tr>
+        <tr><td>Impuesto de sellos</td><td class="num">0,70%</td><td class="num">$ ${fmt(sellos)} ARS</td></tr>
       </tbody>
-      <tfoot>
-        <tr class="gb-total-row">
-          <td colspan="2"><b>Total estimado</b></td>
-          <td class="num"><b>$ ${fmt(total)}</b></td>
-        </tr>
-      </tfoot>
     </table>
+    ${moneda === 'USD' ? `
+      <div class="gb-total-block">
+        <div class="gb-total-line">
+          <span>Total en pesos <span class="muted" style="font-size:.75rem">(todo convertido a ARS)</span></span>
+          <b>$ ${fmt(conexiones * tc + fondoReserva * tc + sellos)}</b>
+        </div>
+        <div class="gb-total-line-sec">
+          <span>Total en dólares <span class="muted" style="font-size:.75rem">(sellos convertidos con TC)</span></span>
+          <b>USD ${fmt(conexiones + fondoReserva + sellos / tc)}</b>
+        </div>
+      </div>
+    ` : `
+      <div class="gb-total-block">
+        <div class="gb-total-line">
+          <span>Total estimado</span>
+          <b>$ ${fmt(conexiones + fondoReserva + sellos)}</b>
+        </div>
+      </div>
+    `}
   `;
 
   // Guardar datos para PDF
-  _gbUltimoCalc = { fecha, moneda, monto, tc, fechaCot, equivARS, conexiones, fondoReserva, sellos, total };
+  _gbUltimoCalc = { fecha, moneda, monto, tc, fechaCot, equivARS, conexiones, fondoReserva, sellos };
+  if (moneda === 'USD') {
+    _gbUltimoCalc.totalARS = conexiones * tc + fondoReserva * tc + sellos;
+    _gbUltimoCalc.totalUSD = conexiones + fondoReserva + sellos / tc;
+  } else {
+    _gbUltimoCalc.totalARS = conexiones + fondoReserva + sellos;
+  }
   btnPdf.disabled = false;
 }
 
@@ -3674,7 +3700,7 @@ function generarPDFGastosBoleto(r) {
   doc.line(20, y, W-20, y);
   y += 8;
 
-  const drawConcept = (concepto, pct, importe) => {
+  const drawConcept = (concepto, pct, importe, moneda) => {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(90, 90, 90);
@@ -3685,13 +3711,14 @@ function generarPDFGastosBoleto(r) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(40, 40, 40);
-    doc.text(`$ ${fmt(importe)}`, W-22, y, { align: 'right' });
+    const simbolo = moneda === 'USD' ? 'USD ' : '$ ';
+    doc.text(`${simbolo}${fmt(importe)}`, W-22, y, { align: 'right' });
     y += 7;
   };
 
-  drawConcept('Conexiones y horizontalidad', '2,00%', r.conexiones);
-  drawConcept('Fondo de reserva', '0,50%', r.fondoReserva);
-  drawConcept('Impuesto de sellos', '0,70%', r.sellos);
+  drawConcept('Conexiones y horizontalidad', '2,00%', r.conexiones, r.moneda);
+  drawConcept('Fondo de reserva', '0,50%', r.fondoReserva, r.moneda);
+  drawConcept('Impuesto de sellos', '0,70% (sobre ARS)', r.sellos, 'ARS');
 
   y += 3;
   doc.setDrawColor(140, 78, 46);
@@ -3699,15 +3726,28 @@ function generarPDFGastosBoleto(r) {
   doc.line(20, y, W-20, y);
   y += 8;
 
-  // Total
+  // Totales
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(40, 40, 40);
-  doc.text('Total estimado', 22, y);
+  doc.text('Total estimado en ARS', 22, y);
   doc.setTextColor(140, 78, 46);
   doc.setFontSize(15);
-  doc.text(`$ ${fmt(r.total)}`, W-22, y, { align: 'right' });
-  y += 15;
+  doc.text(`$ ${fmt(r.totalARS)}`, W-22, y, { align: 'right' });
+  y += 10;
+
+  if (r.moneda === 'USD') {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(90, 90, 90);
+    doc.text('Total estimado en USD', 22, y);
+    doc.setTextColor(140, 78, 46);
+    doc.setFontSize(13);
+    doc.text(`USD ${fmt(r.totalUSD)}`, W-22, y, { align: 'right' });
+    y += 12;
+  } else {
+    y += 5;
+  }
 
   // Aviso legal
   doc.setDrawColor(220, 220, 220);
@@ -3718,7 +3758,7 @@ function generarPDFGastosBoleto(r) {
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(8);
   doc.setTextColor(150, 150, 150);
-  const aviso = 'Este cálculo es informativo. Los valores están sujetos a variaciones según el tipo de cambio del día del boleto, cambios en las alícuotas vigentes y otros factores. Los porcentajes utilizados son: Conexiones y horizontalidad 2%, Fondo de reserva 0,5% e Impuesto de sellos 0,70%.';
+  const aviso = 'Este cálculo es informativo. Los valores están sujetos a variaciones según el tipo de cambio del día del boleto, cambios en las alícuotas vigentes y otros factores. Alícuotas utilizadas: Conexiones y horizontalidad 2%, Fondo de reserva 0,5% (ambos respetan la moneda del boleto) e Impuesto de sellos 0,70% (se calcula sobre el equivalente en pesos con el TC BNA del día hábil anterior).';
   const lines = doc.splitTextToSize(aviso, W-40);
   doc.text(lines, 20, y);
 
