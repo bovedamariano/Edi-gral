@@ -268,6 +268,15 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
 
 /* ===== Instructivos ===== */
 .instr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+
+/* ===== Gastos por boleto ===== */
+.gb-monto-info{padding:12px 14px;background:var(--surface-2);border-radius:var(--radius);margin-bottom:14px;font-size:.9rem;color:var(--ink-2)}
+.gb-monto-info b{color:var(--ink)}
+.gb-tbl{width:100%}
+.gb-tbl thead th{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);font-weight:600}
+.gb-tbl td{font-size:.95rem;padding:12px 10px}
+.gb-total-row td{border-top:2px solid var(--accent);font-size:1.05rem;padding-top:14px !important;color:var(--accent)}
+.gb-total-row b{color:var(--accent)}
 .instr-card{background:var(--surface);border:1px solid var(--line-2);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:8px;transition:box-shadow .15s,border-color .15s}
 .instr-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.06);border-color:var(--accent)}
 .instr-icon{font-size:1.6rem;margin-bottom:2px}
@@ -551,6 +560,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
     <button class="nav-item" data-tab="cuentas">🏦 Cuentas bancarias</button>
     <button class="nav-item" data-tab="cotizacion">💵 Cotización</button>
     <button class="nav-item" data-tab="gastos">💼 Gastos del mes</button>
+    <button class="nav-item" data-tab="gastos-boleto">💰 Gastos por boleto</button>
     <button class="nav-item" data-tab="tareas">📋 Tareas</button>
     <button class="nav-item" data-tab="instructivos">📚 Instructivos</button>
     <button class="nav-item" data-tab="transferencias">💸 Transferencias</button>
@@ -967,8 +977,10 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <div class="hint" id="cot-bna-meta" style="margin-top:8px">—</div>
           <button class="btn ghost sm" id="cot-refresh" style="margin-top:10px">↻ Refrescar</button>
         </div>
-        <div class="card">
+        <div class="card" id="card-tesoreria">
           <h3>Valor Tesorería (manual)</h3>
+          <div class="hint" id="tes-no-permiso" style="display:none;color:var(--ink-3);padding:10px 0">Solo Finanzas y Administración pueden cargar cotizaciones de Tesorería.</div>
+          <div id="tes-form">
           <div class="field"><label>Fecha</label><input type="date" id="tes-fecha"></div>
           <div class="field-row">
             <div class="field"><label>Compra</label><input type="number" id="tes-c" step="0.01"></div>
@@ -976,6 +988,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           </div>
           <button class="btn accent" id="tes-save">Guardar cotización</button>
           <div class="hint" style="margin-top:8px">Si ya existe una cotización para esa fecha, se reemplaza</div>
+          </div>
         </div>
       </div>
       <div class="card">
@@ -1015,6 +1028,48 @@ details[open] .ident-toggle{transform:rotate(180deg)}
       <div class="card">
         <h3 style="margin-bottom:14px">Otros gastos</h3>
         <div id="conceptos-otros"></div>
+      </div>
+    </section>
+
+    <!-- GASTOS POR BOLETO TAB -->
+    <section class="tab-content" id="tab-gastos-boleto" style="display:none">
+      <div class="page-head">
+        <div><h1>Gastos por boleto</h1><p>Estimativo de gastos asociados a un boleto (informativo)</p></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>Datos del boleto</h3>
+          <div class="field"><label>Fecha</label><input type="date" id="gb-fecha"></div>
+          <div class="field-row">
+            <div class="field">
+              <label>Moneda</label>
+              <select id="gb-moneda">
+                <option value="ARS">$ ARS</option>
+                <option value="USD">USD</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Monto</label>
+              <input type="number" id="gb-monto" step="0.01" placeholder="0">
+            </div>
+          </div>
+          <div class="hint" style="margin-top:8px">Los cálculos se actualizan automáticamente mientras completás los datos.</div>
+          <button class="btn ghost sm" id="gb-limpiar" style="margin-top:10px">× Limpiar</button>
+        </div>
+
+        <div class="card">
+          <h3>Tipo de cambio BNA</h3>
+          <div id="gb-tc-panel" class="muted" style="font-size:.9rem">Elegí moneda USD y una fecha para ver el TC del día hábil anterior.</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h3 style="margin:0">Estimación de gastos</h3>
+          <button class="btn accent" id="gb-pdf" disabled>↓ Descargar PDF</button>
+        </div>
+        <div id="gb-resultados"></div>
       </div>
     </section>
 
@@ -1344,8 +1399,8 @@ details[open] .ident-toggle{transform:rotate(180deg)}
 // =================================================================
 // CONFIG · Edi-gral v2
 // =================================================================
-const SUPABASE_URL = 'https://uljauhrplryudxjnwsbc.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsamF1aHJwbHJ5dWR4am53c2JjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2Mzg1MDcsImV4cCI6MjA5NDIxNDUwN30.zQoQmkHVsaEVXcaJ-DPe1boHo-65dELjnCdxQC2eTZ0';
+const SUPABASE_URL = 'REEMPLAZAR_CON_TU_URL_DE_SUPABASE';
+const SUPABASE_ANON_KEY = 'REEMPLAZAR_CON_TU_ANON_KEY';
 
 // Validación de credenciales antes de inicializar
 let sb = null;
@@ -1476,10 +1531,10 @@ async function initAuth() {
 // MATRIZ DE ACCESOS POR ÁREA
 // =================================================================
 const ACCESOS = {
-  admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias','ajustes','audit'],
+  admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','gastos-boleto','tareas','instructivos','transferencias','ajustes','audit'],
   finanzas: ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias'],
   legales:  ['icc','sellos','cesiones','cuentas','cotizacion','gastos'],
-  ventas:   ['icc','cuentas','cotizacion','gastos'],
+  ventas:   ['icc','cuentas','cotizacion','gastos','gastos-boleto'],
   sac:      ['icc','cuentas','gastos'],
 };
 
@@ -3374,7 +3429,25 @@ window.downloadComprobante = async function(cuentaId) {
 // =================================================================
 // MODULO: COTIZACION
 // =================================================================
+function puedeEditarTesoreria() {
+  const p = state.profile;
+  if (!p) return false;
+  return p.rol === 'admin' || p.area === 'admin' || p.area === 'finanzas';
+}
+function aplicarPermisosTesoreria() {
+  const puede = puedeEditarTesoreria();
+  const form = $('#tes-form');
+  const aviso = $('#tes-no-permiso');
+  if (!form || !aviso) return;
+  form.style.display = puede ? '' : 'none';
+  aviso.style.display = puede ? 'none' : 'block';
+}
+
 $('#tes-save').addEventListener('click', async () => {
+  if (!puedeEditarTesoreria()) {
+    toast('Solo Finanzas o Administración pueden cargar cotizaciones', 'err');
+    return;
+  }
   const fecha = $('#tes-fecha').value || todayISO();
   const c = parseFloat($('#tes-c').value), v = parseFloat($('#tes-v').value);
   if (!c || !v) { toast('Completá compra y venta', 'warn'); return; }
@@ -3397,6 +3470,262 @@ function renderCotizaciones() {
   </tr>`).join('');
 }
 $('#cot-excel').addEventListener('click', () => exportarExcel(state.cotizaciones, 'cotizaciones'));
+
+// =================================================================
+// MODULO: GASTOS POR BOLETO (estimador, informativo)
+// =================================================================
+// Cache local de cotizaciones para el módulo (no toca state.bnaActual del panel de sellos)
+const _gbBNACache = {};
+let _gbFetching = false;
+let _gbUltimoCalc = null;
+
+async function fetchGbBNA(fechaBoleto) {
+  if (_gbBNACache[fechaBoleto]) return _gbBNACache[fechaBoleto];
+  if (_gbFetching) return null;
+  _gbFetching = true;
+  try {
+    const yBoleto = Number(fechaBoleto.slice(0,4));
+    await loadFeriados(yBoleto);
+    const bnaOriginal = state.bnaActual;
+    await fetchBNA(fechaBoleto);
+    if (state.bnaActual && state.bnaActual.fechaRef === fechaBoleto) {
+      _gbBNACache[fechaBoleto] = {
+        prom: state.bnaActual.prom,
+        compra: state.bnaActual.compra,
+        venta: state.bnaActual.venta,
+        fechaCot: state.bnaActual.fechaCot,
+        fuente: state.bnaActual.fuente
+      };
+    }
+    if (bnaOriginal) state.bnaActual = bnaOriginal;
+    return _gbBNACache[fechaBoleto] || null;
+  } catch (e) {
+    console.error('GB BNA:', e);
+    return null;
+  } finally {
+    _gbFetching = false;
+  }
+}
+
+async function calcularGastosBoleto() {
+  const fecha = $('#gb-fecha').value;
+  const moneda = $('#gb-moneda').value;
+  const monto = parseFloat($('#gb-monto').value) || 0;
+  const panelTc = $('#gb-tc-panel');
+  const cont = $('#gb-resultados');
+  const btnPdf = $('#gb-pdf');
+  btnPdf.disabled = true;
+
+  if (!monto) {
+    cont.innerHTML = '<div class="muted" style="text-align:center;padding:20px 0">Ingresá un monto para ver la estimación.</div>';
+    if (moneda === 'ARS') panelTc.innerHTML = '<div class="muted" style="font-size:.9rem">Boleto en pesos, no se necesita tipo de cambio.</div>';
+    return;
+  }
+
+  // Panel de TC
+  let tc = null, fechaCot = null, equivARS = monto;
+  if (moneda === 'USD') {
+    if (!fecha) {
+      panelTc.innerHTML = '<div class="muted" style="color:var(--err)">Cargá una fecha para poder obtener el tipo de cambio.</div>';
+      cont.innerHTML = '<div class="muted" style="text-align:center;padding:20px 0">Falta la fecha del boleto.</div>';
+      return;
+    }
+    panelTc.innerHTML = '<div class="muted">Consultando cotización...</div>';
+    const bna = await fetchGbBNA(fecha);
+    if (!bna) {
+      panelTc.innerHTML = '<div class="muted" style="color:var(--err)">No se pudo obtener cotización BNA.</div>';
+      cont.innerHTML = '<div class="muted" style="text-align:center;padding:20px 0">No hay cotización disponible para calcular.</div>';
+      return;
+    }
+    tc = bna.prom;
+    fechaCot = bna.fechaCot;
+    equivARS = monto * tc;
+    panelTc.innerHTML = `
+      <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:1.3rem;font-weight:600;color:var(--accent)">$ ${fmt(tc)}</div>
+      <div class="muted" style="font-size:.82rem;margin-top:4px">Cotización promedio del ${fmtFecha(fechaCot)} (día hábil anterior)</div>
+      <div class="muted" style="font-size:.78rem;margin-top:8px">Compra: $${fmt(bna.compra)} · Venta: $${fmt(bna.venta)}</div>
+      <div class="muted" style="font-size:.78rem;margin-top:2px">Fuente: ${bna.fuente || 'BNA'}</div>
+    `;
+  } else {
+    panelTc.innerHTML = '<div class="muted" style="font-size:.9rem">Boleto en pesos, no se necesita tipo de cambio.</div>';
+  }
+
+  // Cálculos
+  const conexiones = equivARS * 0.02;
+  const fondoReserva = equivARS * 0.005;
+  const sellos = equivARS * 0.007; // 0,70%
+  const total = conexiones + fondoReserva + sellos;
+
+  const rowMonto = moneda === 'USD'
+    ? `<div class="gb-monto-info">Monto del boleto: <b>USD ${fmt(monto)}</b> · Equivalente ARS: <b>$${fmt(equivARS)}</b> · TC BNA: <b>$${fmt(tc)}</b></div>`
+    : `<div class="gb-monto-info">Monto del boleto: <b>$${fmt(equivARS)}</b> ARS</div>`;
+
+  cont.innerHTML = `
+    ${rowMonto}
+    <table class="tbl gb-tbl">
+      <thead>
+        <tr><th>Concepto</th><th class="num">Alícuota</th><th class="num">Estimado</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Conexiones y horizontalidad</td><td class="num">2,00%</td><td class="num">$ ${fmt(conexiones)}</td></tr>
+        <tr><td>Fondo de reserva</td><td class="num">0,50%</td><td class="num">$ ${fmt(fondoReserva)}</td></tr>
+        <tr><td>Impuesto de sellos</td><td class="num">0,70%</td><td class="num">$ ${fmt(sellos)}</td></tr>
+      </tbody>
+      <tfoot>
+        <tr class="gb-total-row">
+          <td colspan="2"><b>Total estimado</b></td>
+          <td class="num"><b>$ ${fmt(total)}</b></td>
+        </tr>
+      </tfoot>
+    </table>
+  `;
+
+  // Guardar datos para PDF
+  _gbUltimoCalc = { fecha, moneda, monto, tc, fechaCot, equivARS, conexiones, fondoReserva, sellos, total };
+  btnPdf.disabled = false;
+}
+
+// Default: fecha hoy
+$('#gb-fecha').value = todayISO();
+
+// Recalcular al cambiar cualquier campo
+['gb-fecha','gb-moneda','gb-monto'].forEach(id => {
+  $('#' + id).addEventListener('input', calcularGastosBoleto);
+  $('#' + id).addEventListener('change', calcularGastosBoleto);
+});
+
+$('#gb-limpiar').addEventListener('click', () => {
+  $('#gb-monto').value = '';
+  $('#gb-fecha').value = todayISO();
+  $('#gb-moneda').value = 'ARS';
+  calcularGastosBoleto();
+});
+
+// Render inicial
+calcularGastosBoleto();
+
+// PDF
+$('#gb-pdf').addEventListener('click', () => {
+  if (!_gbUltimoCalc) return;
+  generarPDFGastosBoleto(_gbUltimoCalc);
+});
+
+function generarPDFGastosBoleto(r) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const W = 210;
+  let y = 20;
+
+  // Encabezado
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(140, 78, 46); // terracota
+  doc.text('Estimación de gastos por boleto', W/2, y, { align: 'center' });
+  y += 6;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(120, 120, 120);
+  doc.text('Grupo Edisur · Documento informativo', W/2, y, { align: 'center' });
+  y += 4;
+  doc.text(`Generado: ${fmtFecha(todayISO())}`, W/2, y, { align: 'center' });
+  y += 12;
+
+  // Datos del boleto
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(40, 40, 40);
+  doc.text('Datos del boleto', 20, y);
+  y += 2;
+  doc.setDrawColor(200, 200, 200);
+  doc.line(20, y, W-20, y);
+  y += 8;
+
+  const drawRow = (label, value, opts={}) => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(90, 90, 90);
+    doc.text(label, 22, y);
+    doc.setFont('helvetica', opts.bold ? 'bold' : 'normal');
+    doc.setFontSize(opts.big ? 12 : 10);
+    doc.setTextColor(opts.color || '#282828');
+    doc.text(String(value), W-22, y, { align: 'right' });
+    y += opts.big ? 8 : 6;
+  };
+
+  drawRow('Fecha del boleto', fmtFecha(r.fecha));
+  drawRow('Moneda', r.moneda === 'USD' ? 'Dólares estadounidenses (USD)' : 'Pesos argentinos (ARS)');
+  drawRow('Monto', `${r.moneda === 'USD' ? 'USD ' : '$ '}${fmt(r.monto)}`, { bold: true });
+
+  if (r.moneda === 'USD') {
+    drawRow('Cotización BNA (promedio)', `$ ${fmt(r.tc)}`);
+    drawRow('Fecha cotización (día hábil anterior)', fmtFecha(r.fechaCot));
+    drawRow('Equivalente en pesos', `$ ${fmt(r.equivARS)}`, { bold: true });
+  }
+
+  y += 8;
+
+  // Gastos estimados
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(40, 40, 40);
+  doc.text('Gastos estimados', 20, y);
+  y += 2;
+  doc.line(20, y, W-20, y);
+  y += 8;
+
+  const drawConcept = (concepto, pct, importe) => {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(90, 90, 90);
+    doc.text(concepto, 22, y);
+    doc.setFontSize(9);
+    doc.setTextColor(150, 150, 150);
+    doc.text(pct, 110, y);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(40, 40, 40);
+    doc.text(`$ ${fmt(importe)}`, W-22, y, { align: 'right' });
+    y += 7;
+  };
+
+  drawConcept('Conexiones y horizontalidad', '2,00%', r.conexiones);
+  drawConcept('Fondo de reserva', '0,50%', r.fondoReserva);
+  drawConcept('Impuesto de sellos', '0,70%', r.sellos);
+
+  y += 3;
+  doc.setDrawColor(140, 78, 46);
+  doc.setLineWidth(0.5);
+  doc.line(20, y, W-20, y);
+  y += 8;
+
+  // Total
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(40, 40, 40);
+  doc.text('Total estimado', 22, y);
+  doc.setTextColor(140, 78, 46);
+  doc.setFontSize(15);
+  doc.text(`$ ${fmt(r.total)}`, W-22, y, { align: 'right' });
+  y += 15;
+
+  // Aviso legal
+  doc.setDrawColor(220, 220, 220);
+  doc.setLineWidth(0.2);
+  doc.line(20, y, W-20, y);
+  y += 6;
+
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(8);
+  doc.setTextColor(150, 150, 150);
+  const aviso = 'Este cálculo es informativo. Los valores están sujetos a variaciones según el tipo de cambio del día del boleto, cambios en las alícuotas vigentes y otros factores. Los porcentajes utilizados son: Conexiones y horizontalidad 2%, Fondo de reserva 0,5% e Impuesto de sellos 0,70%.';
+  const lines = doc.splitTextToSize(aviso, W-40);
+  doc.text(lines, 20, y);
+
+  const fechaNombre = todayISO();
+  doc.save(`gastos-boleto-${fechaNombre}.pdf`);
+  toast('PDF generado', 'ok');
+}
 
 // =================================================================
 // MODULO: GASTOS
@@ -5082,6 +5411,7 @@ function renderAll() {
   renderIdentLista();
   poblarBarriosDDJJ();
   renderInstructivos();
+  aplicarPermisosTesoreria();
   if (state.profile?.rol === 'admin') {
     renderEmpresas();
     renderCuentasAdmin();
