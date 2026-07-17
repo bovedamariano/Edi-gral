@@ -1045,27 +1045,51 @@ details[open] .ident-toggle{transform:rotate(180deg)}
       <div class="grid-2">
         <div class="card">
           <h3>Datos del boleto</h3>
-          <div class="field"><label>Fecha</label><input type="date" id="gb-fecha"></div>
-          <div class="field-row">
-            <div class="field">
-              <label>Moneda</label>
-              <select id="gb-moneda">
-                <option value="ARS">$ ARS</option>
-                <option value="USD">USD</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>Monto</label>
-              <input type="number" id="gb-monto" step="0.01" placeholder="0">
+          <div class="field">
+            <label>Tipo de operación</label>
+            <div class="concepto-buttons" id="gb-tipo-btns" style="grid-template-columns:repeat(2,1fr)">
+              <button type="button" class="concepto-btn" data-tipo="loteo">🌳 Loteo</button>
+              <button type="button" class="concepto-btn" data-tipo="ladrillo">🏢 Ladrillo</button>
             </div>
           </div>
-          <div class="hint" style="margin-top:8px">Los cálculos se actualizan automáticamente mientras completás los datos.</div>
-          <button class="btn ghost sm" id="gb-limpiar" style="margin-top:10px">× Limpiar</button>
+          <div id="gb-form-fields" style="display:none">
+            <div class="field"><label>Fecha</label><input type="date" id="gb-fecha"></div>
+            <div class="field-row">
+              <div class="field">
+                <label id="gb-moneda-label">Moneda</label>
+                <select id="gb-moneda">
+                  <option value="ARS">$ ARS</option>
+                  <option value="USD">USD</option>
+                </select>
+              </div>
+              <div class="field">
+                <label id="gb-monto-label">Monto del boleto</label>
+                <input type="number" id="gb-monto" step="0.01" placeholder="0">
+              </div>
+            </div>
+            <div id="gb-monto-real-wrap" style="display:none">
+              <div class="field-row">
+                <div class="field">
+                  <label>Moneda monto real</label>
+                  <select id="gb-moneda-real">
+                    <option value="ARS">$ ARS</option>
+                    <option value="USD">USD</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Monto real <span class="muted" style="font-size:.75rem;font-weight:400">(conexiones y FR)</span></label>
+                  <input type="number" id="gb-monto-real" step="0.01" placeholder="0">
+                </div>
+              </div>
+            </div>
+            <div class="hint" style="margin-top:8px">Los cálculos se actualizan automáticamente mientras completás los datos.</div>
+            <button class="btn ghost sm" id="gb-limpiar" style="margin-top:10px">× Limpiar</button>
+          </div>
         </div>
 
         <div class="card">
           <h3>Tipo de cambio BNA</h3>
-          <div id="gb-tc-panel" class="muted" style="font-size:.9rem">Elegí moneda USD y una fecha para ver el TC del día hábil anterior.</div>
+          <div id="gb-tc-panel" class="muted" style="font-size:.9rem">Elegí el tipo de operación para comenzar.</div>
         </div>
       </div>
 
@@ -1074,7 +1098,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <h3 style="margin:0">Estimación de gastos</h3>
           <button class="btn accent" id="gb-pdf" disabled>↓ Descargar PDF</button>
         </div>
-        <div id="gb-resultados"></div>
+        <div id="gb-resultados"><div class="muted" style="text-align:center;padding:20px 0">Elegí el tipo de operación para comenzar.</div></div>
       </div>
     </section>
 
@@ -3479,10 +3503,10 @@ $('#cot-excel').addEventListener('click', () => exportarExcel(state.cotizaciones
 // =================================================================
 // MODULO: GASTOS POR BOLETO (estimador, informativo)
 // =================================================================
-// Cache local de cotizaciones para el módulo (no toca state.bnaActual del panel de sellos)
 const _gbBNACache = {};
 let _gbFetching = false;
 let _gbUltimoCalc = null;
+let _gbTipoActual = null;
 
 async function fetchGbBNA(fechaBoleto) {
   if (_gbBNACache[fechaBoleto]) return _gbBNACache[fechaBoleto];
@@ -3512,24 +3536,111 @@ async function fetchGbBNA(fechaBoleto) {
   }
 }
 
+// Encuentra el último mes con ICC cargado (para fallback)
+function ultimoIccDisponible() {
+  if (!state.icc || !state.icc.length) return null;
+  const ord = [...state.icc].sort((a, b) => b.anio - a.anio || b.mes - a.mes);
+  return { mes: ord[0].mes, anio: ord[0].anio };
+}
+
+// Busca el ICC para (mes, anio), con fallback al último disponible.
+// Devuelve { valor, mes, anio, esFallback }
+function iccConFallback(mes, anio) {
+  let v = iccValor(mes, anio);
+  if (v != null) return { valor: v, mes, anio, esFallback: false };
+  const ult = ultimoIccDisponible();
+  if (!ult) return null;
+  v = iccValor(ult.mes, ult.anio);
+  return { valor: v, mes: ult.mes, anio: ult.anio, esFallback: true };
+}
+
+// Calcula el valor actualizado de un concepto para un mes/año destino.
+// Devuelve { valor, esFallback, mesUsado, anioUsado } o null si no se puede.
+function proyectarConceptoAlMes(nombreConcepto, mesDest, anioDest) {
+  const c = state.conceptos.find(x =>
+    x.activo !== false && x.nombre && x.nombre.toLowerCase() === nombreConcepto.toLowerCase()
+  );
+  if (!c) return null;
+
+  if (c.tipo_actualizacion === 'fijo') {
+    return {
+      valor: Number(c.valor_base) || 0,
+      esFallback: false,
+      mesUsado: mesDest,
+      anioUsado: anioDest,
+      valorBase: Number(c.valor_base) || 0,
+      mesBase: c.mes_base,
+      anioBase: c.anio_base,
+      fijo: true
+    };
+  }
+
+  const iccBase = iccValor(c.mes_base, c.anio_base);
+  if (iccBase == null) return null;
+
+  const iccDest = iccConFallback(mesDest, anioDest);
+  if (!iccDest) return null;
+
+  const coef = iccDest.valor / iccBase;
+  const valorSinRedondear = Number(c.valor_base) * coef;
+  // Redondeo a $100 (mismo que en Gastos del mes para principales)
+  const valor = Math.round(valorSinRedondear / 100) * 100;
+
+  return {
+    valor,
+    esFallback: iccDest.esFallback,
+    mesUsado: iccDest.mes,
+    anioUsado: iccDest.anio,
+    valorBase: Number(c.valor_base),
+    mesBase: c.mes_base,
+    anioBase: c.anio_base,
+    coef,
+    fijo: false
+  };
+}
+
+// Setear el tipo de operación (loteo/ladrillo)
+function setTipoOperacionGB(tipo) {
+  _gbTipoActual = tipo;
+  $('#gb-tipo-btns').querySelectorAll('.concepto-btn').forEach(b => {
+    b.classList.toggle('selected', b.dataset.tipo === tipo);
+  });
+  $('#gb-form-fields').style.display = 'block';
+  const isLadrillo = tipo === 'ladrillo';
+  $('#gb-monto-real-wrap').style.display = isLadrillo ? '' : 'none';
+  $('#gb-monto-label').textContent = isLadrillo ? 'Monto del boleto (para sello)' : 'Monto del boleto';
+  $('#gb-moneda-label').textContent = isLadrillo ? 'Moneda del boleto' : 'Moneda';
+  calcularGastosBoleto();
+}
+
+$('#gb-tipo-btns').querySelectorAll('.concepto-btn').forEach(btn => {
+  btn.addEventListener('click', () => setTipoOperacionGB(btn.dataset.tipo));
+});
+
 async function calcularGastosBoleto() {
+  if (!_gbTipoActual) return;
+
+  const tipo = _gbTipoActual;
   const fecha = $('#gb-fecha').value;
   const moneda = $('#gb-moneda').value;
   const monto = parseFloat($('#gb-monto').value) || 0;
+  const monedaReal = tipo === 'ladrillo' ? $('#gb-moneda-real').value : moneda;
+  const montoReal = tipo === 'ladrillo' ? (parseFloat($('#gb-monto-real').value) || 0) : monto;
   const panelTc = $('#gb-tc-panel');
   const cont = $('#gb-resultados');
   const btnPdf = $('#gb-pdf');
   btnPdf.disabled = true;
 
-  if (!monto) {
-    cont.innerHTML = '<div class="muted" style="text-align:center;padding:20px 0">Ingresá un monto para ver la estimación.</div>';
-    if (moneda === 'ARS') panelTc.innerHTML = '<div class="muted" style="font-size:.9rem">Boleto en pesos, no se necesita tipo de cambio.</div>';
+  if (!monto || (tipo === 'ladrillo' && !montoReal)) {
+    cont.innerHTML = '<div class="muted" style="text-align:center;padding:20px 0">Ingresá los montos para ver la estimación.</div>';
+    if (moneda === 'ARS' && monedaReal === 'ARS') panelTc.innerHTML = '<div class="muted" style="font-size:.9rem">Boleto en pesos, no se necesita tipo de cambio.</div>';
     return;
   }
 
-  // Panel de TC
-  let tc = null, fechaCot = null, equivARS = monto;
-  if (moneda === 'USD') {
+  // TC BNA — se necesita si alguna de las monedas es USD
+  const necesitaTC = moneda === 'USD' || monedaReal === 'USD';
+  let tc = null, fechaCot = null;
+  if (necesitaTC) {
     if (!fecha) {
       panelTc.innerHTML = '<div class="muted" style="color:var(--err)">Cargá una fecha para poder obtener el tipo de cambio.</div>';
       cont.innerHTML = '<div class="muted" style="text-align:center;padding:20px 0">Falta la fecha del boleto.</div>';
@@ -3544,7 +3655,6 @@ async function calcularGastosBoleto() {
     }
     tc = bna.prom;
     fechaCot = bna.fechaCot;
-    equivARS = monto * tc;
     panelTc.innerHTML = `
       <div style="font-family:'Bricolage Grotesque',sans-serif;font-size:1.3rem;font-weight:600;color:var(--accent)">$ ${fmt(tc)}</div>
       <div class="muted" style="font-size:.82rem;margin-top:4px">Cotización promedio del ${fmtFecha(fechaCot)} (día hábil anterior)</div>
@@ -3555,17 +3665,132 @@ async function calcularGastosBoleto() {
     panelTc.innerHTML = '<div class="muted" style="font-size:.9rem">Boleto en pesos, no se necesita tipo de cambio.</div>';
   }
 
-  // Cálculos
-  // Conexiones (2%) y Fondo de Reserva (0,5%) SIEMPRE respetan la moneda del boleto
-  // Sellos (0,70%) se calcula sobre el equivalente en pesos
-  const conexiones = monto * 0.02;
-  const fondoReserva = monto * 0.005;
-  const sellos = equivARS * 0.007;
-  const simboloBoleto = moneda === 'USD' ? 'USD ' : '$ ';
+  // Equivalente ARS del monto del boleto (para el sello)
+  const equivARSBoleto = moneda === 'USD' ? monto * tc : monto;
+  // Impuesto de sellos: 0,70% sobre equivalente ARS del boleto
+  const sellos = equivARSBoleto * 0.007;
 
+  if (tipo === 'loteo') {
+    await renderLoteo({ fecha, moneda, monto, tc, fechaCot, equivARSBoleto, sellos });
+  } else {
+    const equivARSReal = monedaReal === 'USD' ? montoReal * tc : montoReal;
+    await renderLadrillo({ fecha, moneda, monto, monedaReal, montoReal, tc, fechaCot, equivARSBoleto, equivARSReal, sellos });
+  }
+  btnPdf.disabled = false;
+}
+
+async function renderLoteo({ fecha, moneda, monto, tc, fechaCot, equivARSBoleto, sellos }) {
+  const cont = $('#gb-resultados');
+  // Mes destino = mes del boleto
+  const [yBol, mBol] = (fecha || todayISO()).split('-').map(Number);
+
+  const fr = proyectarConceptoAlMes('Fondo de Reserva', mBol, yBol);
+  const amoj = proyectarConceptoAlMes('Amojonado', mBol, yBol);
+
+  const errores = [];
+  if (!fr) errores.push('"Fondo de Reserva" no está cargado en Gastos del mes o le falta ICC base');
+  if (!amoj) errores.push('"Amojonado" no está cargado en Gastos del mes o le falta ICC base');
+
+  if (errores.length) {
+    cont.innerHTML = `
+      <div class="gb-monto-info" style="border-left:3px solid var(--err);background:#fef2f2">
+        <b>No se pudieron calcular todos los gastos:</b><br>
+        ${errores.map(e => `• ${e}`).join('<br>')}
+        <div class="muted" style="font-size:.78rem;margin-top:8px">Andá a la pestaña "Gastos del mes" y verificá que los conceptos existan con ese nombre exacto y tengan valor base + mes/año base cargados.</div>
+      </div>
+    `;
+    _gbUltimoCalc = null;
+    $('#gb-pdf').disabled = true;
+    return;
+  }
+
+  const totalARS = fr.valor + amoj.valor + sellos;
   const rowMonto = moneda === 'USD'
-    ? `<div class="gb-monto-info">Monto del boleto: <b>USD ${fmt(monto)}</b> · Equivalente ARS: <b>$${fmt(equivARS)}</b> · TC BNA: <b>$${fmt(tc)}</b></div>`
-    : `<div class="gb-monto-info">Monto del boleto: <b>$${fmt(equivARS)}</b> ARS</div>`;
+    ? `<div class="gb-monto-info">Monto del boleto: <b>USD ${fmt(monto)}</b> · Equivalente ARS: <b>$${fmt(equivARSBoleto)}</b> · TC BNA: <b>$${fmt(tc)}</b></div>`
+    : `<div class="gb-monto-info">Monto del boleto: <b>$${fmt(monto)}</b> ARS</div>`;
+
+  const avisoFallback = (fr.esFallback || amoj.esFallback)
+    ? `<div class="muted" style="font-size:.78rem;margin-top:8px;padding:8px 12px;background:#fef8e1;border-left:3px solid #d4a017;border-radius:4px">
+        <b>Aviso:</b> No hay ICC cargado para ${MESES[mBol-1]} ${yBol}. Se usó el último disponible (${MESES[fr.mesUsado-1]} ${fr.anioUsado}). Los valores pueden variar cuando salga el ICC del mes.
+      </div>`
+    : '';
+
+  cont.innerHTML = `
+    ${rowMonto}
+    <table class="tbl gb-tbl">
+      <thead>
+        <tr><th>Concepto</th><th class="num">Detalle</th><th class="num">Estimado</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Amojonado</td>
+          <td class="num"><span class="muted" style="font-size:.78rem">${amoj.fijo ? 'Valor fijo' : `Actualizado por ICC a ${MESES[amoj.mesUsado-1]} ${amoj.anioUsado}`}</span></td>
+          <td class="num">$ ${fmt(amoj.valor)} ARS</td>
+        </tr>
+        <tr>
+          <td>Fondo de Reserva</td>
+          <td class="num"><span class="muted" style="font-size:.78rem">${fr.fijo ? 'Valor fijo' : `Actualizado por ICC a ${MESES[fr.mesUsado-1]} ${fr.anioUsado}`}</span></td>
+          <td class="num">$ ${fmt(fr.valor)} ARS</td>
+        </tr>
+        <tr>
+          <td>Impuesto de sellos</td>
+          <td class="num"><span class="muted" style="font-size:.78rem">0,70% sobre monto ARS</span></td>
+          <td class="num">$ ${fmt(sellos)} ARS</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="gb-total-block">
+      <div class="gb-total-line">
+        <span>Total estimado</span>
+        <b>$ ${fmt(totalARS)}</b>
+      </div>
+      ${moneda === 'USD' ? `
+      <div class="gb-total-line-sec">
+        <span>Equivalente en dólares <span class="muted" style="font-size:.75rem">(TC $${fmt(tc)})</span></span>
+        <b>USD ${fmt(totalARS / tc)}</b>
+      </div>` : ''}
+    </div>
+    ${avisoFallback}
+  `;
+
+  _gbUltimoCalc = {
+    tipo: 'loteo', fecha, moneda, monto, tc, fechaCot, equivARSBoleto,
+    amojonado: amoj, fondoReserva: fr, sellos, totalARS,
+    totalUSD: moneda === 'USD' ? totalARS / tc : null,
+    mesBoleto: mBol, anioBoleto: yBol
+  };
+}
+
+async function renderLadrillo({ fecha, moneda, monto, monedaReal, montoReal, tc, fechaCot, equivARSBoleto, equivARSReal, sellos }) {
+  const cont = $('#gb-resultados');
+  // Conexiones (2%) y FR (0,5%) sobre monto real, en la moneda del monto real
+  const conexiones = montoReal * 0.02;
+  const fondoReserva = montoReal * 0.005;
+  const simbReal = monedaReal === 'USD' ? 'USD ' : '$ ';
+
+  // Info de montos arriba
+  const boletoLine = moneda === 'USD'
+    ? `Boleto (sello): <b>USD ${fmt(monto)}</b> → <b>$${fmt(equivARSBoleto)}</b> ARS`
+    : `Boleto (sello): <b>$${fmt(monto)}</b> ARS`;
+  const realLine = monedaReal === 'USD'
+    ? `Monto real: <b>USD ${fmt(montoReal)}</b> → <b>$${fmt(equivARSReal)}</b> ARS`
+    : `Monto real: <b>$${fmt(montoReal)}</b> ARS`;
+  const tcLine = tc ? `<span class="muted" style="font-size:.82rem">TC BNA: $${fmt(tc)}</span>` : '';
+
+  const rowMonto = `<div class="gb-monto-info">${boletoLine}<br>${realLine}${tc ? '<br>' + tcLine : ''}</div>`;
+
+  // Totales (todo convertido a ARS y a USD si aplica)
+  const conexionesARS = monedaReal === 'USD' ? conexiones * tc : conexiones;
+  const fondoReservaARS = monedaReal === 'USD' ? fondoReserva * tc : fondoReserva;
+  const totalARS = conexionesARS + fondoReservaARS + sellos;
+
+  // Total USD: se muestra si al menos una moneda es USD (para tener referencia útil)
+  let totalUSD = null;
+  if (tc && (moneda === 'USD' || monedaReal === 'USD')) {
+    const conexionesUSD = monedaReal === 'USD' ? conexiones : conexiones / tc;
+    const fondoReservaUSD = monedaReal === 'USD' ? fondoReserva : fondoReserva / tc;
+    totalUSD = conexionesUSD + fondoReservaUSD + sellos / tc;
+  }
 
   cont.innerHTML = `
     ${rowMonto}
@@ -3574,63 +3799,50 @@ async function calcularGastosBoleto() {
         <tr><th>Concepto</th><th class="num">Alícuota</th><th class="num">Estimado</th></tr>
       </thead>
       <tbody>
-        <tr><td>Conexiones y horizontalidad</td><td class="num">2,00%</td><td class="num">${simboloBoleto}${fmt(conexiones)}</td></tr>
-        <tr><td>Fondo de reserva</td><td class="num">0,50%</td><td class="num">${simboloBoleto}${fmt(fondoReserva)}</td></tr>
+        <tr><td>Conexiones y horizontalidad</td><td class="num">2,00%</td><td class="num">${simbReal}${fmt(conexiones)}</td></tr>
+        <tr><td>Fondo de reserva</td><td class="num">0,50%</td><td class="num">${simbReal}${fmt(fondoReserva)}</td></tr>
         <tr><td>Impuesto de sellos</td><td class="num">0,70%</td><td class="num">$ ${fmt(sellos)} ARS</td></tr>
       </tbody>
     </table>
-    ${moneda === 'USD' ? `
-      <div class="gb-total-block">
-        <div class="gb-total-line">
-          <span>Total en pesos <span class="muted" style="font-size:.75rem">(todo convertido a ARS)</span></span>
-          <b>$ ${fmt(conexiones * tc + fondoReserva * tc + sellos)}</b>
-        </div>
-        <div class="gb-total-line-sec">
-          <span>Total en dólares <span class="muted" style="font-size:.75rem">(sellos convertidos con TC)</span></span>
-          <b>USD ${fmt(conexiones + fondoReserva + sellos / tc)}</b>
-        </div>
+    <div class="gb-total-block">
+      <div class="gb-total-line">
+        <span>Total en pesos${(moneda === 'USD' || monedaReal === 'USD') ? ' <span class="muted" style="font-size:.75rem">(todo convertido a ARS)</span>' : ''}</span>
+        <b>$ ${fmt(totalARS)}</b>
       </div>
-    ` : `
-      <div class="gb-total-block">
-        <div class="gb-total-line">
-          <span>Total estimado</span>
-          <b>$ ${fmt(conexiones + fondoReserva + sellos)}</b>
-        </div>
-      </div>
-    `}
+      ${totalUSD != null ? `
+      <div class="gb-total-line-sec">
+        <span>Total en dólares <span class="muted" style="font-size:.75rem">(convertido con TC $${fmt(tc)})</span></span>
+        <b>USD ${fmt(totalUSD)}</b>
+      </div>` : ''}
+    </div>
   `;
 
-  // Guardar datos para PDF
-  _gbUltimoCalc = { fecha, moneda, monto, tc, fechaCot, equivARS, conexiones, fondoReserva, sellos };
-  if (moneda === 'USD') {
-    _gbUltimoCalc.totalARS = conexiones * tc + fondoReserva * tc + sellos;
-    _gbUltimoCalc.totalUSD = conexiones + fondoReserva + sellos / tc;
-  } else {
-    _gbUltimoCalc.totalARS = conexiones + fondoReserva + sellos;
-  }
-  btnPdf.disabled = false;
+  _gbUltimoCalc = {
+    tipo: 'ladrillo', fecha, moneda, monto, monedaReal, montoReal, tc, fechaCot,
+    equivARSBoleto, equivARSReal, conexiones, fondoReserva, sellos,
+    totalARS, totalUSD
+  };
 }
 
 // Default: fecha hoy
 $('#gb-fecha').value = todayISO();
 
-// Recalcular al cambiar cualquier campo
-['gb-fecha','gb-moneda','gb-monto'].forEach(id => {
-  $('#' + id).addEventListener('input', calcularGastosBoleto);
-  $('#' + id).addEventListener('change', calcularGastosBoleto);
+['gb-fecha','gb-moneda','gb-monto','gb-moneda-real','gb-monto-real'].forEach(id => {
+  const el = $('#' + id);
+  if (!el) return;
+  el.addEventListener('input', calcularGastosBoleto);
+  el.addEventListener('change', calcularGastosBoleto);
 });
 
 $('#gb-limpiar').addEventListener('click', () => {
   $('#gb-monto').value = '';
+  const mr = $('#gb-monto-real'); if (mr) mr.value = '';
   $('#gb-fecha').value = todayISO();
   $('#gb-moneda').value = 'ARS';
+  const mrSel = $('#gb-moneda-real'); if (mrSel) mrSel.value = 'ARS';
   calcularGastosBoleto();
 });
 
-// Render inicial
-calcularGastosBoleto();
-
-// PDF
 $('#gb-pdf').addEventListener('click', () => {
   if (!_gbUltimoCalc) return;
   generarPDFGastosBoleto(_gbUltimoCalc);
@@ -3642,22 +3854,20 @@ function generarPDFGastosBoleto(r) {
   const W = 210;
   let y = 20;
 
-  // Encabezado
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
-  doc.setTextColor(140, 78, 46); // terracota
+  doc.setTextColor(140, 78, 46);
   doc.text('Estimación de gastos por boleto', W/2, y, { align: 'center' });
   y += 6;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(120, 120, 120);
-  doc.text('Grupo Edisur · Documento informativo', W/2, y, { align: 'center' });
+  doc.text(`Grupo Edisur · ${r.tipo === 'loteo' ? 'Loteo' : 'Ladrillo'} · Documento informativo`, W/2, y, { align: 'center' });
   y += 4;
   doc.text(`Generado: ${fmtFecha(todayISO())}`, W/2, y, { align: 'center' });
   y += 12;
 
-  // Datos del boleto
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(40, 40, 40);
@@ -3680,18 +3890,23 @@ function generarPDFGastosBoleto(r) {
   };
 
   drawRow('Fecha del boleto', fmtFecha(r.fecha));
-  drawRow('Moneda', r.moneda === 'USD' ? 'Dólares estadounidenses (USD)' : 'Pesos argentinos (ARS)');
-  drawRow('Monto', `${r.moneda === 'USD' ? 'USD ' : '$ '}${fmt(r.monto)}`, { bold: true });
-
-  if (r.moneda === 'USD') {
+  if (r.tipo === 'ladrillo') {
+    drawRow('Moneda del boleto', r.moneda === 'USD' ? 'Dólares (USD)' : 'Pesos (ARS)');
+    drawRow('Monto del boleto (para sello)', `${r.moneda === 'USD' ? 'USD ' : '$ '}${fmt(r.monto)}`, { bold: true });
+    drawRow('Moneda del monto real', r.monedaReal === 'USD' ? 'Dólares (USD)' : 'Pesos (ARS)');
+    drawRow('Monto real (para conexiones y FR)', `${r.monedaReal === 'USD' ? 'USD ' : '$ '}${fmt(r.montoReal)}`, { bold: true });
+  } else {
+    drawRow('Moneda', r.moneda === 'USD' ? 'Dólares (USD)' : 'Pesos (ARS)');
+    drawRow('Monto del boleto', `${r.moneda === 'USD' ? 'USD ' : '$ '}${fmt(r.monto)}`, { bold: true });
+  }
+  if (r.tc) {
     drawRow('Cotización BNA (promedio)', `$ ${fmt(r.tc)}`);
-    drawRow('Fecha cotización (día hábil anterior)', fmtFecha(r.fechaCot));
-    drawRow('Equivalente en pesos', `$ ${fmt(r.equivARS)}`, { bold: true });
+    drawRow('Fecha cotización', `${fmtFecha(r.fechaCot)} (día hábil anterior)`);
+    if (r.moneda === 'USD') drawRow('Equivalente ARS del boleto', `$ ${fmt(r.equivARSBoleto)}`);
+    if (r.tipo === 'ladrillo' && r.monedaReal === 'USD') drawRow('Equivalente ARS del monto real', `$ ${fmt(r.equivARSReal)}`);
   }
 
   y += 8;
-
-  // Gastos estimados
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(40, 40, 40);
@@ -3700,25 +3915,33 @@ function generarPDFGastosBoleto(r) {
   doc.line(20, y, W-20, y);
   y += 8;
 
-  const drawConcept = (concepto, pct, importe, moneda) => {
+  const drawConcept = (concepto, detalle, importeStr) => {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(90, 90, 90);
     doc.text(concepto, 22, y);
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    doc.text(pct, 110, y);
+    doc.text(detalle, 22, y + 4);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(40, 40, 40);
-    const simbolo = moneda === 'USD' ? 'USD ' : '$ ';
-    doc.text(`${simbolo}${fmt(importe)}`, W-22, y, { align: 'right' });
-    y += 7;
+    doc.text(importeStr, W-22, y, { align: 'right' });
+    y += 10;
   };
 
-  drawConcept('Conexiones y horizontalidad', '2,00%', r.conexiones, r.moneda);
-  drawConcept('Fondo de reserva', '0,50%', r.fondoReserva, r.moneda);
-  drawConcept('Impuesto de sellos', '0,70% (sobre ARS)', r.sellos, 'ARS');
+  if (r.tipo === 'loteo') {
+    const detAmoj = r.amojonado.fijo ? 'Valor fijo' : `Actualizado por ICC a ${MESES[r.amojonado.mesUsado-1]} ${r.amojonado.anioUsado}`;
+    const detFr = r.fondoReserva.fijo ? 'Valor fijo' : `Actualizado por ICC a ${MESES[r.fondoReserva.mesUsado-1]} ${r.fondoReserva.anioUsado}`;
+    drawConcept('Amojonado', detAmoj, `$ ${fmt(r.amojonado.valor)} ARS`);
+    drawConcept('Fondo de Reserva', detFr, `$ ${fmt(r.fondoReserva.valor)} ARS`);
+    drawConcept('Impuesto de sellos', '0,70% sobre monto ARS', `$ ${fmt(r.sellos)} ARS`);
+  } else {
+    const simb = r.monedaReal === 'USD' ? 'USD ' : '$ ';
+    drawConcept('Conexiones y horizontalidad', '2,00% sobre monto real', `${simb}${fmt(r.conexiones)}`);
+    drawConcept('Fondo de reserva', '0,50% sobre monto real', `${simb}${fmt(r.fondoReserva)}`);
+    drawConcept('Impuesto de sellos', '0,70% sobre monto ARS', `$ ${fmt(r.sellos)} ARS`);
+  }
 
   y += 3;
   doc.setDrawColor(140, 78, 46);
@@ -3726,7 +3949,6 @@ function generarPDFGastosBoleto(r) {
   doc.line(20, y, W-20, y);
   y += 8;
 
-  // Totales
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(40, 40, 40);
@@ -3736,7 +3958,7 @@ function generarPDFGastosBoleto(r) {
   doc.text(`$ ${fmt(r.totalARS)}`, W-22, y, { align: 'right' });
   y += 10;
 
-  if (r.moneda === 'USD') {
+  if (r.totalUSD != null) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(90, 90, 90);
@@ -3749,7 +3971,6 @@ function generarPDFGastosBoleto(r) {
     y += 5;
   }
 
-  // Aviso legal
   doc.setDrawColor(220, 220, 220);
   doc.setLineWidth(0.2);
   doc.line(20, y, W-20, y);
@@ -3758,12 +3979,13 @@ function generarPDFGastosBoleto(r) {
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(8);
   doc.setTextColor(150, 150, 150);
-  const aviso = 'Este cálculo es informativo. Los valores están sujetos a variaciones según el tipo de cambio del día del boleto, cambios en las alícuotas vigentes y otros factores. Alícuotas utilizadas: Conexiones y horizontalidad 2%, Fondo de reserva 0,5% (ambos respetan la moneda del boleto) e Impuesto de sellos 0,70% (se calcula sobre el equivalente en pesos con el TC BNA del día hábil anterior).';
+  const aviso = r.tipo === 'loteo'
+    ? 'Este cálculo es informativo. Amojonado y Fondo de Reserva se toman de "Gastos del mes" actualizados por ICC al mes del boleto (redondeados a $100). El impuesto de sellos se calcula sobre el equivalente en pesos del monto del boleto con el TC BNA del día hábil anterior.'
+    : 'Este cálculo es informativo. Conexiones y horizontalidad (2%) y Fondo de reserva (0,5%) se calculan sobre el monto real, respetando la moneda del monto real. El impuesto de sellos (0,70%) se calcula sobre el equivalente en pesos del monto del boleto con el TC BNA del día hábil anterior.';
   const lines = doc.splitTextToSize(aviso, W-40);
   doc.text(lines, 20, y);
 
-  const fechaNombre = todayISO();
-  doc.save(`gastos-boleto-${fechaNombre}.pdf`);
+  doc.save(`gastos-boleto-${r.tipo}-${todayISO()}.pdf`);
   toast('PDF generado', 'ok');
 }
 
