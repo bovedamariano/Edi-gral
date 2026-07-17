@@ -3774,18 +3774,19 @@ async function renderLadrillo({ fecha, moneda, monto, monedaReal, montoReal, tc,
 
   const rowMonto = `<div class="gb-monto-info">${boletoLine}<br>${realLine}${tc ? '<br>' + tcLine : ''}</div>`;
 
-  // Totales (todo convertido a ARS y a USD si aplica)
-  const conexionesARS = monedaReal === 'USD' ? conexiones * tc : conexiones;
-  const fondoReservaARS = monedaReal === 'USD' ? fondoReserva * tc : fondoReserva;
-  const totalARS = conexionesARS + fondoReservaARS + sellos;
-
-  // Total USD: se muestra si al menos una moneda es USD (para tener referencia útil)
-  let totalUSD = null;
-  if (tc && (moneda === 'USD' || monedaReal === 'USD')) {
-    const conexionesUSD = monedaReal === 'USD' ? conexiones : conexiones / tc;
-    const fondoReservaUSD = monedaReal === 'USD' ? fondoReserva : fondoReserva / tc;
-    totalUSD = conexionesUSD + fondoReservaUSD + sellos / tc;
+  // Totales agrupados por moneda (sin convertir entre monedas)
+  // Cada concepto se suma en su moneda original.
+  // El sello siempre está en ARS.
+  let totalARS = sellos;
+  let totalUSD = 0;
+  if (monedaReal === 'USD') {
+    totalUSD += conexiones + fondoReserva;
+  } else {
+    totalARS += conexiones + fondoReserva;
   }
+
+  const mostrarTotalARS = totalARS > 0;
+  const mostrarTotalUSD = totalUSD > 0;
 
   cont.innerHTML = `
     ${rowMonto}
@@ -3800,13 +3801,14 @@ async function renderLadrillo({ fecha, moneda, monto, monedaReal, montoReal, tc,
       </tbody>
     </table>
     <div class="gb-total-block">
+      ${mostrarTotalARS ? `
       <div class="gb-total-line">
-        <span>Total en pesos${(moneda === 'USD' || monedaReal === 'USD') ? ' <span class="muted" style="font-size:.75rem">(todo convertido a ARS)</span>' : ''}</span>
-        <b>$ ${fmt(totalARS)}</b>
-      </div>
-      ${totalUSD != null ? `
-      <div class="gb-total-line-sec">
-        <span>Total en dólares <span class="muted" style="font-size:.75rem">(convertido con TC $${fmt(tc)})</span></span>
+        <span>Total en pesos</span>
+        <b>$ ${fmt(totalARS)} ARS</b>
+      </div>` : ''}
+      ${mostrarTotalUSD ? `
+      <div class="${mostrarTotalARS ? 'gb-total-line-sec' : 'gb-total-line'}">
+        <span>Total en dólares</span>
         <b>USD ${fmt(totalUSD)}</b>
       </div>` : ''}
     </div>
@@ -3815,7 +3817,8 @@ async function renderLadrillo({ fecha, moneda, monto, monedaReal, montoReal, tc,
   _gbUltimoCalc = {
     tipo: 'ladrillo', fecha, moneda, monto, monedaReal, montoReal, tc, fechaCot,
     equivARSBoleto, equivARSReal, conexiones, fondoReserva, sellos,
-    totalARS, totalUSD
+    totalARS: mostrarTotalARS ? totalARS : null,
+    totalUSD: mostrarTotalUSD ? totalUSD : null
   };
 }
 
@@ -3945,21 +3948,23 @@ function generarPDFGastosBoleto(r) {
   y += 8;
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.setTextColor(40, 40, 40);
-  doc.text('Total estimado en ARS', 22, y);
-  doc.setTextColor(140, 78, 46);
-  doc.setFontSize(15);
-  doc.text(`$ ${fmt(r.totalARS)}`, W-22, y, { align: 'right' });
-  y += 10;
+  if (r.totalARS != null) {
+    doc.setFontSize(13);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Total en pesos', 22, y);
+    doc.setTextColor(140, 78, 46);
+    doc.setFontSize(15);
+    doc.text(`$ ${fmt(r.totalARS)} ARS`, W-22, y, { align: 'right' });
+    y += 10;
+  }
 
   if (r.totalUSD != null) {
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(90, 90, 90);
-    doc.text('Total estimado en USD', 22, y);
+    doc.setFontSize(r.totalARS != null ? 11 : 13);
+    doc.setTextColor(r.totalARS != null ? 90 : 40, r.totalARS != null ? 90 : 40, r.totalARS != null ? 90 : 40);
+    doc.text('Total en dólares', 22, y);
     doc.setTextColor(140, 78, 46);
-    doc.setFontSize(13);
+    doc.setFontSize(r.totalARS != null ? 13 : 15);
     doc.text(`USD ${fmt(r.totalUSD)}`, W-22, y, { align: 'right' });
     y += 12;
   } else {
