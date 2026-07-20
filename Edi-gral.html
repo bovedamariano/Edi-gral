@@ -3891,8 +3891,6 @@ function generarPDFGastosBoleto(r) {
   if (r.tipo === 'ladrillo') {
     drawRow('Moneda del boleto', r.moneda === 'USD' ? 'Dólares (USD)' : 'Pesos (ARS)');
     drawRow('Monto del boleto (para sello)', `${r.moneda === 'USD' ? 'USD ' : '$ '}${fmt(r.monto)}`, { bold: true });
-    drawRow('Moneda gastos de posesión', r.monedaReal === 'USD' ? 'Dólares (USD)' : 'Pesos (ARS)');
-    drawRow('Gastos de posesión (conexiones y FR)', `${r.monedaReal === 'USD' ? 'USD ' : '$ '}${fmt(r.montoReal)}`, { bold: true });
   } else {
     drawRow('Moneda', r.moneda === 'USD' ? 'Dólares (USD)' : 'Pesos (ARS)');
     drawRow('Monto del boleto', `${r.moneda === 'USD' ? 'USD ' : '$ '}${fmt(r.monto)}`, { bold: true });
@@ -3901,7 +3899,6 @@ function generarPDFGastosBoleto(r) {
     drawRow('Cotización BNA (promedio)', `$ ${fmt(r.tc)}`);
     drawRow('Fecha cotización', `${fmtFecha(r.fechaCot)} (día hábil anterior)`);
     if (r.moneda === 'USD') drawRow('Equivalente ARS del boleto', `$ ${fmt(r.equivARSBoleto)}`);
-    if (r.tipo === 'ladrillo' && r.monedaReal === 'USD') drawRow('Equivalente ARS de gastos de posesión', `$ ${fmt(r.equivARSReal)}`);
   }
 
   y += 8;
@@ -3980,7 +3977,7 @@ function generarPDFGastosBoleto(r) {
   doc.setFontSize(8);
   doc.setTextColor(150, 150, 150);
   const aviso = r.tipo === 'loteo'
-    ? 'Este cálculo es informativo. Amojonado y Fondo de Reserva se toman de "Gastos del mes" actualizados por ICC al mes del boleto (redondeados a $100). El impuesto de sellos se calcula sobre el equivalente en pesos del monto del boleto con el TC BNA del día hábil anterior.'
+    ? 'Este cálculo es informativo. Amojonado y Fondo de Reserva se toman de "Gastos del mes" actualizados por ICC al mes del boleto. El impuesto de sellos se calcula sobre el equivalente en pesos del monto del boleto con el TC BNA del día hábil anterior.'
     : 'Este cálculo es informativo. Conexiones y horizontalidad (2%) y Fondo de reserva (0,5%) se calculan sobre los gastos de posesión, respetando su moneda. El impuesto de sellos (0,70%) se calcula sobre el equivalente en pesos del monto del boleto con el TC BNA del día hábil anterior.';
   const lines = doc.splitTextToSize(aviso, W-40);
   doc.text(lines, 20, y);
