@@ -544,6 +544,50 @@ details[open] .ident-toggle{transform:rotate(180deg)}
     </div>
     <button type="submit" id="login-btn">Entrar</button>
     <div style="text-align:center;margin-top:14px"><a href="#" id="forgot-link" style="font-size:.82rem">¿Olvidaste tu contraseña?</a></div>
+    <div style="text-align:center;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);font-size:.82rem;color:var(--ink-3)">
+      ¿No tenés cuenta? <a href="#" id="signup-link" style="color:var(--accent);font-weight:600">Registrate</a>
+    </div>
+  </div>
+
+  <!-- Modal de registro -->
+  <div id="signup-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center">
+    <div class="login-card" style="max-width:400px;width:90%;position:relative">
+      <div class="login-brand">Solicitar acceso</div>
+      <div class="login-sub">Un administrador debe aprobar tu solicitud</div>
+      <div class="err" id="signup-err"></div>
+      <div class="ok" id="signup-ok" style="background:#dcfce7;color:#166534;padding:12px;border-radius:8px;margin-bottom:14px;display:none;font-size:.88rem;line-height:1.4"></div>
+      <div id="signup-form-wrap">
+        <div class="field">
+          <label>Usuario</label>
+          <input type="text" id="signup-usuario" placeholder="ej: juanp" autocomplete="username">
+        </div>
+        <div class="field">
+          <label>Contraseña <span style="color:var(--ink-3);font-weight:400;font-size:.72rem">(mín. 6 caracteres)</span></label>
+          <input type="password" id="signup-pass" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label>Repetir contraseña</label>
+          <input type="password" id="signup-pass2" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label>Área a la que pertenecés</label>
+          <select id="signup-area" style="width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)">
+            <option value="">— Seleccioná —</option>
+            <option value="finanzas">Finanzas</option>
+            <option value="ventas">Ventas</option>
+            <option value="sac">SAC</option>
+            <option value="legales">Legales</option>
+            <option value="otra">Otra</option>
+          </select>
+        </div>
+        <div class="field" id="signup-otra-wrap" style="display:none">
+          <label>Especificá cuál</label>
+          <input type="text" id="signup-otra" placeholder="ej: RRHH, Sistemas..." maxlength="100">
+        </div>
+        <button type="button" id="signup-btn" style="width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-weight:600;cursor:pointer;margin-top:8px">Enviar solicitud</button>
+      </div>
+      <div style="text-align:center;margin-top:14px;font-size:.82rem"><a href="#" id="signup-cancel">Volver al login</a></div>
+    </div>
   </div>
 </div>
 
@@ -569,6 +613,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
     <button class="nav-item" data-tab="tareas">📋 Tareas</button>
     <button class="nav-item" data-tab="instructivos">📚 Instructivos</button>
     <button class="nav-item" data-tab="transferencias">💸 Transferencias</button>
+    <button class="nav-item" data-tab="retiros">📤 Retiro de documentación</button>
     <div class="nav-section" id="admin-section" style="display:none">Admin</div>
     <button class="nav-item" data-tab="ajustes" id="ajustes-nav" style="display:none">⚙️ Ajustes</button>
     <button class="nav-item" data-tab="audit" id="audit-nav" style="display:none">📜 Audit log</button>
@@ -1288,7 +1333,55 @@ details[open] .ident-toggle{transform:rotate(180deg)}
       </div>
     </section>
 
-    <!-- AJUSTES TAB -->
+    <!-- RETIROS DE DOCUMENTACION TAB -->
+    <section class="tab-content" id="tab-retiros" style="display:none">
+      <div class="page-head">
+        <div><h1>Retiro de documentación</h1><p>Registro de documentos que salen físicamente de la oficina</p></div>
+        <button class="btn accent" id="retiro-add">+ Nuevo retiro</button>
+      </div>
+
+      <!-- Card alerta atrasados (más de 5 días) -->
+      <div class="card" id="retiros-alerta-card" style="display:none;border-left:3px solid var(--err);background:#fef2f2;margin-bottom:14px">
+        <h3 style="display:flex;align-items:center;gap:8px;color:var(--err)">⚠ Documentación sin devolver hace más de 5 días <span id="retiros-alerta-badge" style="background:var(--err);color:#fff;font-size:.7rem;padding:2px 8px;border-radius:12px">0</span></h3>
+        <div class="tbl-wrap" style="margin-top:8px"><table class="tbl" id="retiros-alerta-tabla">
+          <thead><tr><th>Inmueble</th><th>Retira</th><th>Fecha retiro</th><th>Días</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+
+      <!-- Filtros -->
+      <div class="card" style="padding:14px;margin-bottom:14px">
+        <div class="field-row">
+          <div class="field">
+            <label>Estado</label>
+            <select id="retiro-filtro-estado">
+              <option value="">Todos</option>
+              <option value="retirado" selected>Solo retirados (pendientes)</option>
+              <option value="devuelto">Solo devueltos</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Buscar</label>
+            <input type="text" id="retiro-filtro-busq" placeholder="Inmueble, persona, obs...">
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla principal -->
+      <div class="card">
+        <div class="tbl-wrap"><table class="tbl" id="retiros-tabla">
+          <thead><tr>
+            <th>Fecha retiro</th>
+            <th>Inmueble</th>
+            <th>Documentos</th>
+            <th>Retira</th>
+            <th>Estado</th>
+            <th class="actions"></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+    </section>
     <section class="tab-content" id="tab-ajustes" style="display:none">
       <div class="page-head"><div><h1>Ajustes</h1><p>Administración del sistema</p></div></div>
       <div class="tabs">
@@ -1296,14 +1389,24 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <button class="tab" data-subtab="aj-empresas">Empresas y cuentas</button>
         <button class="tab" data-subtab="aj-alicuotas">Alícuotas sellos</button>
         <button class="tab" data-subtab="aj-responsables">Responsables tareas</button>
+        <button class="tab" data-subtab="aj-personas-retiros">Personas retiros</button>
         <button class="tab" data-subtab="aj-emprendimientos">Emprendimientos</button>
         <button class="tab" data-subtab="aj-cuentas-rentas">Cuentas Rentas</button>
         <button class="tab" data-subtab="aj-datos">Datos / Backup</button>
       </div>
       <div class="subtab-content" id="aj-usuarios">
+        <div class="card" id="pendientes-card" style="display:none;border-left:3px solid #d4a017;background:#fef8e1">
+          <h3 style="display:flex;align-items:center;gap:8px">🔔 Solicitudes pendientes <span id="pendientes-badge" style="background:#d4a017;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:12px">0</span></h3>
+          <p class="sub" style="margin-bottom:12px">Usuarios que se registraron y esperan tu aprobación.</p>
+          <div class="tbl-wrap"><table class="tbl" id="pendientes-tabla">
+            <thead><tr><th>Usuario</th><th>Área solicitada</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
+        </div>
         <div class="card">
-          <h3>Usuarios del sistema</h3>
-          <p class="sub">Los usuarios se crean desde el panel de Supabase (Authentication → Users). Acá podés asignar rol y área.</p>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h3 style="margin:0">Usuarios del sistema</h3>
+            <button class="btn accent sm" id="user-nuevo">+ Nuevo usuario</button>
+          </div>
+          <p class="sub">Podés crear usuarios directamente o aprobar solicitudes de registro.</p>
           <div class="tbl-wrap"><table class="tbl" id="users-tabla">
             <thead><tr><th>Nombre</th><th>Área</th><th>Rol</th><th>Estado</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
         </div>
@@ -1352,6 +1455,21 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           </div>
           <div class="tbl-wrap"><table class="tbl" id="resp-tabla">
             <thead><tr><th>Nombre</th><th>Email</th><th>Estado</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+      <div class="subtab-content" id="aj-personas-retiros" style="display:none">
+        <div class="card">
+          <h3>Personas que retiran documentación</h3>
+          <p class="sub">Estas personas aparecen en el dropdown al registrar un retiro de documentación.</p>
+          <div style="display:flex;gap:8px;align-items:end;margin-bottom:14px;flex-wrap:wrap">
+            <div class="field" style="flex:1;margin-bottom:0;min-width:200px">
+              <label>Nombre</label>
+              <input type="text" id="pretiro-nombre" placeholder="Ej: Juan Pérez">
+            </div>
+            <button class="btn" id="pretiro-add">+ Agregar</button>
+          </div>
+          <div class="tbl-wrap"><table class="tbl" id="pretiro-tabla">
+            <thead><tr><th>Nombre</th><th>Estado</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
       <div class="subtab-content" id="aj-emprendimientos" style="display:none">
@@ -1476,6 +1594,8 @@ const state = {
   identificadores: [],
   cuentasRentas: [],
   instructivos: [],
+  retiros: [],
+  retirosPersonas: [],
   users: [],
   feriados: {}, // {year: [{fecha, nombre}]}
   bnaActual: null,
@@ -1560,9 +1680,9 @@ async function initAuth() {
 // MATRIZ DE ACCESOS POR ÁREA
 // =================================================================
 const ACCESOS = {
-  admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','gastos-boleto','tareas','instructivos','transferencias','ajustes','audit'],
-  finanzas: ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias'],
-  legales:  ['icc','sellos','cesiones','cuentas','cotizacion','gastos'],
+  admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','gastos-boleto','tareas','instructivos','transferencias','retiros','ajustes','audit'],
+  finanzas: ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias','retiros'],
+  legales:  ['icc','sellos','cesiones','cuentas','cotizacion','gastos','retiros'],
   ventas:   ['icc','cuentas','cotizacion','gastos','gastos-boleto'],
   sac:      ['icc','cuentas','gastos'],
 };
@@ -1595,8 +1715,17 @@ function aplicarAccesos() {
 async function afterLogin() {
   const prof = await loadProfile();
   if (!prof || !prof.activo) {
-    toast('Tu usuario no está activo. Pedile a un admin que te active.', 'err');
-    setTimeout(logout, 2500);
+    // Mostrar mensaje en la pantalla de login (más visible que un toast)
+    const err = $('#login-err');
+    err.innerHTML = 'Tu cuenta aún no fue activada.<br>Esperá a que el administrador acepte tu solicitud.';
+    err.classList.add('show');
+    err.style.textAlign = 'left';
+    err.style.lineHeight = '1.4';
+    setTimeout(async () => {
+      await sb.auth.signOut();
+      $('#login-btn').textContent = 'Entrar';
+      $('#login-btn').disabled = false;
+    }, 300);
     return;
   }
   $('#login-screen').style.display = 'none';
@@ -1621,7 +1750,7 @@ async function afterLogin() {
   await Promise.all([
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
-    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(),
+    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -1685,6 +1814,93 @@ $('#forgot-link').addEventListener('click', async e => {
   else toast('Te enviamos un mail para resetear', 'ok');
 });
 
+// ===== Signup (registro público con aprobación admin) =====
+$('#signup-link').addEventListener('click', e => {
+  e.preventDefault();
+  // Limpiar campos y mostrar modal
+  $('#signup-usuario').value = '';
+  $('#signup-pass').value = '';
+  $('#signup-pass2').value = '';
+  $('#signup-area').value = '';
+  $('#signup-otra').value = '';
+  $('#signup-otra-wrap').style.display = 'none';
+  $('#signup-err').classList.remove('show');
+  $('#signup-ok').style.display = 'none';
+  $('#signup-form-wrap').style.display = 'block';
+  const m = $('#signup-modal');
+  m.style.display = 'flex';
+  setTimeout(() => $('#signup-usuario').focus(), 100);
+});
+
+$('#signup-cancel').addEventListener('click', e => {
+  e.preventDefault();
+  $('#signup-modal').style.display = 'none';
+});
+
+$('#signup-area').addEventListener('change', () => {
+  $('#signup-otra-wrap').style.display = $('#signup-area').value === 'otra' ? '' : 'none';
+});
+
+$('#signup-btn').addEventListener('click', async () => {
+  const usuario = $('#signup-usuario').value.trim().toLowerCase();
+  const pass = $('#signup-pass').value;
+  const pass2 = $('#signup-pass2').value;
+  const area = $('#signup-area').value;
+  const areaOtra = $('#signup-otra').value.trim();
+  const errEl = $('#signup-err');
+  const btn = $('#signup-btn');
+  errEl.classList.remove('show');
+
+  if (!usuario || !/^[a-z0-9._-]{3,30}$/.test(usuario)) {
+    errEl.textContent = 'Usuario inválido (3-30 caracteres, sin acentos ni espacios)';
+    errEl.classList.add('show'); return;
+  }
+  if (!pass || pass.length < 6) {
+    errEl.textContent = 'La contraseña debe tener al menos 6 caracteres';
+    errEl.classList.add('show'); return;
+  }
+  if (pass !== pass2) {
+    errEl.textContent = 'Las contraseñas no coinciden';
+    errEl.classList.add('show'); return;
+  }
+  if (!area) {
+    errEl.textContent = 'Elegí un área';
+    errEl.classList.add('show'); return;
+  }
+  if (area === 'otra' && !areaOtra) {
+    errEl.textContent = 'Especificá cuál es tu área';
+    errEl.classList.add('show'); return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Enviando solicitud...';
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/crear-usuario`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ usuario, password: pass, area, area_otra: areaOtra }),
+    });
+    const j = await resp.json();
+    if (!j.ok) {
+      errEl.textContent = j.error || 'Error al enviar solicitud';
+      errEl.classList.add('show');
+      btn.disabled = false; btn.textContent = 'Enviar solicitud';
+      return;
+    }
+    // Éxito: mostrar mensaje de espera
+    $('#signup-form-wrap').style.display = 'none';
+    const okEl = $('#signup-ok');
+    okEl.innerHTML = `<b>✓ Solicitud enviada</b><br>Tu cuenta fue creada correctamente.<br><br>Esperá a que el administrador acepte la solicitud para poder ingresar. Te avisaremos por los canales habituales.`;
+    okEl.style.display = 'block';
+  } catch (e) {
+    errEl.textContent = 'Error de red: ' + e.message;
+    errEl.classList.add('show');
+    btn.disabled = false; btn.textContent = 'Enviar solicitud';
+  }
+});
+
 $('#btn-logout').addEventListener('click', async () => { if (await confirmAction('¿Cerrar sesión?')) logout(); });
 
 // =================================================================
@@ -1708,6 +1924,7 @@ function switchTab(tab) {
   }
   if (tab === 'audit') loadAudit();
   if (tab === 'ajustes') loadUsers();
+  if (tab === 'retiros') renderRetiros();
 }
 
 $$('.nav-item').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
@@ -1728,6 +1945,8 @@ document.addEventListener('click', e => {
     e.target.classList.add('active');
     container.querySelectorAll('.subtab-content').forEach(c => c.style.display = 'none');
     container.querySelector('#' + e.target.dataset.subtab).style.display = 'block';
+    // Triggers específicos al abrir subtab
+    if (e.target.dataset.subtab === 'aj-personas-retiros') renderPersonasRetiros();
   }
 });
 
@@ -1801,7 +2020,7 @@ async function loadInstructivos() {
 }
 async function loadUsers() {
   if (state.profile?.rol !== 'admin') return;
-  const { data } = await sb.from('profiles').select('*').order('nombre');
+  const { data } = await sb.from('profiles').select('*').order('activo', { ascending: true }).order('usuario');
   state.users = data || [];
   renderUsers();
 }
@@ -5349,45 +5568,501 @@ window.deleteInstructivo = async function(id) {
 };
 
 // =================================================================
+// MODULO: RETIRO DE DOCUMENTACION
+// =================================================================
+async function loadRetirosPersonas() {
+  const { data } = await sb.from('retiros_personas').select('*').order('orden').order('nombre');
+  state.retirosPersonas = data || [];
+}
+
+async function loadRetiros() {
+  const { data } = await sb.from('retiros_documentacion').select('*').order('fecha_retiro', { ascending: false }).order('created_at', { ascending: false });
+  state.retiros = data || [];
+}
+
+function diasDesdeFecha(fechaISO) {
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const f = new Date(fechaISO + 'T00:00:00');
+  return Math.floor((hoy - f) / (1000 * 60 * 60 * 24));
+}
+
+function renderRetiros() {
+  const filtroEstado = $('#retiro-filtro-estado')?.value || '';
+  const busq = ($('#retiro-filtro-busq')?.value || '').toLowerCase();
+
+  const todos = state.retiros || [];
+
+  // Alerta: retirados hace más de 5 días
+  const atrasados = todos.filter(r => r.estado === 'retirado' && diasDesdeFecha(r.fecha_retiro) > 5);
+  const cardAlerta = $('#retiros-alerta-card');
+  if (atrasados.length) {
+    cardAlerta.style.display = 'block';
+    $('#retiros-alerta-badge').textContent = atrasados.length;
+    $('#retiros-alerta-tabla tbody').innerHTML = atrasados.map(r => `<tr>
+      <td>${r.inmueble}</td>
+      <td>${r.persona_retira_nombre || '—'}</td>
+      <td>${fmtFecha(r.fecha_retiro)}</td>
+      <td><span class="badge warn">${diasDesdeFecha(r.fecha_retiro)} días</span></td>
+    </tr>`).join('');
+  } else {
+    cardAlerta.style.display = 'none';
+  }
+
+  // Filtrado tabla principal
+  const filtrados = todos.filter(r => {
+    if (filtroEstado && r.estado !== filtroEstado) return false;
+    if (busq) {
+      const txt = `${r.inmueble} ${r.persona_retira_nombre || ''} ${r.observaciones || ''} ${r.documentos_otros || ''}`.toLowerCase();
+      if (!txt.includes(busq)) return false;
+    }
+    return true;
+  });
+
+  const tb = $('#retiros-tabla tbody');
+  if (!filtrados.length) {
+    tb.innerHTML = '<tr><td colspan="6" class="empty">Sin resultados</td></tr>';
+    return;
+  }
+
+  tb.innerHTML = filtrados.map(r => {
+    const docs = [];
+    if (r.documentos_boletos) docs.push('Boletos');
+    if (r.documentos_cesiones) docs.push('Cesiones');
+    if (r.documentos_acta_tenencia) docs.push('Acta tenencia');
+    if (r.documentos_otros) docs.push(`Otros: ${r.documentos_otros}`);
+    const docsTxt = docs.length ? docs.join(', ') : '—';
+
+    const badgeEstado = r.estado === 'devuelto'
+      ? `<span class="badge ok">✓ Devuelto</span><div class="muted" style="font-size:.72rem">${fmtFecha(r.fecha_devolucion)}</div>`
+      : `<span class="badge warn">Retirado</span>`;
+
+    const dias = r.estado === 'retirado' ? diasDesdeFecha(r.fecha_retiro) : null;
+    const diasBadge = dias !== null && dias > 5 ? ` <span class="badge" style="background:var(--err);color:#fff">${dias} días</span>` : '';
+
+    return `<tr>
+      <td>${fmtFecha(r.fecha_retiro)}</td>
+      <td><b>${r.inmueble}</b>${r.observaciones ? `<div class="muted" style="font-size:.75rem">${r.observaciones}</div>` : ''}</td>
+      <td style="font-size:.85rem">${docsTxt}</td>
+      <td>${r.persona_retira_nombre || '—'}${diasBadge}</td>
+      <td>${badgeEstado}</td>
+      <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
+        ${r.estado === 'retirado' ? `<button class="btn accent sm" onclick="retiroDevolver('${r.id}')">✓ Devolver</button>` : ''}
+        <button class="btn ghost sm" onclick="retiroEditar('${r.id}')">✎</button>
+        <button class="btn ghost sm" onclick="retiroEliminar('${r.id}')" style="color:var(--err)">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+$('#retiro-filtro-estado').addEventListener('change', renderRetiros);
+$('#retiro-filtro-busq').addEventListener('input', renderRetiros);
+
+$('#retiro-add').addEventListener('click', () => abrirModalRetiro(null));
+
+function abrirModalRetiro(id) {
+  const editando = !!id;
+  const r = editando ? state.retiros.find(x => x.id === id) : {
+    inmueble: '', documentos_boletos: false, documentos_cesiones: false,
+    documentos_acta_tenencia: false, documentos_otros: '',
+    persona_retira_id: '', fecha_retiro: todayISO(), observaciones: ''
+  };
+  if (!r) return;
+
+  const personas = (state.retirosPersonas || []).filter(p => p.activo);
+  const opciones = personas.map(p => `<option value="${p.id}" ${p.id === r.persona_retira_id ? 'selected' : ''}>${p.nombre}</option>`).join('');
+
+  showModal(`<div class="modal-head"><h3>${editando ? 'Editar' : 'Nuevo'} retiro de documentación</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Datos del inmueble</label>
+        <input type="text" id="ret-inmueble" placeholder="Ej: Marquesado L23 M4" value="${r.inmueble || ''}">
+      </div>
+      <div class="field">
+        <label>Fecha de retiro</label>
+        <input type="date" id="ret-fecha" value="${r.fecha_retiro || todayISO()}">
+      </div>
+      <div class="field">
+        <label>Documentos a retirar</label>
+        <div style="display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--surface-2);border-radius:var(--radius)">
+          <label style="text-transform:none;font-size:.9rem;font-weight:400;display:flex;align-items:center;gap:8px;margin:0"><input type="checkbox" id="ret-boletos" ${r.documentos_boletos ? 'checked' : ''}> Boletos</label>
+          <label style="text-transform:none;font-size:.9rem;font-weight:400;display:flex;align-items:center;gap:8px;margin:0"><input type="checkbox" id="ret-cesiones" ${r.documentos_cesiones ? 'checked' : ''}> Cesiones</label>
+          <label style="text-transform:none;font-size:.9rem;font-weight:400;display:flex;align-items:center;gap:8px;margin:0"><input type="checkbox" id="ret-acta" ${r.documentos_acta_tenencia ? 'checked' : ''}> Acta de tenencia</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <label style="text-transform:none;font-size:.9rem;font-weight:400;display:flex;align-items:center;gap:8px;margin:0;white-space:nowrap"><input type="checkbox" id="ret-otros-check" ${r.documentos_otros ? 'checked' : ''}> Otros:</label>
+            <input type="text" id="ret-otros" placeholder="Especificar" value="${r.documentos_otros || ''}" style="flex:1">
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Persona que retira</label>
+        <select id="ret-persona">
+          <option value="">— Seleccionar —</option>
+          ${opciones}
+        </select>
+        ${!personas.length ? '<div class="muted" style="font-size:.78rem;margin-top:4px;color:var(--err)">No hay personas cargadas. Pedile al admin que agregue personas desde Ajustes → Personas retiros.</div>' : ''}
+      </div>
+      <div class="field">
+        <label>Observaciones (opcional)</label>
+        <textarea id="ret-obs" rows="2" placeholder="Motivo, destino, etc.">${r.observaciones || ''}</textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" id="ret-save-btn" onclick="guardarRetiro('${id || ''}')">${editando ? 'Guardar cambios' : 'Registrar retiro'}</button>
+    </div>`);
+}
+
+window.guardarRetiro = async function(id) {
+  const inmueble = $('#ret-inmueble').value.trim();
+  const fecha = $('#ret-fecha').value;
+  const personaId = $('#ret-persona').value;
+  const otrosCheck = $('#ret-otros-check').checked;
+  const otrosTxt = $('#ret-otros').value.trim();
+
+  if (!inmueble) { toast('Cargá los datos del inmueble', 'err'); return; }
+  if (!fecha) { toast('La fecha de retiro es obligatoria', 'err'); return; }
+  if (!personaId) { toast('Seleccioná quién retira', 'err'); return; }
+
+  const algunoDoc = $('#ret-boletos').checked || $('#ret-cesiones').checked || $('#ret-acta').checked || (otrosCheck && otrosTxt);
+  if (!algunoDoc) { toast('Marcá al menos un tipo de documento', 'err'); return; }
+
+  const persona = state.retirosPersonas.find(p => p.id === personaId);
+  const btn = $('#ret-save-btn');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+
+  const payload = {
+    inmueble,
+    fecha_retiro: fecha,
+    documentos_boletos: $('#ret-boletos').checked,
+    documentos_cesiones: $('#ret-cesiones').checked,
+    documentos_acta_tenencia: $('#ret-acta').checked,
+    documentos_otros: otrosCheck ? otrosTxt : null,
+    persona_retira_id: personaId,
+    persona_retira_nombre: persona?.nombre || null,
+    observaciones: $('#ret-obs').value.trim() || null,
+  };
+
+  let error;
+  if (id) {
+    ({ error } = await sb.from('retiros_documentacion').update(payload).eq('id', id));
+  } else {
+    payload.created_by = state.user.id;
+    ({ error } = await sb.from('retiros_documentacion').insert(payload));
+  }
+  if (error) { toast(error.message, 'err'); btn.disabled = false; return; }
+  closeModal();
+  toast(id ? 'Retiro actualizado' : 'Retiro registrado', 'ok');
+  await loadRetiros(); renderRetiros();
+};
+
+window.retiroEditar = function(id) { abrirModalRetiro(id); };
+
+window.retiroEliminar = async function(id) {
+  if (!await confirmAction('¿Eliminar este registro de retiro? Esta acción no se puede deshacer.')) return;
+  const { error } = await sb.from('retiros_documentacion').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  toast('Retiro eliminado', 'ok');
+  await loadRetiros(); renderRetiros();
+};
+
+window.retiroDevolver = function(id) {
+  const r = state.retiros.find(x => x.id === id);
+  if (!r) return;
+  showModal(`<div class="modal-head"><h3>Confirmar devolución</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p style="margin-bottom:12px;color:var(--ink-2);font-size:.9rem">Estás por marcar como <b>devuelta</b> la documentación de <b>${r.inmueble}</b> retirada por <b>${r.persona_retira_nombre || '—'}</b> el ${fmtFecha(r.fecha_retiro)}.</p>
+      <div class="field">
+        <label>Contraseña de autorización</label>
+        <input type="password" id="ret-pass" autocomplete="off" placeholder="Ingresá la contraseña de Finanzas">
+      </div>
+      <div class="field">
+        <label>Fecha de devolución</label>
+        <input type="date" id="ret-fecha-dev" value="${todayISO()}">
+      </div>
+      <div id="ret-dev-err" style="color:var(--err);font-size:.85rem;margin-top:6px;display:none"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" id="ret-dev-btn" onclick="confirmarDevolucion('${id}')">Confirmar devolución</button>
+    </div>`);
+  setTimeout(() => $('#ret-pass').focus(), 100);
+};
+
+window.confirmarDevolucion = async function(id) {
+  const pass = $('#ret-pass').value;
+  const fechaDev = $('#ret-fecha-dev').value;
+  const errEl = $('#ret-dev-err');
+  const btn = $('#ret-dev-btn');
+  errEl.style.display = 'none';
+
+  if (pass !== 'F1234') {
+    errEl.textContent = 'Contraseña incorrecta';
+    errEl.style.display = 'block';
+    $('#ret-pass').value = '';
+    $('#ret-pass').focus();
+    return;
+  }
+  if (!fechaDev) { errEl.textContent = 'Fecha requerida'; errEl.style.display = 'block'; return; }
+
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  const { error } = await sb.from('retiros_documentacion').update({
+    estado: 'devuelto',
+    fecha_devolucion: fechaDev,
+    devuelto_por: state.user.id
+  }).eq('id', id);
+
+  if (error) { toast(error.message, 'err'); btn.disabled = false; return; }
+  closeModal();
+  toast('Documentación marcada como devuelta', 'ok');
+  await loadRetiros(); renderRetiros();
+};
+
+// ===== Ajustes: Personas retiros =====
+async function renderPersonasRetiros() {
+  const tb = $('#pretiro-tabla tbody');
+  const personas = state.retirosPersonas || [];
+  if (!personas.length) {
+    tb.innerHTML = '<tr><td colspan="3" class="empty">Sin personas cargadas</td></tr>';
+    return;
+  }
+  tb.innerHTML = personas.map(p => `<tr>
+    <td>${p.nombre}</td>
+    <td><span class="badge ${p.activo ? 'ok' : 'warn'}">${p.activo ? 'Activo' : 'Inactivo'}</span></td>
+    <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
+      <button class="btn ghost sm" onclick="pretiroToggle('${p.id}', ${!p.activo})">${p.activo ? 'Desactivar' : 'Activar'}</button>
+      <button class="btn ghost sm" onclick="pretiroEliminar('${p.id}', '${p.nombre.replace(/'/g,'')}')" style="color:var(--err)">🗑</button>
+    </td>
+  </tr>`).join('');
+}
+
+$('#pretiro-add').addEventListener('click', async () => {
+  const nombre = $('#pretiro-nombre').value.trim();
+  if (!nombre) { toast('Escribí un nombre', 'err'); return; }
+  const { error } = await sb.from('retiros_personas').insert({ nombre, activo: true });
+  if (error) { toast(error.message, 'err'); return; }
+  $('#pretiro-nombre').value = '';
+  toast('Persona agregada', 'ok');
+  await loadRetirosPersonas(); renderPersonasRetiros();
+});
+
+window.pretiroToggle = async function(id, nuevoEstado) {
+  const { error } = await sb.from('retiros_personas').update({ activo: nuevoEstado }).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  await loadRetirosPersonas(); renderPersonasRetiros();
+};
+
+window.pretiroEliminar = async function(id, nombre) {
+  if (!await confirmAction(`¿Eliminar a "${nombre}"? Los retiros anteriores mantendrán su nombre registrado.`)) return;
+  const { error } = await sb.from('retiros_personas').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  toast('Persona eliminada', 'ok');
+  await loadRetirosPersonas(); renderPersonasRetiros();
+};
+
+// =================================================================
 // MODULO: AJUSTES (admin)
 // =================================================================
 function renderUsers() {
+  // Separar pendientes (activo=false) de activos
+  const pendientes = state.users.filter(u => u.activo === false);
+  const activos = state.users.filter(u => u.activo !== false);
+
+  // Renderizar solicitudes pendientes
+  const cardPend = $('#pendientes-card');
+  const tbPend = $('#pendientes-tabla tbody');
+  const badge = $('#pendientes-badge');
+  if (pendientes.length) {
+    cardPend.style.display = 'block';
+    badge.textContent = pendientes.length;
+    tbPend.innerHTML = pendientes.map(u => {
+      const areaMostrar = u.area === 'otra' && u.area_otra ? `Otra: ${u.area_otra}` : (u.area || '—');
+      return `<tr>
+        <td><b>${u.usuario || u.nombre || '—'}</b><div class="muted" style="font-size:.78rem">${u.id.slice(0,8)}</div></td>
+        <td>${areaMostrar}</td>
+        <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
+          <button class="btn accent sm" onclick="aprobarUsuario('${u.id}')">✓ Aprobar</button>
+          <button class="btn ghost sm" onclick="rechazarUsuario('${u.id}')">✕ Rechazar</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } else {
+    cardPend.style.display = 'none';
+    badge.textContent = '0';
+  }
+
+  // Renderizar usuarios activos
   const tb = $('#users-tabla tbody');
-  if (!state.users.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">Sin usuarios</td></tr>'; return; }
-  tb.innerHTML = state.users.map(u => `<tr>
-    <td><b>${u.nombre||'—'}</b><div class="muted" style="font-size:.78rem">${u.id.slice(0,8)}</div></td>
+  if (!activos.length) {
+    tb.innerHTML = '<tr><td colspan="5" class="empty">Sin usuarios activos</td></tr>';
+    return;
+  }
+  tb.innerHTML = activos.map(u => `<tr>
+    <td><b>${u.usuario || u.nombre || '—'}</b><div class="muted" style="font-size:.78rem">${u.id.slice(0,8)}</div></td>
     <td>${u.area||'—'}</td>
     <td><span class="badge ${u.rol==='admin'?'accent':'muted'}">${u.rol}</span></td>
-    <td><span class="badge ${u.activo?'ok':'warn'}">${u.activo?'Activo':'Inactivo'}</span></td>
-    <td class="actions"><button class="btn ghost sm" onclick="editUser('${u.id}')">Editar</button></td>
+    <td><span class="badge ok">Activo</span></td>
+    <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
+      <button class="btn ghost sm" onclick="editUser('${u.id}')">Editar</button>
+      ${u.id !== state.user.id ? `<button class="btn ghost sm" onclick="eliminarUsuario('${u.id}', '${(u.usuario||u.nombre||'').replace(/'/g,'')}')" style="color:var(--err)">🗑</button>` : ''}
+    </td>
   </tr>`).join('');
 }
+
 window.editUser = function(id) {
   const u = state.users.find(x => x.id === id);
   showModal(`<div class="modal-head"><h3>Editar usuario</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
-      <div class="field"><label>Nombre</label><input id="u-nom" value="${u.nombre||''}"></div>
+      <div class="field"><label>Usuario</label><input id="u-usuario" value="${u.usuario||''}" placeholder="ej: juanp"></div>
+      <div class="field"><label>Nombre completo</label><input id="u-nom" value="${u.nombre||''}"></div>
       <div class="field"><label>Área</label><select id="u-area">
-        <option value="">—</option><option ${u.area==='finanzas'?'selected':''} value="finanzas">Finanzas</option>
+        <option value="">—</option>
+        <option ${u.area==='finanzas'?'selected':''} value="finanzas">Finanzas</option>
         <option ${u.area==='legales'?'selected':''} value="legales">Legales</option>
         <option ${u.area==='ventas'?'selected':''} value="ventas">Ventas</option>
         <option ${u.area==='sac'?'selected':''} value="sac">SAC</option>
+        <option ${u.area==='otra'?'selected':''} value="otra">Otra</option>
         <option ${u.area==='admin'?'selected':''} value="admin">Admin</option></select></div>
       <div class="field"><label>Rol</label><select id="u-rol">
-        <option ${u.rol==='viewer'?'selected':''}>viewer</option>
-        <option ${u.rol==='editor'?'selected':''}>editor</option>
-        <option ${u.rol==='admin'?'selected':''}>admin</option></select></div>
+        <option ${u.rol==='usuario'?'selected':''} value="usuario">usuario</option>
+        <option ${u.rol==='admin'?'selected':''} value="admin">admin</option></select></div>
       <div class="field"><label style="text-transform:none;font-size:.9rem"><input type="checkbox" id="u-act" ${u.activo?'checked':''}> Activo</label></div>
     </div>
     <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn" onclick="saveUser('${id}')">Guardar</button></div>`);
 };
 window.saveUser = async function(id) {
-  const { error } = await sb.from('profiles').update({
-    nombre: $('#u-nom').value, area: $('#u-area').value || null,
-    rol: $('#u-rol').value, activo: $('#u-act').checked
-  }).eq('id', id);
+  const payload = {
+    usuario: $('#u-usuario').value.trim().toLowerCase() || null,
+    nombre: $('#u-nom').value,
+    area: $('#u-area').value || null,
+    rol: $('#u-rol').value,
+    activo: $('#u-act').checked
+  };
+  const { error } = await sb.from('profiles').update(payload).eq('id', id);
   if (error) { toast(error.message, 'err'); return; }
   closeModal(); toast('Usuario actualizado', 'ok'); await loadUsers();
+};
+
+window.aprobarUsuario = async function(id) {
+  const u = state.users.find(x => x.id === id);
+  if (!u) return;
+  showModal(`<div class="modal-head"><h3>Aprobar solicitud</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p style="margin-bottom:14px;color:var(--ink-2);font-size:.9rem">Revisá los datos antes de activar al usuario. Podés cambiar el área o el rol antes de aprobar.</p>
+      <div class="field"><label>Usuario</label><input value="${u.usuario||''}" readonly style="background:var(--surface-2)"></div>
+      ${u.area_otra ? `<div class="field"><label>Área que declaró</label><input value="Otra: ${u.area_otra}" readonly style="background:var(--surface-2)"></div>` : ''}
+      <div class="field"><label>Asignar área definitiva</label><select id="ap-area">
+        <option ${u.area==='finanzas'?'selected':''} value="finanzas">Finanzas</option>
+        <option ${u.area==='legales'?'selected':''} value="legales">Legales</option>
+        <option ${u.area==='ventas'?'selected':''} value="ventas">Ventas</option>
+        <option ${u.area==='sac'?'selected':''} value="sac">SAC</option>
+        <option ${u.area==='otra'?'selected':''} value="otra">Otra</option>
+        <option ${u.area==='admin'?'selected':''} value="admin">Admin</option></select></div>
+      <div class="field"><label>Rol</label><select id="ap-rol">
+        <option value="usuario" selected>usuario</option>
+        <option value="admin">admin</option></select></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn accent" onclick="confirmarAprobar('${id}')">Aprobar y activar</button></div>`);
+};
+window.confirmarAprobar = async function(id) {
+  const payload = {
+    activo: true,
+    area: $('#ap-area').value,
+    rol: $('#ap-rol').value
+  };
+  const { error } = await sb.from('profiles').update(payload).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  closeModal(); toast('Usuario aprobado y activado', 'ok'); await loadUsers();
+};
+
+window.rechazarUsuario = async function(id) {
+  const u = state.users.find(x => x.id === id);
+  if (!u) return;
+  if (!await confirmAction(`¿Rechazar la solicitud de "${u.usuario||u.nombre}"? Se eliminará del sistema.`)) return;
+  await eliminarUsuarioBackend(id, 'Solicitud rechazada');
+};
+
+window.eliminarUsuario = async function(id, nombre) {
+  if (!await confirmAction(`¿Eliminar al usuario "${nombre}"? Esta acción no se puede deshacer.`)) return;
+  await eliminarUsuarioBackend(id, 'Usuario eliminado');
+};
+
+async function eliminarUsuarioBackend(id, mensajeOk) {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { toast('Sesión no válida', 'err'); return; }
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/eliminar-usuario`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ user_id: id }),
+    });
+    const j = await resp.json();
+    if (!j.ok) { toast(j.error || 'Error al eliminar', 'err'); return; }
+    toast(mensajeOk, 'ok');
+    await loadUsers();
+  } catch (e) {
+    toast('Error de red: ' + e.message, 'err');
+  }
+}
+
+// Botón + Nuevo usuario (admin crea directo, ya queda activo)
+$('#user-nuevo').addEventListener('click', () => {
+  showModal(`<div class="modal-head"><h3>Crear usuario</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Usuario</label><input id="nu-usuario" placeholder="ej: juanp" autocomplete="off"></div>
+      <div class="field"><label>Contraseña <span class="muted" style="font-size:.75rem;font-weight:400">(mín. 6 caracteres)</span></label><input type="password" id="nu-pass" autocomplete="new-password"></div>
+      <div class="field"><label>Área</label><select id="nu-area">
+        <option value="finanzas">Finanzas</option>
+        <option value="ventas">Ventas</option>
+        <option value="sac">SAC</option>
+        <option value="legales">Legales</option>
+        <option value="otra">Otra</option>
+        <option value="admin">Admin</option></select></div>
+      <div class="field"><label>Rol</label><select id="nu-rol">
+        <option value="usuario" selected>usuario</option>
+        <option value="admin">admin</option></select></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Cancelar</button><button class="btn accent" id="nu-save-btn" onclick="crearUsuarioAdmin()">Crear</button></div>`);
+});
+
+window.crearUsuarioAdmin = async function() {
+  const usuario = $('#nu-usuario').value.trim().toLowerCase();
+  const password = $('#nu-pass').value;
+  const area = $('#nu-area').value;
+  const rol = $('#nu-rol').value;
+  const btn = $('#nu-save-btn');
+
+  if (!usuario || !/^[a-z0-9._-]{3,30}$/.test(usuario)) {
+    toast('Usuario inválido (3-30 caracteres, sin acentos ni espacios)', 'err'); return;
+  }
+  if (!password || password.length < 6) {
+    toast('La contraseña debe tener al menos 6 caracteres', 'err'); return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Creando...';
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/crear-usuario`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        usuario, password, area,
+        __admin_bypass: true,
+        __rol: rol
+      }),
+    });
+    const j = await resp.json();
+    if (!j.ok) { toast(j.error || 'Error al crear', 'err'); btn.disabled = false; btn.textContent = 'Crear'; return; }
+    closeModal(); toast(`Usuario "${usuario}" creado`, 'ok'); await loadUsers();
+  } catch (e) {
+    toast('Error de red: ' + e.message, 'err');
+    btn.disabled = false; btn.textContent = 'Crear';
+  }
 };
 
 // Empresas
@@ -5692,7 +6367,7 @@ function renderAll() {
 // REAL-TIME SUBSCRIPTIONS
 // =================================================================
 function subscribeChanges() {
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -5710,6 +6385,8 @@ function subscribeChanges() {
         if (tabla==='emprendimientos') { await loadEmprendimientos(); if(state.profile?.rol==='admin') renderEmprAdmin(); }
         if (tabla==='icc_valores') { await loadIcc(); renderIccTabla(); initConceptosMesRef(); renderConceptos(); renderIccAlerta(); }
         if (tabla==='sellos_alicuotas') { await loadAlicuotas(); if(state.profile?.rol==='admin') renderAlicuotas(); updateAlicuotaForFecha(); }
+        if (tabla==='retiros_documentacion') { await loadRetiros(); renderRetiros(); }
+        if (tabla==='retiros_personas') { await loadRetirosPersonas(); renderPersonasRetiros(); }
       })
       .subscribe();
   });
