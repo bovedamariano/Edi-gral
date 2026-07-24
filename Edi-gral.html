@@ -282,6 +282,15 @@ hr{border:none;border-top:1px solid var(--line);margin:18px 0}
 .gb-total-line b{color:var(--accent);font-size:1.4rem;font-family:'Bricolage Grotesque',sans-serif}
 .gb-total-line-sec{display:flex;justify-content:space-between;align-items:baseline;font-size:.95rem;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line-2);color:var(--ink-2)}
 .gb-total-line-sec b{color:var(--accent);font-size:1.15rem;font-family:'Bricolage Grotesque',sans-serif}
+
+/* ===== Retiro documentación: checkboxes ===== */
+.ret-docs-box{display:flex;flex-direction:column;gap:8px;padding:12px;background:var(--surface-2);border-radius:var(--radius)}
+.ret-docs-box label.ret-doc-check{display:flex !important;align-items:center;gap:10px;margin:0 !important;font-size:.92rem !important;font-weight:400 !important;text-transform:none !important;color:var(--ink) !important;cursor:pointer;letter-spacing:normal !important}
+.ret-docs-box label.ret-doc-check input[type="checkbox"]{width:16px;height:16px;margin:0;flex-shrink:0;accent-color:var(--accent);cursor:pointer}
+.ret-docs-box label.ret-doc-check span{flex:1}
+.ret-doc-otros{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ret-doc-otros label.ret-doc-check{flex-shrink:0}
+.ret-doc-otros input[type="text"]{flex:1;min-width:150px}
 .instr-card{background:var(--surface);border:1px solid var(--line-2);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:8px;transition:box-shadow .15s,border-color .15s}
 .instr-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.06);border-color:var(--accent)}
 .instr-icon{font-size:1.6rem;margin-bottom:2px}
@@ -5683,13 +5692,13 @@ function abrirModalRetiro(id) {
       </div>
       <div class="field">
         <label>Documentos a retirar</label>
-        <div style="display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--surface-2);border-radius:var(--radius)">
-          <label style="text-transform:none;font-size:.9rem;font-weight:400;display:flex;align-items:center;gap:8px;margin:0"><input type="checkbox" id="ret-boletos" ${r.documentos_boletos ? 'checked' : ''}> Boletos</label>
-          <label style="text-transform:none;font-size:.9rem;font-weight:400;display:flex;align-items:center;gap:8px;margin:0"><input type="checkbox" id="ret-cesiones" ${r.documentos_cesiones ? 'checked' : ''}> Cesiones</label>
-          <label style="text-transform:none;font-size:.9rem;font-weight:400;display:flex;align-items:center;gap:8px;margin:0"><input type="checkbox" id="ret-acta" ${r.documentos_acta_tenencia ? 'checked' : ''}> Acta de tenencia</label>
-          <div style="display:flex;align-items:center;gap:8px">
-            <label style="text-transform:none;font-size:.9rem;font-weight:400;display:flex;align-items:center;gap:8px;margin:0;white-space:nowrap"><input type="checkbox" id="ret-otros-check" ${r.documentos_otros ? 'checked' : ''}> Otros:</label>
-            <input type="text" id="ret-otros" placeholder="Especificar" value="${r.documentos_otros || ''}" style="flex:1">
+        <div class="ret-docs-box">
+          <label class="ret-doc-check"><input type="checkbox" id="ret-boletos" ${r.documentos_boletos ? 'checked' : ''}> <span>Boletos</span></label>
+          <label class="ret-doc-check"><input type="checkbox" id="ret-cesiones" ${r.documentos_cesiones ? 'checked' : ''}> <span>Cesiones</span></label>
+          <label class="ret-doc-check"><input type="checkbox" id="ret-acta" ${r.documentos_acta_tenencia ? 'checked' : ''}> <span>Acta de tenencia</span></label>
+          <div class="ret-doc-otros">
+            <label class="ret-doc-check"><input type="checkbox" id="ret-otros-check" ${r.documentos_otros ? 'checked' : ''}> <span>Otros:</span></label>
+            <input type="text" id="ret-otros" placeholder="Especificar" value="${r.documentos_otros || ''}">
           </div>
         </div>
       </div>
