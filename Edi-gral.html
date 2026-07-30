@@ -4562,7 +4562,7 @@ function renderCampanita() {
     : `${n} tarea${n === 1 ? '' : 's'} por vencer${vencidas ? ` (${vencidas} vencida${vencidas === 1 ? '' : 's'})` : ''}`;
 }
 
-window.abrirCampanita = function() {
+function abrirCampanita() {
   const lista = tareasPorVencer();
 
   const grupos = [
@@ -4601,10 +4601,10 @@ window.abrirCampanita = function() {
       <button class="btn ghost" onclick="closeModal()">Cerrar</button>
       <button class="btn accent" onclick="closeModal(); switchTab('tareas')">Ir a Tareas</button>
     </div>`);
-};
+}
 
 // Abre el tab de Tareas posicionado en el mes/año de la tarea y la resalta.
-window.irATarea = function(id) {
+function irATarea(id) {
   const t = (state.tareas || []).find(x => x.id === id);
   closeModal();
   switchTab('tareas');
@@ -4627,7 +4627,10 @@ window.irATarea = function(id) {
     el.style.boxShadow = '0 0 0 3px var(--accent-2)';
     setTimeout(() => { el.style.boxShadow = ''; }, 2200);
   }, 120);
-};
+}
+// Expuestas para los onclick inline del panel
+window.abrirCampanita = abrirCampanita;
+window.irATarea = irATarea;
 
 function badgeEstado(t) {
   if (t.finalizada) return '<span class="badge ok">Finalizada</span>';
