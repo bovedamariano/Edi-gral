@@ -1588,9 +1588,9 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // Validación de credenciales antes de inicializar
 let sb = null;
 let configError = null;
-if (!SUPABASE_URL || SUPABASE_URL.includes('https://uljauhrplryudxjnwsbc.supabase.co') || !SUPABASE_URL.startsWith('http')) {
+if (!SUPABASE_URL || SUPABASE_URL.includes('REEMPLAZAR') || !SUPABASE_URL.startsWith('http')) {
   configError = 'Faltan las credenciales de Supabase en el HTML. Editá las constantes SUPABASE_URL y SUPABASE_ANON_KEY (líneas 584-585) con los valores de tu proyecto (Settings → API).';
-} else if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsamF1aHJwbHJ5dWR4am53c2JjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2Mzg1MDcsImV4cCI6MjA5NDIxNDUwN30.zQoQmkHVsaEVXcaJ-DPe1boHo-65dELjnCdxQC2eTZ0') || SUPABASE_ANON_KEY.length < 50) {
+} else if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('REEMPLAZAR') || SUPABASE_ANON_KEY.length < 50) {
   configError = 'La SUPABASE_ANON_KEY no parece válida. Editá el HTML con el valor real (Settings → API → anon public).';
 } else {
   try {
