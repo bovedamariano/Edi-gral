@@ -1807,6 +1807,28 @@ async function afterLogin() {
   if (!window._campanaTimer) window._campanaTimer = setInterval(renderCampanita, 10 * 60 * 1000);
 }
 
+// Lee la respuesta de una Edge Function y devuelve SIEMPRE {ok, error}.
+// Si la respuesta no tiene nuestro formato (típicamente porque contestó el
+// gateway de Supabase y no la función), arma un mensaje con el status real
+// en vez de dejar un error genérico sin información.
+async function leerRespuestaFn(resp, nombreFn) {
+  const texto = await resp.text();
+  let j = null;
+  try { j = JSON.parse(texto); } catch (e) { /* no era JSON */ }
+  if (j && typeof j.ok !== 'undefined') return j;   // respuesta de nuestra función
+
+  const detalle = (j && (j.message || j.error || j.msg)) || texto.slice(0, 200) || '(respuesta vacía)';
+  let pista = '';
+  if (resp.status === 401 || resp.status === 403) {
+    pista = ' — desactivá "Verify JWT with legacy secret" en Settings de la función.';
+  } else if (resp.status === 404) {
+    pista = ` — no existe ninguna función llamada exactamente "${nombreFn}".`;
+  } else if (resp.status >= 500) {
+    pista = ' — mirá los Logs de la función en Supabase.';
+  }
+  return { ok: false, error: `HTTP ${resp.status}: ${detalle}${pista}` };
+}
+
 // Convierte un usuario tipo "finanzas" a "finanzas@edigral.local" para Supabase.
 // Si ya viene con @, lo usa tal cual (admin con email real).
 function userToEmail(input) {
@@ -1927,7 +1949,7 @@ $('#signup-btn').addEventListener('click', async () => {
       },
       body: JSON.stringify({ usuario, password: pass, area, area_otra: areaOtra }),
     });
-    const j = await resp.json();
+    const j = await leerRespuestaFn(resp, 'crear-usuario');
     if (!j.ok) {
       errEl.textContent = j.error || 'Error al enviar solicitud';
       errEl.classList.add('show');
@@ -6328,7 +6350,7 @@ async function eliminarUsuarioBackend(id, mensajeOk) {
       },
       body: JSON.stringify({ user_id: id }),
     });
-    const j = await resp.json();
+    const j = await leerRespuestaFn(resp, 'eliminar-usuario');
     if (!j.ok) { toast(j.error || 'Error al eliminar', 'err'); return; }
     toast(mensajeOk, 'ok');
     await loadUsers();
@@ -6386,7 +6408,7 @@ window.crearUsuarioAdmin = async function() {
         __rol: rol
       }),
     });
-    const j = await resp.json();
+    const j = await leerRespuestaFn(resp, 'crear-usuario');
     if (!j.ok) { toast(j.error || 'Error al crear', 'err'); btn.disabled = false; btn.textContent = 'Crear'; return; }
     closeModal(); toast(`Usuario "${usuario}" creado`, 'ok'); await loadUsers();
   } catch (e) {
