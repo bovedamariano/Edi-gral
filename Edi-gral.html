@@ -80,6 +80,27 @@ aside.sidebar{
 .nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
 .nav-item.active{background:rgba(184,92,46,.18);color:#fff;border-left:3px solid var(--accent-2);padding-left:9px}
 .nav-section{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#7a7464;margin:18px 6px 4px}
+/* ===== Campanita de tareas por vencer ===== */
+.nav-campana{position:relative;margin-bottom:6px}
+.nav-campana .cmp-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-campana .cmp-count{flex-shrink:0;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--err);color:#fff;font-size:.72rem;font-weight:700;display:grid;place-items:center;line-height:1}
+.nav-campana.sin-alertas .cmp-count{background:rgba(255,255,255,.14);color:#b6ae99}
+.nav-campana.con-alertas .cmp-ico{animation:campanaSwing 2.4s ease-in-out infinite;transform-origin:50% 10%}
+@keyframes campanaSwing{0%,72%,100%{transform:rotate(0)}76%{transform:rotate(12deg)}80%{transform:rotate(-10deg)}84%{transform:rotate(7deg)}88%{transform:rotate(-4deg)}92%{transform:rotate(0)}}
+@media (prefers-reduced-motion:reduce){.nav-campana.con-alertas .cmp-ico{animation:none}}
+.cmp-grupo{margin-bottom:16px}
+.cmp-grupo:last-child{margin-bottom:0}
+.cmp-grupo>h4{font-size:.74rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.cmp-item{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border:1px solid var(--line);border-left-width:3px;border-radius:var(--radius);background:var(--surface-2);margin-bottom:6px;cursor:pointer;transition:background .12s,border-color .12s}
+.cmp-item:hover{background:var(--accent-soft);border-color:var(--accent-2)}
+.cmp-item.vencida{border-left-color:var(--err)}
+.cmp-item.hoy{border-left-color:var(--accent)}
+.cmp-item.manana{border-left-color:var(--warn)}
+.cmp-item .cmp-info{flex:1;min-width:0}
+.cmp-item .cmp-titulo{font-weight:600;font-size:.9rem;color:var(--ink);line-height:1.3}
+.cmp-item .cmp-meta{font-size:.76rem;color:var(--ink-3);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cmp-vacio{text-align:center;padding:26px 14px;color:var(--ink-3);font-size:.9rem}
+.cmp-vacio .em{font-size:1.8rem;display:block;margin-bottom:8px}
 .sidebar-footer{margin-top:auto;padding-top:18px;border-top:1px solid rgba(255,255,255,.08)}
 .user-chip{display:flex;align-items:center;gap:10px;padding:8px 6px;font-size:.82rem;color:#c8c2b0}
 .user-chip .av{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:700;font-size:.78rem}
@@ -609,6 +630,11 @@ details[open] .ident-toggle{transform:rotate(180deg)}
 <div id="app">
   <aside class="sidebar" id="sidebar">
     <div class="brand">Grupo <span>Edisur</span></div>
+    <button class="nav-item nav-campana sin-alertas" id="nav-campana" style="display:none" title="Tareas próximas a vencer">
+      <span class="cmp-ico">🔔</span>
+      <span class="cmp-txt">Por vencer</span>
+      <span class="cmp-count" id="cmp-count">0</span>
+    </button>
     <div class="nav-section">Operaciones</div>
     <button class="nav-item active" data-tab="icc">📊 Actualización ICC</button>
     <button class="nav-item" data-tab="sellos">⚖️ Imp. Sellos</button>
@@ -1183,6 +1209,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         </div>
         <div style="margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <button class="btn ghost sm" id="tareas-replicar" title="Trae las tareas mensuales del mes anterior que falten">↻ Sincronizar desde mes anterior</button>
+          <button class="btn ghost sm" id="tareas-completar-fechas" title="Completa la fecha de vencimiento de las tareas mensuales que quedaron sin fecha">📅 Completar vencimientos</button>
           <div style="font-size:.82rem" id="tareas-resumen"></div>
         </div>
       </div>
@@ -1561,9 +1588,9 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // Validación de credenciales antes de inicializar
 let sb = null;
 let configError = null;
-if (!SUPABASE_URL || SUPABASE_URL.includes('REEMPLAZAR') || !SUPABASE_URL.startsWith('http')) {
+if (!SUPABASE_URL || SUPABASE_URL.includes('https://uljauhrplryudxjnwsbc.supabase.co') || !SUPABASE_URL.startsWith('http')) {
   configError = 'Faltan las credenciales de Supabase en el HTML. Editá las constantes SUPABASE_URL y SUPABASE_ANON_KEY (líneas 584-585) con los valores de tu proyecto (Settings → API).';
-} else if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('REEMPLAZAR') || SUPABASE_ANON_KEY.length < 50) {
+} else if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsamF1aHJwbHJ5dWR4am53c2JjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2Mzg1MDcsImV4cCI6MjA5NDIxNDUwN30.zQoQmkHVsaEVXcaJ-DPe1boHo-65dELjnCdxQC2eTZ0') || SUPABASE_ANON_KEY.length < 50) {
   configError = 'La SUPABASE_ANON_KEY no parece válida. Editá el HTML con el valor real (Settings → API → anon public).';
 } else {
   try {
@@ -1703,10 +1730,12 @@ function getAccesos() {
 
 function aplicarAccesos() {
   const accesos = getAccesos();
-  document.querySelectorAll('.nav-item').forEach(btn => {
+  document.querySelectorAll('.nav-item[data-tab]').forEach(btn => {
     const tab = btn.dataset.tab;
     btn.style.display = accesos.includes(tab) ? 'flex' : 'none';
   });
+  // La campanita solo para quien tenga acceso al tab de Tareas (finanzas y admin)
+  $('#nav-campana').style.display = accesos.includes('tareas') ? 'flex' : 'none';
   // Ocultar secciones del sidebar que quedaron vacías
   document.querySelectorAll('.nav-section').forEach(sec => {
     let hasVisibleSibling = false;
@@ -1769,6 +1798,13 @@ async function afterLogin() {
   // Ir al primer tab al que el usuario tenga acceso
   const accesos = getAccesos();
   switchTab(accesos[0] || 'icc');
+  // Realtime: se suscribe acá (no en el init) para que funcione también
+  // cuando el usuario entra con usuario/contraseña, no solo con sesión guardada.
+  subscribeChanges();
+  renderCampanita();
+  // Recalcular cada 10 min para que el contador cruce la medianoche solo,
+  // sin depender de que el usuario recargue la pestaña.
+  if (!window._campanaTimer) window._campanaTimer = setInterval(renderCampanita, 10 * 60 * 1000);
 }
 
 // Convierte un usuario tipo "finanzas" a "finanzas@edigral.local" para Supabase.
@@ -1936,7 +1972,8 @@ function switchTab(tab) {
   if (tab === 'retiros') renderRetiros();
 }
 
-$$('.nav-item').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+$$('.nav-item[data-tab]').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+$('#nav-campana').addEventListener('click', abrirCampanita);
 $('#burger').addEventListener('click', () => {
   const isOpen = $('#sidebar').classList.toggle('open');
   $('#sidebar-backdrop')?.classList.toggle('show', isOpen);
@@ -1962,6 +1999,33 @@ document.addEventListener('click', e => {
 // =================================================================
 // DATA LOADERS
 // =================================================================
+
+// Supabase corta en 1000 filas por defecto y NO devuelve error.
+// Este helper trae la tabla completa paginando de a 1000.
+// aplicarOrden: (query) => query.order(...)  -- se aplica en cada página.
+async function fetchPaged(tabla, aplicarOrden, chunk = 1000, maxFilas = 100000) {
+  let desde = 0;
+  let todo = [];
+  while (true) {
+    let q = sb.from(tabla).select('*');
+    if (aplicarOrden) q = aplicarOrden(q);
+    const { data, error } = await q.range(desde, desde + chunk - 1);
+    if (error) {
+      console.error(`Error cargando ${tabla}:`, error);
+      if (typeof toast === 'function') toast(`No se pudo cargar ${tabla}: ${error.message}`, 'err');
+      break;
+    }
+    todo = todo.concat(data || []);
+    if (!data || data.length < chunk) break;
+    desde += chunk;
+    if (desde >= maxFilas) {
+      console.warn(`${tabla}: se alcanzó el tope de ${maxFilas} filas`);
+      break;
+    }
+  }
+  return todo;
+}
+
 async function loadIcc() {
   const { data, error } = await sb.from('icc_valores').select('*').order('anio',{ascending:false}).order('mes',{ascending:false});
   if (error) { console.error(error); return; }
@@ -1972,16 +2036,13 @@ async function loadAlicuotas() {
   state.alicuotas = data || [];
 }
 async function loadBoletos() {
-  const { data } = await sb.from('boletos').select('*').order('fecha',{ascending:false}).limit(200);
-  state.boletos = data || [];
+  state.boletos = await fetchPaged('boletos', q => q.order('fecha', { ascending: false }));
 }
 async function loadPosesiones() {
-  const { data } = await sb.from('posesiones').select('*').order('created_at',{ascending:false});
-  state.posesiones = data || [];
+  state.posesiones = await fetchPaged('posesiones', q => q.order('created_at', { ascending: false }));
 }
 async function loadCesiones() {
-  const { data } = await sb.from('cesiones').select('*').order('fecha',{ascending:false});
-  state.cesiones = data || [];
+  state.cesiones = await fetchPaged('cesiones', q => q.order('fecha', { ascending: false }));
 }
 async function loadCuentas() {
   const [emps, ctas] = await Promise.all([
@@ -2000,24 +2061,21 @@ async function loadGastosConceptos() {
   state.conceptos = data || [];
 }
 async function loadTareas() {
-  const { data } = await sb.from('tareas').select('*').order('fecha_objetivo', { ascending: true, nullsFirst: false });
-  state.tareas = data || [];
+  state.tareas = await fetchPaged('tareas', q => q.order('fecha_objetivo', { ascending: true, nullsFirst: false }));
 }
 async function loadResponsables() {
   const { data } = await sb.from('tareas_responsables').select('*').order('orden').order('nombre');
   state.responsables = data || [];
 }
 async function loadTransferencias() {
-  const { data } = await sb.from('transferencias').select('*').order('fecha', { ascending: false });
-  state.transferencias = data || [];
+  state.transferencias = await fetchPaged('transferencias', q => q.order('fecha', { ascending: false }));
 }
 async function loadEmprendimientos() {
   const { data } = await sb.from('emprendimientos').select('*').order('emprendimiento');
   state.emprendimientos = data || [];
 }
 async function loadIdentificadores() {
-  const { data } = await sb.from('identificadores_transf').select('*').order('nombre_transfiere');
-  state.identificadores = data || [];
+  state.identificadores = await fetchPaged('identificadores_transf', q => q.order('nombre_transfiere'));
 }
 async function loadCuentasRentas() {
   const { data } = await sb.from('cuentas_rentas').select('*').order('orden').order('barrio');
@@ -2043,6 +2101,37 @@ async function loadFeriados(year) {
     const r = await fetch('https://api.argentinadatos.com/v1/feriados/' + year);
     if (r.ok) state.feriados[year] = await r.json();
   } catch (e) { console.warn('No se pudo cargar feriados', e); state.feriados[year] = []; }
+}
+
+// =================================================================
+// VENCIMIENTO DE TAREAS MENSUALES
+// =================================================================
+// Regla por defecto: 2 días hábiles DESPUÉS del último día del mes.
+// Excepción: si la tarea tiene dia_vencimiento (1-31), vence ese día del
+// propio mes. Si el mes es más corto (ej. 31 en febrero) se usa el último día.
+function ultimoDiaMes(mes, anio) {
+  return new Date(anio, mes, 0).getDate();   // día 0 del mes siguiente
+}
+
+function isoDe(anio, mes, dia) {
+  return `${anio}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+}
+
+function calcularVencimiento(mes, anio, diaVenc) {
+  if (!mes || !anio) return null;
+  if (diaVenc) {
+    const dia = Math.min(Number(diaVenc), ultimoDiaMes(mes, anio));
+    return isoDe(anio, mes, dia);
+  }
+  const finDeMes = isoDe(anio, mes, ultimoDiaMes(mes, anio));
+  return diasHabilesDesde(finDeMes, 2);
+}
+
+// Los feriados se usan para contar días hábiles: garantizamos tenerlos
+// cargados para el año del mes y el siguiente (diciembre cae en enero).
+async function asegurarFeriados(mes, anio) {
+  await loadFeriados(anio);
+  if (mes === 12) await loadFeriados(anio + 1);
 }
 
 function esFeriado(date) {
@@ -4435,6 +4524,111 @@ function diasHastaFecha(fechaISO) {
   return Math.round((f - hoy) / (1000 * 60 * 60 * 24));
 }
 
+// Escapa texto que viene de la base antes de meterlo en innerHTML.
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+// =================================================================
+// CAMPANITA · TAREAS PRÓXIMAS A VENCER
+// =================================================================
+// Como fecha_objetivo es una fecha sin hora, "faltan 24 hs" se traduce a
+// "vence mañana" (d === 1). Se incluyen también las de hoy (d === 0) y las
+// ya vencidas (d < 0), porque si no una tarea desatendida desaparecería del
+// aviso justo cuando más importa. Las finalizadas nunca aparecen.
+function tareasPorVencer() {
+  const out = (state.tareas || []).filter(t => {
+    if (t.finalizada) return false;
+    if (!t.fecha_objetivo) return false;
+    const d = diasHastaFecha(t.fecha_objetivo);
+    return d !== null && d <= 1;
+  });
+  out.sort((a, b) => (a.fecha_objetivo < b.fecha_objetivo ? -1 : a.fecha_objetivo > b.fecha_objetivo ? 1 : 0));
+  return out;
+}
+
+function renderCampanita() {
+  const btn = $('#nav-campana');
+  if (!btn) return;
+  const lista = tareasPorVencer();
+  const n = lista.length;
+  $('#cmp-count').textContent = n > 99 ? '99+' : n;
+  btn.classList.toggle('con-alertas', n > 0);
+  btn.classList.toggle('sin-alertas', n === 0);
+  const vencidas = lista.filter(t => diasHastaFecha(t.fecha_objetivo) < 0).length;
+  btn.title = n === 0
+    ? 'No hay tareas próximas a vencer'
+    : `${n} tarea${n === 1 ? '' : 's'} por vencer${vencidas ? ` (${vencidas} vencida${vencidas === 1 ? '' : 's'})` : ''}`;
+}
+
+window.abrirCampanita = function() {
+  const lista = tareasPorVencer();
+
+  const grupos = [
+    { clave: 'vencida', titulo: 'Vencidas',      icono: '🔴', filtro: d => d < 0 },
+    { clave: 'hoy',     titulo: 'Vencen hoy',    icono: '🟠', filtro: d => d === 0 },
+    { clave: 'manana',  titulo: 'Vencen mañana', icono: '🟡', filtro: d => d === 1 },
+  ];
+
+  let cuerpo = '';
+  if (!lista.length) {
+    cuerpo = `<div class="cmp-vacio"><span class="em">✅</span>No hay tareas próximas a vencer.<br><span style="font-size:.82rem">Todo lo pendiente tiene más de 24 hs de margen.</span></div>`;
+  } else {
+    grupos.forEach(g => {
+      const items = lista.filter(t => g.filtro(diasHastaFecha(t.fecha_objetivo)));
+      if (!items.length) return;
+      cuerpo += `<div class="cmp-grupo"><h4>${g.icono} ${g.titulo} <span class="badge muted">${items.length}</span></h4>`;
+      cuerpo += items.map(t => {
+        const d = diasHastaFecha(t.fecha_objetivo);
+        const cuando = d < 0 ? `vencida hace ${-d} día${-d === 1 ? '' : 's'}` : d === 0 ? 'vence hoy' : 'vence mañana';
+        const resp = t.responsable ? `👤 ${esc(t.responsable)}` : '<span class="muted">sin responsable</span>';
+        const tipo = t.tipo === 'mensual' ? 'Mensual' : 'Excepcional';
+        return `<div class="cmp-item ${g.clave}" onclick="irATarea('${t.id}')" title="Ir a la tarea">
+          <div class="cmp-info">
+            <div class="cmp-titulo">${esc(t.titulo || '(sin título)')}</div>
+            <div class="cmp-meta">${resp} <span>·</span> ${tipo} <span>·</span> ${fmtFecha(t.fecha_objetivo)} (${cuando}) <span>·</span> ${badgeEstado(t)}</div>
+          </div>
+        </div>`;
+      }).join('');
+      cuerpo += '</div>';
+    });
+  }
+
+  showModal(`<div class="modal-head"><h3>🔔 Tareas próximas a vencer</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">${cuerpo}</div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cerrar</button>
+      <button class="btn accent" onclick="closeModal(); switchTab('tareas')">Ir a Tareas</button>
+    </div>`);
+};
+
+// Abre el tab de Tareas posicionado en el mes/año de la tarea y la resalta.
+window.irATarea = function(id) {
+  const t = (state.tareas || []).find(x => x.id === id);
+  closeModal();
+  switchTab('tareas');
+  if (!t) return;
+  const ref = t.fecha_objetivo ? new Date(t.fecha_objetivo + 'T00:00:00') : null;
+  if (t.tipo === 'mensual' && t.mes && t.anio) {
+    $('#tareas-mes').value = t.mes;
+    $('#tareas-anio').value = t.anio;
+  } else if (ref) {
+    $('#tareas-mes').value = ref.getMonth() + 1;
+    $('#tareas-anio').value = ref.getFullYear();
+  }
+  $('#tareas-filtro-estado').value = '';
+  renderTareas();
+  setTimeout(() => {
+    const el = document.querySelector(`.tarea-item [onchange*="${id}"]`)?.closest('.tarea-item');
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.style.transition = 'box-shadow .3s';
+    el.style.boxShadow = '0 0 0 3px var(--accent-2)';
+    setTimeout(() => { el.style.boxShadow = ''; }, 2200);
+  }, 120);
+};
+
 function badgeEstado(t) {
   if (t.finalizada) return '<span class="badge ok">Finalizada</span>';
   if (t.en_proceso) return '<span class="badge accent">En proceso</span>';
@@ -4481,12 +4675,17 @@ async function replicarMensualesSiNecesario(mes, anio) {
 
     _replicandoTareas = true;
     try {
+      await asegurarFeriados(mes, anio);
       const nuevas = faltantes.map(t => ({
         titulo: t.titulo,
         tipo: 'mensual',
         responsable: t.responsable,
         mes, anio,
-        fecha_objetivo: null,
+        // La regla de vencimiento se hereda del mes anterior y la fecha
+        // concreta se recalcula para el mes destino: así una tarea replicada
+        // nunca queda "sin fecha".
+        dia_vencimiento: t.dia_vencimiento || null,
+        fecha_objetivo: calcularVencimiento(mes, anio, t.dia_vencimiento),
         en_proceso: false,
         finalizada: false,
         observaciones: null,
@@ -4553,6 +4752,8 @@ function renderTareas() {
   const proc = todas.filter(t => t.en_proceso && !t.finalizada).length;
   const pend = todas.filter(t => !t.en_proceso && !t.finalizada).length;
   $('#tareas-resumen').innerHTML = `${pend} pendientes · ${proc} en proceso · ${fin} finalizadas`;
+
+  renderCampanita();
 }
 
 function renderTareaItem(t) {
@@ -4678,7 +4879,17 @@ window.editTarea = function(id) {
         <div class="field"><label>Mes</label><select id="t-mes">${mesOpts}</select></div>
         <div class="field"><label>Año</label><input type="number" id="t-anio" value="${t.anio||new Date().getFullYear()}"></div>
       </div>
-      <div class="field"><label>Fecha objetivo (opcional)</label><input type="date" id="t-fecha" value="${t.fecha_objetivo||''}"></div>
+      <div class="field-row" id="t-regla-row" style="${t.tipo==='excepcional'?'display:none':''}">
+        <div class="field"><label>Regla de vencimiento</label><select id="t-regla">
+          <option value="default" ${!t.dia_vencimiento?'selected':''}>2 días hábiles post fin de mes</option>
+          <option value="fijo" ${t.dia_vencimiento?'selected':''}>Día fijo del mes</option>
+        </select></div>
+        <div class="field" id="t-dia-fijo-wrap" style="${t.dia_vencimiento?'':'display:none'}">
+          <label>Día</label><input type="number" id="t-dia-fijo" min="1" max="31" value="${t.dia_vencimiento||5}">
+        </div>
+      </div>
+      <div class="field"><label>Fecha objetivo</label><input type="date" id="t-fecha" value="${t.fecha_objetivo||''}">
+        <div class="hint" id="t-fecha-hint" style="margin-top:4px"></div></div>
       <div class="field"><label>Observaciones</label><textarea id="t-obs" rows="3">${t.observaciones||''}</textarea></div>
     </div>
     <div class="modal-foot">
@@ -4686,9 +4897,42 @@ window.editTarea = function(id) {
       ${id && state.profile?.rol==='admin' ? `<button class="btn danger" onclick="deleteTarea('${id}'); closeModal()">Eliminar</button>` : ''}
       <button class="btn" onclick="saveTarea('${id||''}')">Guardar</button>
     </div>`);
-  $('#t-tipo').addEventListener('change', () => {
-    $('#t-mensual-row').style.display = $('#t-tipo').value === 'excepcional' ? 'none' : 'flex';
+  // Recalcula la fecha objetivo a partir de la regla, mes y año elegidos.
+  const recalcularFecha = async () => {
+    if ($('#t-tipo').value !== 'mensual') { $('#t-fecha-hint').textContent = ''; return; }
+    const mes = Number($('#t-mes').value), anio = Number($('#t-anio').value);
+    const dv = $('#t-regla').value === 'fijo' ? Number($('#t-dia-fijo').value) : null;
+    await asegurarFeriados(mes, anio);
+    const f = calcularVencimiento(mes, anio, dv);
+    $('#t-fecha').value = f || '';
+    $('#t-fecha-hint').textContent = dv
+      ? `Se replica todos los ${dv} de cada mes.`
+      : 'Calculado salteando fines de semana y feriados. Podés pisarlo a mano.';
+  };
+
+  const toggleFilas = () => {
+    const esExcep = $('#t-tipo').value === 'excepcional';
+    $('#t-mensual-row').style.display = esExcep ? 'none' : 'flex';
+    $('#t-regla-row').style.display = esExcep ? 'none' : 'flex';
+    if (esExcep) $('#t-fecha-hint').textContent = '';
+  };
+
+  $('#t-tipo').addEventListener('change', () => { toggleFilas(); if ($('#t-tipo').value === 'mensual') recalcularFecha(); });
+  $('#t-regla').addEventListener('change', () => {
+    $('#t-dia-fijo-wrap').style.display = $('#t-regla').value === 'fijo' ? '' : 'none';
+    recalcularFecha();
   });
+  $('#t-dia-fijo').addEventListener('input', recalcularFecha);
+  $('#t-mes').addEventListener('change', recalcularFecha);
+  $('#t-anio').addEventListener('change', recalcularFecha);
+
+  // Tarea nueva mensual: precargar la fecha para que nunca nazca sin vencimiento.
+  if (!id && t.tipo === 'mensual') recalcularFecha();
+  else if (t.tipo === 'mensual') {
+    $('#t-fecha-hint').textContent = t.dia_vencimiento
+      ? `Se replica todos los ${t.dia_vencimiento} de cada mes.`
+      : 'Por defecto: 2 días hábiles después del fin de mes.';
+  }
 };
 
 window.saveTarea = async function(id) {
@@ -4699,10 +4943,22 @@ window.saveTarea = async function(id) {
     responsable: $('#t-resp').value || null,
     mes: tipo === 'mensual' ? Number($('#t-mes').value) : null,
     anio: tipo === 'mensual' ? Number($('#t-anio').value) : null,
+    dia_vencimiento: tipo === 'mensual' && $('#t-regla').value === 'fijo'
+      ? Number($('#t-dia-fijo').value) || null
+      : null,
     fecha_objetivo: $('#t-fecha').value || null,
     observaciones: $('#t-obs').value.trim() || null,
   };
   if (!payload.titulo) { toast('Falta el título', 'warn'); return; }
+  if (tipo === 'mensual' && $('#t-regla').value === 'fijo') {
+    const dv = Number($('#t-dia-fijo').value);
+    if (!dv || dv < 1 || dv > 31) { toast('El día fijo debe estar entre 1 y 31', 'warn'); return; }
+  }
+  // Si es mensual y quedó sin fecha, se completa con la regla que corresponda
+  if (tipo === 'mensual' && !payload.fecha_objetivo) {
+    await asegurarFeriados(payload.mes, payload.anio);
+    payload.fecha_objetivo = calcularVencimiento(payload.mes, payload.anio, payload.dia_vencimiento);
+  }
   const { error } = id
     ? await sb.from('tareas').update(payload).eq('id', id)
     : await sb.from('tareas').insert({ ...payload, created_by: state.user.id });
@@ -4718,6 +4974,7 @@ window.saveTarea = async function(id) {
       if (esFuturo) mesesFuturos.add(`${t.anio}-${t.mes}`);
     });
     if (mesesFuturos.size > 0) {
+      for (const k of mesesFuturos) await asegurarFeriados(Number(k.split('-')[1]), Number(k.split('-')[0]));
       const copias = Array.from(mesesFuturos).map(k => {
         const [a, m] = k.split('-').map(Number);
         return {
@@ -4725,7 +4982,8 @@ window.saveTarea = async function(id) {
           tipo: 'mensual',
           responsable: payload.responsable,
           mes: m, anio: a,
-          fecha_objetivo: null,
+          dia_vencimiento: payload.dia_vencimiento,
+          fecha_objetivo: calcularVencimiento(m, a, payload.dia_vencimiento),
           observaciones: payload.observaciones,
           created_by: state.user.id
         };
@@ -4740,6 +4998,25 @@ window.saveTarea = async function(id) {
   toast('Guardado' + mensajeExtra, 'ok');
   await loadTareas(); renderTareas();
 };
+
+// Completa fecha_objetivo en tareas mensuales viejas que quedaron sin vencimiento.
+$('#tareas-completar-fechas').addEventListener('click', async () => {
+  const sinFecha = state.tareas.filter(t => t.tipo === 'mensual' && !t.fecha_objetivo && t.mes && t.anio);
+  if (!sinFecha.length) { toast('Todas las tareas mensuales ya tienen vencimiento', 'ok'); return; }
+  if (!await confirmAction(`Se va a completar el vencimiento de ${sinFecha.length} tarea${sinFecha.length===1?'':'s'} mensual${sinFecha.length===1?'':'es'} usando su regla (día fijo o 2 días hábiles post fin de mes). ¿Continuar?`)) return;
+
+  const anios = [...new Set(sinFecha.map(t => t.anio))];
+  for (const a of anios) { await loadFeriados(a); await loadFeriados(a + 1); }
+
+  let ok = 0, fallos = 0;
+  for (const t of sinFecha) {
+    const f = calcularVencimiento(t.mes, t.anio, t.dia_vencimiento);
+    const { error } = await sb.from('tareas').update({ fecha_objetivo: f }).eq('id', t.id);
+    if (error) { console.error('No se pudo actualizar tarea', t.id, error); fallos++; } else ok++;
+  }
+  await loadTareas(); renderTareas();
+  toast(fallos ? `${ok} actualizadas, ${fallos} con error` : `${ok} vencimientos completados`, fallos ? 'warn' : 'ok');
+});
 
 $('#tarea-add').addEventListener('click', () => editTarea(null));
 $('#tareas-mes').addEventListener('change', async () => {
@@ -5585,8 +5862,8 @@ async function loadRetirosPersonas() {
 }
 
 async function loadRetiros() {
-  const { data } = await sb.from('retiros_documentacion').select('*').order('fecha_retiro', { ascending: false }).order('created_at', { ascending: false });
-  state.retiros = data || [];
+  state.retiros = await fetchPaged('retiros_documentacion',
+    q => q.order('fecha_retiro', { ascending: false }).order('created_at', { ascending: false }));
 }
 
 function diasDesdeFecha(fechaISO) {
@@ -5780,9 +6057,14 @@ window.retiroDevolver = function(id) {
   showModal(`<div class="modal-head"><h3>Confirmar devolución</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <p style="margin-bottom:12px;color:var(--ink-2);font-size:.9rem">Estás por marcar como <b>devuelta</b> la documentación de <b>${r.inmueble}</b> retirada por <b>${r.persona_retira_nombre || '—'}</b> el ${fmtFecha(r.fecha_retiro)}.</p>
+      <p style="margin-bottom:10px;color:var(--ink-2);font-size:.82rem">Autorizá con tu usuario de Finanzas o de Administración.</p>
       <div class="field">
-        <label>Contraseña de autorización</label>
-        <input type="password" id="ret-pass" autocomplete="off" placeholder="Ingresá la contraseña de Finanzas">
+        <label>Usuario</label>
+        <input type="text" id="ret-user" autocomplete="off" placeholder="Usuario autorizado" value="${state.profile?.usuario || ''}">
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input type="password" id="ret-pass" autocomplete="off" placeholder="Contraseña del usuario">
       </div>
       <div class="field">
         <label>Fecha de devolución</label>
@@ -5794,33 +6076,69 @@ window.retiroDevolver = function(id) {
       <button class="btn ghost" onclick="closeModal()">Cancelar</button>
       <button class="btn accent" id="ret-dev-btn" onclick="confirmarDevolucion('${id}')">Confirmar devolución</button>
     </div>`);
-  setTimeout(() => $('#ret-pass').focus(), 100);
+  setTimeout(() => {
+    const u = $('#ret-user');
+    (u && u.value ? $('#ret-pass') : u).focus();
+  }, 100);
+  $('#ret-pass').addEventListener('keypress', e => { if (e.key === 'Enter') confirmarDevolucion(id); });
 };
 
 window.confirmarDevolucion = async function(id) {
+  const usuario = $('#ret-user').value.trim();
   const pass = $('#ret-pass').value;
   const fechaDev = $('#ret-fecha-dev').value;
   const errEl = $('#ret-dev-err');
   const btn = $('#ret-dev-btn');
   errEl.style.display = 'none';
 
-  if (pass !== 'F1234') {
-    errEl.textContent = 'Contraseña incorrecta';
+  const fallar = (msg) => {
+    errEl.textContent = msg;
     errEl.style.display = 'block';
-    $('#ret-pass').value = '';
-    $('#ret-pass').focus();
-    return;
-  }
-  if (!fechaDev) { errEl.textContent = 'Fecha requerida'; errEl.style.display = 'block'; return; }
+    btn.disabled = false; btn.textContent = 'Confirmar devolución';
+  };
 
-  btn.disabled = true; btn.textContent = 'Guardando...';
+  if (!usuario || !pass) return fallar('Completá usuario y contraseña');
+  if (!fechaDev) return fallar('Fecha requerida');
+
+  btn.disabled = true; btn.textContent = 'Verificando...';
+
+  // Verificación real contra Supabase: se autentica al usuario que autoriza
+  // en un cliente secundario (no toca la sesión actual) y se exige que sea
+  // admin o del área Finanzas. Ya no hay contraseña escrita en el HTML.
+  let sbAux, autorizanteId;
+  try {
+    sbAux = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'sb-ret-aux-' + Date.now() }
+    });
+    const { data, error } = await sbAux.auth.signInWithPassword({ email: userToEmail(usuario), password: pass });
+    if (error) {
+      $('#ret-pass').value = ''; $('#ret-pass').focus();
+      return fallar('Usuario o contraseña incorrectos');
+    }
+    autorizanteId = data.user.id;
+    const { data: perfil } = await sbAux.from('profiles').select('rol,area,activo').eq('id', autorizanteId).single();
+    if (!perfil || !perfil.activo) {
+      await sbAux.auth.signOut();
+      return fallar('Ese usuario no está activo');
+    }
+    if (perfil.rol !== 'admin' && perfil.area !== 'finanzas') {
+      await sbAux.auth.signOut();
+      return fallar('Ese usuario no tiene autorización para registrar devoluciones');
+    }
+  } catch (e) {
+    return fallar('Error de verificación: ' + (e.message || 'desconocido'));
+  }
+
+  btn.textContent = 'Guardando...';
   const { error } = await sb.from('retiros_documentacion').update({
     estado: 'devuelto',
     fecha_devolucion: fechaDev,
-    devuelto_por: state.user.id
+    devuelto_por: autorizanteId
   }).eq('id', id);
 
-  if (error) { toast(error.message, 'err'); btn.disabled = false; return; }
+  try { await sbAux.auth.signOut(); } catch (e) { /* no crítico */ }
+
+  if (error) { toast(error.message, 'err'); btn.disabled = false; btn.textContent = 'Confirmar devolución'; return; }
   closeModal();
   toast('Documentación marcada como devuelta', 'ok');
   await loadRetiros(); renderRetiros();
@@ -6375,7 +6693,10 @@ function renderAll() {
 // =================================================================
 // REAL-TIME SUBSCRIPTIONS
 // =================================================================
+let realtimeActivo = false;
 function subscribeChanges() {
+  if (realtimeActivo) return;   // evita canales duplicados
+  realtimeActivo = true;
   ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
@@ -6385,7 +6706,7 @@ function subscribeChanges() {
         if (tabla==='cotizaciones') { await loadCotizaciones(); renderCotizaciones(); }
         if (tabla==='cuentas_bancarias'||tabla==='empresas') { await loadCuentas(); renderCuentas(); if(state.profile?.rol==='admin'){renderEmpresas();renderCuentasAdmin();} }
         if (tabla==='gastos_conceptos') { await loadGastosConceptos(); renderConceptos(); }
-        if (tabla==='tareas') { await loadTareas(); renderTareas(); }
+        if (tabla==='tareas') { await loadTareas(); renderTareas(); renderCampanita(); }
         if (tabla==='tareas_responsables') { await loadResponsables(); if(state.profile?.rol==='admin') renderResponsables(); }
         if (tabla==='transferencias') { await loadTransferencias(); renderTransferencias(); }
         if (tabla==='identificadores_transf') { await loadIdentificadores(); renderIdentLista(); }
@@ -6404,9 +6725,9 @@ function subscribeChanges() {
 // =================================================================
 // INIT
 // =================================================================
-initAuth().then(() => {
-  if (state.user) subscribeChanges();
-});
+// subscribeChanges() se llama desde afterLogin(), que corre tanto en el
+// login manual como en la restauración de sesión.
+initAuth();
 
 </script>
 </body>
