@@ -675,6 +675,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
     <button class="nav-item" data-tab="instructivos">📚 Instructivos</button>
     <button class="nav-item" data-tab="transferencias">💸 Transferencias</button>
     <button class="nav-item" data-tab="retiros">📤 Retiro de documentación</button>
+    <button class="nav-item" data-tab="cocheras">🅿️ Cocheras</button>
     <div class="nav-section" id="admin-section" style="display:none">Admin</div>
     <button class="nav-item" data-tab="ajustes" id="ajustes-nav" style="display:none">⚙️ Ajustes</button>
     <button class="nav-item" data-tab="audit" id="audit-nav" style="display:none">📜 Audit log</button>
@@ -1452,6 +1453,62 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         </table></div>
       </div>
     </section>
+    <section class="tab-content" id="tab-cocheras" style="display:none">
+      <div class="page-head">
+        <div><h1>Cocheras</h1><p>Alquiler de cocheras · Pilares y Casonas</p></div>
+        <button class="btn accent" id="coch-add">+ Nueva cochera</button>
+      </div>
+
+      <!-- Alertas de contrato -->
+      <div class="card" id="coch-alertas-card" style="display:none;margin-bottom:14px;border-left:3px solid var(--warn)">
+        <h3 style="display:flex;align-items:center;gap:8px">⚠ Contratos que requieren atención <span id="coch-alertas-badge" class="badge warn">0</span></h3>
+        <div class="tbl-wrap" style="margin-top:8px"><table class="tbl" id="coch-alertas-tabla">
+          <thead><tr><th>Cochera</th><th>Cliente</th><th>Motivo</th><th>Fecha</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+
+      <!-- Filtros -->
+      <div class="card" style="padding:14px;margin-bottom:14px">
+        <div class="field-row">
+          <div class="field"><label>Ubicación</label><select id="coch-f-ubic">
+            <option value="">Todas</option>
+            <option value="pilares">Pilares</option>
+            <option value="casonas">Casonas</option>
+          </select></div>
+          <div class="field"><label>Estado</label><select id="coch-f-estado">
+            <option value="">Todos</option>
+            <option value="ocupada">Ocupadas</option>
+            <option value="libre">Disponibles</option>
+            <option value="deuda">En deuda</option>
+            <option value="alerta">Con alerta de contrato</option>
+          </select></div>
+          <div class="field"><label>Actualización</label><select id="coch-f-tipo">
+            <option value="">Todas</option>
+            <option value="icc">ICC</option>
+            <option value="tradicional">Tradicional</option>
+          </select></div>
+          <div class="field"><label>Buscar</label><input type="text" id="coch-search" placeholder="Nombre, cliente o N°"></div>
+        </div>
+      </div>
+
+      <div id="coch-resumen" class="hint" style="margin-bottom:10px"></div>
+
+      <div class="card">
+        <div class="tbl-wrap"><table class="tbl" id="coch-tabla">
+          <thead><tr>
+            <th>N°</th><th>Ubicación</th><th>Cliente</th><th>Nombre</th>
+            <th>Inicio</th><th>Fin</th><th>Actualiz.</th><th class="num">Monto</th>
+            <th>Estado</th><th class="actions"></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table></div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn ghost sm" id="coch-excel">↓ Excel</button>
+        </div>
+      </div>
+    </section>
+
     <section class="tab-content" id="tab-ajustes" style="display:none">
       <div class="page-head"><div><h1>Ajustes</h1><p>Administración del sistema</p></div></div>
       <div class="tabs">
@@ -1478,7 +1535,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           </div>
           <p class="sub">Podés crear usuarios directamente o aprobar solicitudes de registro.</p>
           <div class="tbl-wrap"><table class="tbl" id="users-tabla">
-            <thead><tr><th>Nombre</th><th>Área</th><th>Rol</th><th>Estado</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
+            <thead><tr><th>Nombre</th><th>Área</th><th>Rol</th><th>Estado</th><th>Último acceso</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
       <div class="subtab-content" id="aj-empresas" style="display:none">
@@ -1665,6 +1722,7 @@ const state = {
   cuentasRentas: [],
   instructivos: [],
   retiros: [],
+  cocheras: [],
   retirosPersonas: [],
   users: [],
   feriados: {}, // {year: [{fecha, nombre}]}
@@ -1724,7 +1782,18 @@ document.addEventListener('keydown', e => {
 async function login(email, password) {
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if (error) throw error;
+  // Se marca acá y no en afterLogin() porque afterLogin también corre al
+  // restaurar la sesión guardada (cada F5), y eso no es un inicio de sesión.
+  registrarAcceso(data?.user?.id);
   return data;
+}
+
+// No se espera (sin await) ni se muestra error: si falla, el usuario igual entra.
+function registrarAcceso(userId) {
+  if (!userId) return;
+  sb.from('profiles').update({ ultimo_acceso: new Date().toISOString() })
+    .eq('id', userId)
+    .then(({ error }) => { if (error) console.warn('No se pudo registrar el acceso:', error.message); });
 }
 
 async function loadProfile() {
@@ -1750,9 +1819,9 @@ async function initAuth() {
 // MATRIZ DE ACCESOS POR ÁREA
 // =================================================================
 const ACCESOS = {
-  admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','gastos-boleto','tareas','instructivos','transferencias','retiros','ajustes','audit'],
-  finanzas: ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias','retiros'],
-  legales:  ['icc','sellos','cesiones','cuentas','cotizacion','gastos','retiros'],
+  admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','gastos-boleto','tareas','instructivos','transferencias','retiros','cocheras','ajustes','audit'],
+  finanzas: ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias','retiros','cocheras'],
+  legales:  ['icc','sellos','cesiones','cuentas','cotizacion','gastos','retiros','cocheras'],
   ventas:   ['icc','cuentas','cotizacion','gastos','gastos-boleto'],
   sac:      ['icc','cuentas','gastos'],
 };
@@ -1822,7 +1891,7 @@ async function afterLogin() {
   await Promise.all([
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
-    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(),
+    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadCocheras(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -2031,6 +2100,7 @@ function switchTab(tab) {
   if (tab === 'audit') loadAudit();
   if (tab === 'ajustes') loadUsers();
   if (tab === 'retiros') renderRetiros();
+  if (tab === 'cocheras') renderCocheras();
 }
 
 $$('.nav-item[data-tab]').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
@@ -3725,6 +3795,311 @@ $('#ces-pdf').addEventListener('click', () => {
   });
   doc.save(modo === 'no' ? 'cesiones-sin-facturar.pdf' : modo === 'si' ? 'cesiones-facturadas.pdf' : 'cesiones.pdf');
 });
+
+// =================================================================
+// MODULO: COCHERAS (Pilares y Casonas)
+// =================================================================
+const COCH_UBIC = { pilares: 'Pilares', casonas: 'Casonas' };
+
+async function loadCocheras() {
+  state.cocheras = await fetchPaged('cocheras', q => q.order('ubicacion').order('numero'));
+}
+
+// Suma meses a una fecha ISO cuidando los fines de mes:
+// 31/01 + 1 mes debe dar 28/02, no 03/03 (que es lo que hace setMonth solo).
+function sumarMeses(iso, meses) {
+  const [a, m, d] = iso.split('-').map(Number);
+  const destinoMes = m + meses;
+  const anio = a + Math.floor((destinoMes - 1) / 12);
+  const mes = ((destinoMes - 1) % 12 + 12) % 12 + 1;
+  const ultimo = new Date(anio, mes, 0).getDate();
+  const dia = Math.min(d, ultimo);
+  return `${anio}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+}
+
+function mismoMes(isoA, isoB) {
+  return isoA && isoB && isoA.slice(0, 7) === isoB.slice(0, 7);
+}
+
+// Devuelve las alertas de contrato de una cochera.
+// - "actualizacion": estamos en el mes en que se cumplen 6 meses de contrato
+// - "ultimo_mes": estamos en el mes de la fecha de fin
+// - "vencido": la fecha de fin ya pasó
+function alertasCochera(c, hoy = todayISO()) {
+  const out = [];
+  if (!c.cliente || !c.fecha_inicio || !c.fecha_fin) return out;
+  const mes6 = sumarMeses(c.fecha_inicio, 6);
+  if (mismoMes(mes6, hoy) && c.fecha_fin >= hoy) {
+    out.push({ tipo: 'actualizacion', txt: 'Actualización a los 6 meses', fecha: mes6 });
+  }
+  if (c.fecha_fin < hoy) {
+    out.push({ tipo: 'vencido', txt: 'Contrato vencido', fecha: c.fecha_fin });
+  } else if (mismoMes(c.fecha_fin, hoy)) {
+    out.push({ tipo: 'ultimo_mes', txt: 'Último mes de contrato', fecha: c.fecha_fin });
+  }
+  return out;
+}
+
+// Coeficiente ICC de los últimos 6 meses: ICC del mes de actualización
+// dividido por el ICC de 6 meses antes. Si falta alguno de los dos, no calcula.
+function coefIcc6Meses(fechaActualizacion) {
+  if (!fechaActualizacion) return null;
+  const [a, m] = fechaActualizacion.split('-').map(Number);
+  const base = mesesAtras(m, a, 6);
+  const vHasta = iccValor(m, a);
+  const vDesde = iccValor(base.mes, base.anio);
+  if (vHasta == null || vDesde == null) return null;
+  return { coef: vHasta / vDesde, desde: base, hasta: { mes: m, anio: a } };
+}
+
+function mesesAtras(mes, anio, n) {
+  const total = (anio * 12 + (mes - 1)) - n;
+  return { mes: (total % 12) + 1, anio: Math.floor(total / 12) };
+}
+
+function cocherasFiltradas() {
+  const q = ($('#coch-search')?.value || '').toLowerCase().trim();
+  const fU = $('#coch-f-ubic')?.value || '';
+  const fE = $('#coch-f-estado')?.value || '';
+  const fT = $('#coch-f-tipo')?.value || '';
+  return state.cocheras.filter(c => {
+    if (fU && c.ubicacion !== fU) return false;
+    if (fT && c.tipo_actualizacion !== fT) return false;
+    if (fE === 'ocupada' && !c.cliente) return false;
+    if (fE === 'libre' && c.cliente) return false;
+    if (fE === 'deuda' && !c.en_deuda) return false;
+    if (fE === 'alerta' && !alertasCochera(c).length) return false;
+    if (q && !`${c.numero} ${c.cliente||''} ${c.nombre||''}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function renderCocheras() {
+  const filt = cocherasFiltradas();
+
+  // --- Card de alertas: siempre sobre el total, no sobre lo filtrado ---
+  const conAlerta = [];
+  state.cocheras.forEach(c => alertasCochera(c).forEach(a => conAlerta.push({ c, a })));
+  const card = $('#coch-alertas-card');
+  if (conAlerta.length) {
+    card.style.display = 'block';
+    $('#coch-alertas-badge').textContent = conAlerta.length;
+    const orden = { vencido: 0, ultimo_mes: 1, actualizacion: 2 };
+    conAlerta.sort((x, y) => (orden[x.a.tipo] - orden[y.a.tipo]) || (x.a.fecha < y.a.fecha ? -1 : 1));
+    $('#coch-alertas-tabla tbody').innerHTML = conAlerta.map(({ c, a }) => {
+      const color = a.tipo === 'vencido' ? 'err' : a.tipo === 'ultimo_mes' ? 'warn' : 'accent';
+      return `<tr style="cursor:pointer" onclick="editCochera('${c.id}')">
+        <td><b>${c.numero}</b> <span class="muted">${COCH_UBIC[c.ubicacion]||c.ubicacion}</span></td>
+        <td>${esc(c.nombre || '—')}<div class="muted" style="font-size:.78rem">${esc(c.cliente||'')}</div></td>
+        <td><span class="badge ${color}">${a.txt}</span></td>
+        <td>${fmtFecha(a.fecha)}</td>
+      </tr>`;
+    }).join('');
+  } else {
+    card.style.display = 'none';
+  }
+
+  // --- Resumen ---
+  const total = state.cocheras.length;
+  const ocupadas = state.cocheras.filter(c => c.cliente).length;
+  const deuda = state.cocheras.filter(c => c.en_deuda).length;
+  $('#coch-resumen').innerHTML =
+    `Mostrando <b>${filt.length}</b> de ${total} · ${ocupadas} ocupadas · ${total - ocupadas} disponibles` +
+    (deuda ? ` — <b style="color:var(--err)">${deuda} en deuda</b>` : '');
+
+  // --- Tabla ---
+  const tb = $('#coch-tabla tbody');
+  if (!filt.length) {
+    tb.innerHTML = '<tr><td colspan="10" class="empty">Sin cocheras que coincidan</td></tr>';
+    return;
+  }
+  tb.innerHTML = filt.map(c => {
+    const libre = !c.cliente;
+    const al = alertasCochera(c);
+    // La deuda pinta toda la fila; es el dato que hay que ver de un vistazo.
+    const bg = c.en_deuda ? 'background:#fef2f2' : (libre ? 'background:#f8f9fa' : '');
+    const estado = libre
+      ? '<span class="badge muted">Disponible</span>'
+      : (c.en_deuda ? '<span class="badge err">En deuda</span>' : '<span class="badge ok">Al día</span>');
+    const chips = al.map(a => {
+      const col = a.tipo === 'vencido' ? 'err' : a.tipo === 'ultimo_mes' ? 'warn' : 'accent';
+      return ` <span class="badge ${col}" style="font-size:.68rem">${a.txt}</span>`;
+    }).join('');
+    return `<tr style="${bg}">
+      <td><b>${c.numero}</b></td>
+      <td>${COCH_UBIC[c.ubicacion] || c.ubicacion}</td>
+      <td>${esc(c.cliente || '—')}</td>
+      <td>${esc(c.nombre || '<span class="muted">libre</span>')}${chips}</td>
+      <td>${c.fecha_inicio ? fmtFecha(c.fecha_inicio) : '—'}</td>
+      <td>${c.fecha_fin ? fmtFecha(c.fecha_fin) : '—'}</td>
+      <td>${c.tipo_actualizacion === 'icc' ? '<span class="badge accent">ICC</span>'
+            : c.tipo_actualizacion === 'tradicional' ? '<span class="badge muted">Tradicional</span>' : '—'}</td>
+      <td class="num">${c.monto != null ? '$' + fmt(c.monto) : '—'}</td>
+      <td>${estado}</td>
+      <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
+        ${libre ? '' : `<button class="btn ${c.en_deuda ? 'accent' : 'ghost'} sm" onclick="toggleDeuda('${c.id}')" title="${c.en_deuda ? 'Marcar como al día' : 'Marcar en deuda'}">${c.en_deuda ? '✓ Al día' : '⚠ Deuda'}</button>`}
+        <button class="btn ghost sm" onclick="editCochera('${c.id}')">Editar</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+window.toggleDeuda = async function(id) {
+  const c = state.cocheras.find(x => x.id === id);
+  if (!c) return;
+  const { error } = await sb.from('cocheras').update({ en_deuda: !c.en_deuda }).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  toast(!c.en_deuda ? `Cochera ${c.numero} marcada en deuda` : `Cochera ${c.numero} al día`, 'ok');
+  await loadCocheras(); renderCocheras();
+};
+
+window.editCochera = function(id) {
+  const c = id ? state.cocheras.find(x => x.id === id) || {} : {};
+  const esNueva = !id;
+  showModal(`<div class="modal-head"><h3>${esNueva ? 'Nueva cochera' : `Cochera ${c.numero} · ${COCH_UBIC[c.ubicacion]||''}`}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field"><label>Ubicación</label><select id="co-ubic">
+          <option value="pilares" ${c.ubicacion==='pilares'?'selected':''}>Pilares</option>
+          <option value="casonas" ${c.ubicacion==='casonas'?'selected':''}>Casonas</option>
+        </select></div>
+        <div class="field"><label>N° de cochera</label><input type="number" id="co-num" value="${c.numero ?? ''}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Cliente (7 dígitos)</label><input type="text" id="co-cli" maxlength="7" inputmode="numeric" value="${esc(c.cliente||'')}" placeholder="Vacío = disponible"></div>
+        <div class="field"><label>Nombre</label><input type="text" id="co-nom" value="${esc(c.nombre||'')}"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Fecha inicio</label><input type="date" id="co-ini" value="${c.fecha_inicio||''}"></div>
+        <div class="field"><label>Fecha finalización</label><input type="date" id="co-fin" value="${c.fecha_fin||''}">
+          <div class="hint" id="co-fin-hint" style="margin-top:4px"></div></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Actualización</label><select id="co-tipo">
+          <option value="">—</option>
+          <option value="icc" ${c.tipo_actualizacion==='icc'?'selected':''}>ICC</option>
+          <option value="tradicional" ${c.tipo_actualizacion==='tradicional'?'selected':''}>Tradicional</option>
+        </select></div>
+        <div class="field"><label>Monto 1er semestre</label><input type="number" id="co-monto" step="0.01" value="${c.monto ?? ''}" placeholder="Opcional"></div>
+        <div class="field"><label>Monto 2do semestre</label><input type="number" id="co-monto2" step="0.01" value="${c.monto_2do_semestre ?? ''}" placeholder="Opcional"></div>
+      </div>
+      <div id="co-icc-box" class="hint" style="margin-bottom:10px"></div>
+      <div class="field"><label>Observaciones</label><input type="text" id="co-obs" value="${esc(c.observaciones||'')}"></div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400">
+          <input type="checkbox" id="co-deuda" style="width:auto;margin:0" ${c.en_deuda?'checked':''}>
+          <span>Cliente en deuda</span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      ${esNueva ? '' : `<button class="btn ghost" onclick="eliminarCochera('${id}')" style="color:var(--err);margin-right:auto">Eliminar</button>`}
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" id="co-save" onclick="saveCochera(${esNueva ? 'null' : `'${id}'`})">Guardar</button>
+    </div>`);
+
+  // Contrato de 1 año: al poner el inicio se propone el fin, y se muestra
+  // cuándo cae la actualización de los 6 meses.
+  const refrescar = () => {
+    const ini = $('#co-ini').value;
+    // Convención de los contratos: arrancan el 1° y terminan el último día del
+    // mes anterior al del año siguiente (1/3/26 -> 28/2/27), no el mismo día.
+    if (ini && !$('#co-fin').value) {
+      const d = new Date(sumarMeses(ini, 12) + 'T00:00:00');
+      d.setDate(d.getDate() - 1);
+      $('#co-fin').value = d.toISOString().slice(0, 10);
+    }
+    $('#co-fin-hint').textContent = ini ? `Actualización a los 6 meses: ${fmtFecha(sumarMeses(ini, 6))}` : '';
+    // Cálculo ICC sugerido para el 2do semestre
+    const box = $('#co-icc-box');
+    if (ini && $('#co-tipo').value === 'icc') {
+      const f6 = sumarMeses(ini, 6);
+      const r = coefIcc6Meses(f6);
+      const m1 = Number($('#co-monto').value) || 0;
+      if (!r) {
+        box.innerHTML = `<span style="color:var(--warn)">No hay ICC cargado para calcular la actualización de ${fmtFecha(f6)}.</span>`;
+      } else {
+        const sug = m1 ? ` · Sobre $${fmt(m1)} daría <b>$${fmt(m1 * r.coef)}</b>` : '';
+        box.innerHTML = `ICC ${MESES[r.desde.mes-1]} ${r.desde.anio} → ${MESES[r.hasta.mes-1]} ${r.hasta.anio}: coef <b>${r.coef.toFixed(4)}</b> (${((r.coef-1)*100).toFixed(2)}%)${sug}`;
+      }
+    } else if ($('#co-tipo').value === 'tradicional') {
+      box.innerHTML = 'Tradicional: el monto del 2do semestre ya está pactado, cargalo a mano.';
+    } else {
+      box.innerHTML = '';
+    }
+  };
+  $('#co-ini').addEventListener('change', refrescar);
+  $('#co-tipo').addEventListener('change', refrescar);
+  $('#co-monto').addEventListener('input', refrescar);
+  refrescar();
+};
+
+window.saveCochera = async function(id) {
+  const btn = $('#co-save');
+  const cliente = $('#co-cli').value.trim();
+  const numero = Number($('#co-num').value);
+
+  if (!numero || numero < 1) { toast('Falta el número de cochera', 'warn'); return; }
+  if (cliente && !/^[0-9]{7}$/.test(cliente)) { toast('El cliente debe tener 7 dígitos', 'warn'); return; }
+  const ini = $('#co-ini').value || null, fin = $('#co-fin').value || null;
+  if (ini && fin && fin <= ini) { toast('La fecha de fin debe ser posterior al inicio', 'warn'); return; }
+
+  const payload = {
+    ubicacion: $('#co-ubic').value,
+    numero,
+    cliente: cliente || null,
+    nombre: $('#co-nom').value.trim() || null,
+    fecha_inicio: ini,
+    fecha_fin: fin,
+    tipo_actualizacion: $('#co-tipo').value || null,
+    monto: $('#co-monto').value !== '' ? Number($('#co-monto').value) : null,
+    monto_2do_semestre: $('#co-monto2').value !== '' ? Number($('#co-monto2').value) : null,
+    observaciones: $('#co-obs').value.trim() || null,
+    en_deuda: $('#co-deuda').checked,
+  };
+
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  let error;
+  if (id) ({ error } = await sb.from('cocheras').update(payload).eq('id', id));
+  else    ({ error } = await sb.from('cocheras').insert({ ...payload, created_by: state.user.id }));
+
+  if (error) {
+    const msg = error.message.includes('cocheras_ubic_numero_key')
+      ? `Ya existe la cochera ${numero} en ${COCH_UBIC[payload.ubicacion]}`
+      : error.message;
+    toast(msg, 'err'); btn.disabled = false; btn.textContent = 'Guardar'; return;
+  }
+  closeModal();
+  toast(id ? 'Cochera actualizada' : 'Cochera creada', 'ok');
+  await loadCocheras(); renderCocheras();
+};
+
+window.eliminarCochera = async function(id) {
+  const c = state.cocheras.find(x => x.id === id);
+  if (!await confirmAction(`¿Eliminar la cochera ${c?.numero} de ${COCH_UBIC[c?.ubicacion]||''}? Esta acción no se puede deshacer.`)) return;
+  const { error } = await sb.from('cocheras').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  closeModal();
+  toast('Cochera eliminada', 'ok');
+  await loadCocheras(); renderCocheras();
+};
+
+$('#coch-add').addEventListener('click', () => editCochera(null));
+['#coch-f-ubic','#coch-f-estado','#coch-f-tipo'].forEach(s => $(s).addEventListener('change', renderCocheras));
+$('#coch-search').addEventListener('input', renderCocheras);
+$('#coch-excel').addEventListener('click', () => exportarExcel(cocherasFiltradas().map(c => ({
+  numero: c.numero,
+  ubicacion: COCH_UBIC[c.ubicacion] || c.ubicacion,
+  cliente: c.cliente || '',
+  nombre: c.nombre || '',
+  fecha_inicio: c.fecha_inicio || '',
+  fecha_fin: c.fecha_fin || '',
+  actualizacion: c.tipo_actualizacion || '',
+  monto: c.monto ?? '',
+  monto_2do_semestre: c.monto_2do_semestre ?? '',
+  en_deuda: c.en_deuda ? 'SI' : '',
+  observaciones: c.observaciones || '',
+})), 'cocheras'));
 
 // =================================================================
 // MODULO: CUENTAS BANCARIAS
@@ -6337,6 +6712,26 @@ window.pretiroEliminar = async function(id, nombre) {
 // =================================================================
 // MODULO: AJUSTES (admin)
 // =================================================================
+// "hace 2 h", "ayer 09:14", "12/07 15:30". Lo relativo se lee más rápido que
+// una fecha completa cuando lo que interesa es si alguien está usando la app.
+function fmtUltimoAcceso(iso) {
+  if (!iso) return '<span class="muted">nunca</span>';
+  const d = new Date(iso);
+  if (isNaN(d)) return '<span class="muted">—</span>';
+  const min = Math.floor((Date.now() - d.getTime()) / 60000);
+  const hhmm = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  let txt;
+  if (min < 1)        txt = 'recién';
+  else if (min < 60)  txt = `hace ${min} min`;
+  else if (min < 60*24) { const h = Math.floor(min/60); txt = `hace ${h} h`; }
+  else if (min < 60*48) txt = `ayer ${hhmm}`;
+  else if (min < 60*24*7) txt = `hace ${Math.floor(min/1440)} días`;
+  else txt = d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit' }) + ' ' + hhmm;
+  // Inactivo hace más de 30 días: se resalta, sirve para depurar usuarios
+  const viejo = min > 60*24*30;
+  return `<span title="${esc(d.toLocaleString('es-AR'))}"${viejo ? ' class="muted"' : ''}>${txt}</span>`;
+}
+
 function renderUsers() {
   // Separar pendientes (activo=false) de activos
   const pendientes = state.users.filter(u => u.activo === false);
@@ -6368,7 +6763,7 @@ function renderUsers() {
   // Renderizar usuarios activos
   const tb = $('#users-tabla tbody');
   if (!activos.length) {
-    tb.innerHTML = '<tr><td colspan="5" class="empty">Sin usuarios activos</td></tr>';
+    tb.innerHTML = '<tr><td colspan="6" class="empty">Sin usuarios activos</td></tr>';
     return;
   }
   tb.innerHTML = activos.map(u => `<tr>
@@ -6376,6 +6771,7 @@ function renderUsers() {
     <td>${u.area||'—'}</td>
     <td><span class="badge ${u.rol==='admin'?'accent':'muted'}">${u.rol}</span></td>
     <td><span class="badge ok">Activo</span></td>
+    <td>${fmtUltimoAcceso(u.ultimo_acceso)}</td>
     <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
       <button class="btn ghost sm" onclick="editUser('${u.id}')">Editar</button>
       ${u.id !== state.user.id ? `<button class="btn ghost sm" onclick="eliminarUsuario('${u.id}', '${escJsAttr(u.usuario||u.nombre||'')}')" style="color:var(--err)">🗑</button>` : ''}
@@ -6845,7 +7241,7 @@ let realtimeActivo = false;
 function subscribeChanges() {
   if (realtimeActivo) return;   // evita canales duplicados
   realtimeActivo = true;
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -6864,6 +7260,7 @@ function subscribeChanges() {
         if (tabla==='icc_valores') { await loadIcc(); renderIccTabla(); initConceptosMesRef(); renderConceptos(); renderIccAlerta(); }
         if (tabla==='sellos_alicuotas') { await loadAlicuotas(); if(state.profile?.rol==='admin') renderAlicuotas(); updateAlicuotaForFecha(); }
         if (tabla==='retiros_documentacion') { await loadRetiros(); renderRetiros(); }
+        if (tabla==='cocheras') { await loadCocheras(); renderCocheras(); }
         if (tabla==='retiros_personas') { await loadRetirosPersonas(); renderPersonasRetiros(); }
       })
       .subscribe();
