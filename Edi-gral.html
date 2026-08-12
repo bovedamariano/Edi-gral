@@ -1134,6 +1134,19 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <div class="field" id="cd-wrap-uvi" style="display:none"><label>Valor UVI</label><input type="number" id="cd-uvi" step="0.0001"></div>
           <div class="field" style="max-width:120px"><label>&nbsp;</label><button class="btn accent" id="cd-guardar" style="width:100%">Guardar</button></div>
         </div>
+        <details style="margin-bottom:12px">
+          <summary style="cursor:pointer;font-size:.85rem;color:var(--accent);font-weight:600">📋 Cargar varios días de una vez</summary>
+          <div style="padding:10px 0">
+            <p class="hint" style="margin-bottom:6px">Una línea por día. Pegá desde Excel o escribí a mano.<br>
+              Dólar: <code>fecha compra venta</code> — UVI: <code>fecha valor</code>. Separá con tab, coma o espacio.<br>
+              Ej: <code>01/08/2026 1465 1515</code></p>
+            <textarea id="cd-bulk" rows="6" style="width:100%;font-family:monospace;font-size:.82rem" placeholder="01/08/2026	1465	1515&#10;02/08/2026	1467	1517"></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+              <button class="btn accent sm" id="cd-bulk-guardar">Guardar todas</button>
+              <span class="hint" id="cd-bulk-msg"></span>
+            </div>
+          </div>
+        </details>
         <div class="tbl-wrap" style="max-height:340px;overflow:auto"><table class="tbl" id="cd-tabla">
           <thead><tr id="cd-head"></tr></thead><tbody></tbody>
         </table></div>
@@ -6190,6 +6203,70 @@ async function abrirVentanaFlotante() {
 }
 
 // =================================================================
+// IDENTIFICACIÓN AUTOMÁTICA DESDE LA DESCRIPCIÓN DEL EXTRACTO
+// =================================================================
+// El banco escribe "TRANSF.INTER.DISTINTO TIT.-20112004476-SAUL/DAVID MARIO":
+// después del CUIT viene el nombre, con barras, comas y orden variable.
+// Se compara contra los identificadores cargados para saber a quién imputar.
+
+function normalizarNombre(txt) {
+  return String(txt || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // saca acentos
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, ' ')                        // barras, comas, puntos
+    .replace(/\s+/g, ' ').trim();
+}
+
+const PALABRAS_VACIAS = new Set(['DE','DEL','LA','LAS','LOS','Y','DA','DI','SA','SAS','SRL','SH']);
+
+function tokensNombre(txt) {
+  return new Set(normalizarNombre(txt).split(' ')
+    .filter(p => p.length > 1 && !PALABRAS_VACIAS.has(p)));
+}
+
+// Devuelve el nombre que el banco puso después del CUIT.
+function nombreDeDescripcion(desc) {
+  const s = String(desc || '');
+  const m = s.match(/\b\d{11}\b[-\s]*(.+)$/);
+  if (m) return m[1].trim();
+  // Sin CUIT: se saca el prefijo típico del banco
+  return s.replace(/^.*?(TIT\.?|titular)[-\s]*/i, '').trim();
+}
+
+// Busca en los identificadores. Sólo se da por segura una coincidencia exacta
+// o con exactamente las mismas palabras; cualquier otra cosa se marca como
+// posible, porque imputar mal una transferencia cuesta más que revisarla.
+function identificarTransferencia(desc) {
+  const crudo = nombreDeDescripcion(desc);
+  const norm = normalizarNombre(crudo);
+  if (!norm || norm.length < 4) return null;
+  const tk = tokensNombre(crudo);
+  if (!tk.size) return null;
+
+  const lista = state.identificadores || [];
+  let posible = null, mejorPuntaje = 0;
+
+  for (const i of lista) {
+    const nt = i.nombre_transfiere || '';
+    if (normalizarNombre(nt) === norm) {
+      return { seguro: true, titular: i.nombre_titular, nc: i.numero_cliente, coincide: nt, nombreBanco: crudo };
+    }
+    const ti = tokensNombre(nt);
+    if (!ti.size) continue;
+    const comunes = [...tk].filter(p => ti.has(p)).length;
+    if (comunes === tk.size && comunes === ti.size) {
+      return { seguro: true, titular: i.nombre_titular, nc: i.numero_cliente, coincide: nt, nombreBanco: crudo };
+    }
+    const puntaje = comunes / Math.min(tk.size, ti.size);
+    if (comunes >= 2 && puntaje > mejorPuntaje) {
+      mejorPuntaje = puntaje;
+      posible = { seguro: false, titular: i.nombre_titular, nc: i.numero_cliente, coincide: nt, nombreBanco: crudo };
+    }
+  }
+  return posible;
+}
+
+// =================================================================
 // MODULO: TRANSFERENCIAS POR BANCO (importación masiva de extractos)
 // =================================================================
 const MONEDAS = { ARS: '$', USD: 'US$', UVI: 'UVI' };
@@ -6499,7 +6576,7 @@ let _pipLect = null;
 async function abrirFlotanteLectura(t) {
   if (!pipDisponible()) { toast('Tu navegador no soporta ventana flotante. Usá Chrome o Edge.', 'warn'); return; }
   if (!_pipLect || _pipLect.closed) {
-    try { _pipLect = await documentPictureInPicture.requestWindow({ width: 460, height: 340 }); }
+    try { _pipLect = await documentPictureInPicture.requestWindow({ width: 470, height: 470 }); }
     catch (e) { toast('No se pudo abrir: ' + e.message, 'err'); return; }
     const est = document.querySelector('style');
     if (est) { const s = _pipLect.document.createElement('style'); s.textContent = est.textContent; _pipLect.document.head.appendChild(s); }
@@ -6510,6 +6587,11 @@ async function abrirFlotanteLectura(t) {
       .fl-val{font-size:1rem;font-weight:600;color:var(--ink);word-break:break-word;display:flex;gap:8px;align-items:flex-start}
       .fl-val button{font-size:.68rem;padding:2px 6px;border:1px solid var(--line);background:var(--surface);border-radius:4px;cursor:pointer;flex-shrink:0}
       .fl-row{display:flex;gap:14px}.fl-row>div{flex:1}
+      .fl-ident{font-size:.82rem;padding:7px 9px;border-radius:var(--radius);margin-bottom:10px}
+      .fl-ident.ok{background:var(--accent-soft);border:1px solid var(--accent-2);color:var(--ink)}
+      .fl-ident.duda{background:#fff7ed;border:1px solid var(--warn);color:#92400e}
+      .fl-ident.no{background:var(--surface-2);border:1px solid var(--line);color:var(--ink-3);font-size:.76rem}
+      .fl-ident button{margin-left:4px}
       .fl-nav{display:flex;gap:6px;margin-top:12px}
       .fl-nav button{flex:1;padding:8px;border:none;border-radius:var(--radius);cursor:pointer;font-size:.82rem}
       .fl-ok{background:var(--accent);color:#fff;font-weight:600}
@@ -6532,19 +6614,36 @@ function pintarFlotanteLectura(t) {
   const pend = transfBancoFiltradas();
   const idx = pend.findIndex(x => x.id === t.id);
 
-  const copiar = (v, lab) => `<button onclick="navigator.clipboard.writeText('${String(v).replace(/'/g, "\\'")}')">⎘</button>`;
+  // Cotizaciones: si la fila las tiene congeladas se muestran esas (son las
+  // imputadas); si no, se busca la del día como referencia.
+  const usdRef = t.cotiz_usd ?? (state.cotizacionesBna || []).find(c => c.fecha === t.fecha)?.compra;
+  const uviRef = t.cotiz_uvi ?? (state.uvi || []).find(u => u.fecha === t.fecha)?.valor;
+  const congelada = t.cotiz_usd != null || t.cotiz_uvi != null;
+
+  const ident = identificarTransferencia(t.descripcion);
+
+  const copiar = (v) => `<button onclick="navigator.clipboard.writeText('${String(v).replace(/'/g, "\\'")}')">⎘</button>`;
   pd.body.innerHTML = `
+    <div class="fl-campo"><div class="fl-lab">Cuenta</div>
+      <div class="fl-val" style="font-size:.86rem">${esc(cta ? `${cta.banco} · ${cta.nombre}` : '—')} <span class="badge muted" style="font-size:.66rem">${cta?.moneda || ''}</span></div></div>
     <div class="fl-campo"><div class="fl-lab">Descripción</div>
-      <div class="fl-val" style="font-size:.9rem">${esc(t.descripcion)} ${copiar(t.descripcion)}</div></div>
+      <div class="fl-val" style="font-size:.88rem">${esc(t.descripcion)} ${copiar(t.descripcion)}</div></div>
+    ${ident ? `<div class="fl-ident ${ident.seguro ? 'ok' : 'duda'}">
+        ${ident.seguro ? 'Transferencia identificada como' : '¿Será'} <b>${esc(ident.titular)}</b>${ident.seguro ? '' : '?'}
+        ${ident.nc ? ` <span style="font-family:monospace;font-size:.74rem">· ${esc(ident.nc)}</span>` : ''}
+        <div style="font-size:.7rem;opacity:.8;margin-top:2px">${ident.seguro ? 'según' : 'se parece a'} "${esc(ident.coincide)}" ${copiar(ident.titular)}</div>
+      </div>` : `<div class="fl-ident no">Sin identificador cargado para "${esc(nombreDeDescripcion(t.descripcion) || '—')}"</div>`}
     <div class="fl-row">
       <div class="fl-campo"><div class="fl-lab">Fecha</div><div class="fl-val">${fmtFecha(t.fecha)}</div></div>
       <div class="fl-campo"><div class="fl-lab">Importe</div><div class="fl-val">${simb} ${fmt(t.importe)} ${copiar(t.importe)}</div></div>
     </div>
     ${cuit ? `<div class="fl-campo"><div class="fl-lab">CUIT detectado</div><div class="fl-val" style="font-family:monospace">${cuit} ${copiar(cuit)}</div></div>` : ''}
-    ${(t.cotiz_usd != null || t.cotiz_uvi != null) ? `<div class="fl-row">
-      ${t.cotiz_usd != null ? `<div class="fl-campo"><div class="fl-lab">USD BNA comprador</div><div class="fl-val">${fmt(t.cotiz_usd)}</div></div>` : ''}
-      ${t.cotiz_uvi != null ? `<div class="fl-campo"><div class="fl-lab">UVI</div><div class="fl-val">${fmt(t.cotiz_uvi)}</div></div>` : ''}
-    </div>` : ''}
+    <div class="fl-row">
+      <div class="fl-campo"><div class="fl-lab">USD BNA comprador${congelada && t.cotiz_usd != null ? ' (imputado)' : ''}</div>
+        <div class="fl-val">${usdRef != null ? fmt(usdRef) + ' ' + copiar(usdRef) : '<span style="color:var(--warn);font-size:.8rem">sin cargar</span>'}</div></div>
+      <div class="fl-campo"><div class="fl-lab">UVI${congelada && t.cotiz_uvi != null ? ' (imputado)' : ''}</div>
+        <div class="fl-val">${uviRef != null ? fmt(uviRef) + ' ' + copiar(uviRef) : '<span style="color:var(--warn);font-size:.8rem">sin cargar</span>'}</div></div>
+    </div>
     <div class="fl-nav">
       <button class="fl-sec" id="fl-prev" ${idx <= 0 ? 'disabled' : ''}>← Anterior</button>
       <button class="fl-ok" id="fl-hecho">${t.realizada ? '↩ Volver a pendiente' : '✓ Realizada y siguiente'}</button>
@@ -6659,8 +6758,66 @@ function cambiarModoCd(modo) {
   renderCotizDia();
 }
 
+// Carga de varios días pegando texto. Acepta tab, coma, punto y coma o espacios.
+function parsearBulkCotiz(texto, modo) {
+  const filas = [], errores = [];
+  texto.split(/\r?\n/).forEach((linea, i) => {
+    const l = linea.trim();
+    if (!l) return;
+    // NO se parte por coma de entrada: en Argentina la coma es el separador
+    // decimal, y "1.469,50" se rompería en dos ("1.469" y "50").
+    // Sólo si con tab/punto y coma/espacios no alcanzan las columnas se
+    // reintenta con coma, para el caso de un CSV pegado.
+    let p = l.split(/[\t;]+|\s+/).filter(Boolean);
+    const necesarias = modo === 'bna' ? 3 : 2;
+    if (p.length < necesarias && l.includes(',')) p = l.split(',').map(x => x.trim()).filter(Boolean);
+    const num = v => {
+      let x = String(v).replace(/[^\d.,\-]/g, '');
+      if (x.includes(',') && x.includes('.')) x = x.replace(/\./g, '').replace(',', '.');
+      else if (x.includes(',')) x = x.replace(',', '.');
+      const n = Number(x);
+      return isNaN(n) ? null : n;
+    };
+    const fecha = (() => {
+      const s = p[0] || '';
+      let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+      m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+      if (m) { const a = m[3].length === 2 ? '20' + m[3] : m[3];
+               return `${a}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
+      return null;
+    })();
+    if (!fecha) { errores.push(`línea ${i+1}: fecha inválida`); return; }
+    if (modo === 'bna') {
+      const compra = num(p[1]), venta = num(p[2]);
+      if (compra == null || venta == null) { errores.push(`línea ${i+1}: faltan compra y venta`); return; }
+      if (venta < compra) { errores.push(`línea ${i+1}: la venta es menor que la compra`); return; }
+      filas.push({ fecha, compra, venta, fuente: 'carga manual', scrapeado_en: new Date().toISOString() });
+    } else {
+      const valor = num(p[1]);
+      if (valor == null || valor <= 0) { errores.push(`línea ${i+1}: falta el valor`); return; }
+      filas.push({ fecha, valor, fuente: 'carga manual', scrapeado_en: new Date().toISOString() });
+    }
+  });
+  return { filas, errores };
+}
+
 if ($('#cd-tabla')) {
   $('#cd-fecha').value = todayISO();
+  $('#cd-bulk-guardar').addEventListener('click', async () => {
+    const { filas, errores } = parsearBulkCotiz($('#cd-bulk').value, _cdModo);
+    const msg = $('#cd-bulk-msg');
+    if (!filas.length) { msg.innerHTML = `<span style="color:var(--err)">Nada válido para guardar. ${errores[0] || ''}</span>`; return; }
+    const tabla = _cdModo === 'bna' ? 'cotizaciones_bna' : 'cotizaciones_uvi';
+    const { error } = await sb.from(tabla).upsert(filas, { onConflict: 'fecha' });
+    if (error) { msg.innerHTML = `<span style="color:var(--err)">${esc(error.message)}</span>`; return; }
+    if (_cdModo === 'bna') await loadCotizacionesBna(); else await loadCotizacionesUvi();
+    renderCotizDia();
+    $('#cd-bulk').value = '';
+    msg.innerHTML = `<span style="color:var(--ok)">✓ ${filas.length} día${filas.length===1?'':'s'} guardado${filas.length===1?'':'s'}</span>` +
+      (errores.length ? ` <span style="color:var(--warn)">· ${errores.length} línea${errores.length===1?'':'s'} con error: ${esc(errores[0])}</span>` : '');
+    toast(`${filas.length} cotizaciones guardadas`, 'ok');
+  });
   $('#cd-tab-bna').addEventListener('click', () => cambiarModoCd('bna'));
   $('#cd-tab-uvi').addEventListener('click', () => cambiarModoCd('uvi'));
   $('#cd-guardar').addEventListener('click', async () => {
