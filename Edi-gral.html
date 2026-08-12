@@ -1119,7 +1119,26 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <div class="tbl-wrap"><table class="tbl" id="cot-tabla">
           <thead><tr><th>Fecha</th><th>Fuente</th><th class="num">Compra</th><th class="num">Venta</th><th class="num">Promedio</th></tr></thead><tbody></tbody></table></div>
       </div>
-    </section>
+    
+      <div class="card" style="margin-top:16px">
+        <h3>Cotizaciones día a día</h3>
+        <p class="sub" style="margin-bottom:12px">Se usan para valuar las transferencias en dólares y en UVI según su fecha.</p>
+        <div class="tabs" style="margin-bottom:12px">
+          <button class="tab active" id="cd-tab-bna">Dólar BNA</button>
+          <button class="tab" id="cd-tab-uvi">UVI</button>
+        </div>
+        <div class="field-row" style="align-items:end">
+          <div class="field"><label>Fecha</label><input type="date" id="cd-fecha"></div>
+          <div class="field" id="cd-wrap-compra"><label>Compra</label><input type="number" id="cd-compra" step="0.01"></div>
+          <div class="field" id="cd-wrap-venta"><label>Venta</label><input type="number" id="cd-venta" step="0.01"></div>
+          <div class="field" id="cd-wrap-uvi" style="display:none"><label>Valor UVI</label><input type="number" id="cd-uvi" step="0.0001"></div>
+          <div class="field" style="max-width:120px"><label>&nbsp;</label><button class="btn accent" id="cd-guardar" style="width:100%">Guardar</button></div>
+        </div>
+        <div class="tbl-wrap" style="max-height:340px;overflow:auto"><table class="tbl" id="cd-tabla">
+          <thead><tr id="cd-head"></tr></thead><tbody></tbody>
+        </table></div>
+      </div>
+</section>
 
     <!-- GASTOS TAB -->
     <section class="tab-content" id="tab-gastos" style="display:none">
@@ -1405,6 +1424,46 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <tbody></tbody>
         </table></div>
       </div>
+
+      <!-- ===== TRANSFERENCIAS POR BANCO (carga masiva) ===== -->
+      <div class="card" style="margin-top:18px">
+        <h3 style="margin-bottom:4px">Transferencias por banco</h3>
+        <p class="sub" style="margin-bottom:14px">Importadas del extracto. Al marcarlas como realizadas pasan al repositorio y se borran a los 5 días.</p>
+
+        <div class="field-row">
+          <div class="field"><label>Empresa</label><select id="tb-empresa"></select></div>
+          <div class="field"><label>Cuenta</label><select id="tb-cuenta"></select></div>
+          <div class="field" style="max-width:190px"><label>Ver</label><select id="tb-vista">
+            <option value="pendientes">Pendientes</option>
+            <option value="realizadas">Repositorio (realizadas)</option>
+          </select></div>
+          <div class="field"><label>Buscar</label><input type="text" id="tb-search" placeholder="Descripción, CUIT o importe"></div>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+          <button class="btn accent" id="tb-importar">📥 Importar Excel</button>
+          <input type="file" id="tb-file" accept=".xlsx,.xls" style="display:none">
+          <button class="btn ghost sm" id="tb-flotante">🪟 Ventana flotante</button>
+          <button class="btn ghost sm" id="tb-excel">↓ Excel</button>
+          <span id="tb-resumen" class="hint" style="margin-left:auto"></span>
+        </div>
+
+        <div class="tbl-wrap"><table class="tbl" id="tb-tabla">
+          <thead><tr>
+            <th style="width:34px"><input type="checkbox" id="tb-all" title="Seleccionar todo"></th>
+            <th>Fecha</th><th>Descripción</th><th class="num">Importe</th>
+            <th class="num">USD BNA</th><th class="num">UVI</th>
+            <th class="actions"></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table></div>
+
+        <div id="tb-acciones" style="display:none;margin-top:12px;padding:10px;background:var(--accent-soft);border-radius:var(--radius);display:flex;gap:10px;align-items:center">
+          <span id="tb-sel-txt"></span>
+          <button class="btn accent sm" id="tb-marcar">✓ Marcar como realizadas</button>
+          <button class="btn ghost sm" id="tb-desmarcar" style="display:none">↩ Volver a pendientes</button>
+        </div>
+      </div>
     </section>
 
     <!-- RETIROS DE DOCUMENTACION TAB -->
@@ -1522,6 +1581,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <button class="tab" data-subtab="aj-personas-retiros">Personas retiros</button>
         <button class="tab" data-subtab="aj-emprendimientos">Emprendimientos</button>
         <button class="tab" data-subtab="aj-cuentas-rentas">Cuentas Rentas</button>
+        <button class="tab" data-subtab="aj-bancos">Cuentas bancarias</button>
         <button class="tab" data-subtab="aj-datos">Datos / Backup</button>
       </div>
       <div class="subtab-content" id="aj-usuarios">
@@ -1643,6 +1703,25 @@ details[open] .ident-toggle{transform:rotate(180deg)}
             <thead><tr><th>Barrio</th><th>N° de cuenta</th><th>Estado</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
+      <div class="subtab-content" id="aj-bancos" style="display:none">
+        <div class="card">
+          <h3>Cuentas bancarias</h3>
+          <p class="sub" style="margin-bottom:12px">Cuentas donde se reciben las transferencias. Un banco puede tener varias cuentas por empresa y en distinta moneda.</p>
+          <div class="field-row" style="align-items:end">
+            <div class="field"><label>Empresa</label><select id="bc-empresa"></select></div>
+            <div class="field"><label>Banco</label><input type="text" id="bc-banco" placeholder="Ej: Macro"></div>
+            <div class="field"><label>Nombre / cuenta</label><input type="text" id="bc-nombre" placeholder="Ej: CC 001698/6"></div>
+            <div class="field" style="max-width:130px"><label>Moneda</label><select id="bc-moneda">
+              <option value="ARS">Pesos</option><option value="USD">Dólares</option><option value="UVI">UVI</option>
+            </select></div>
+            <div class="field" style="max-width:110px"><label>&nbsp;</label><button class="btn accent" id="bc-add" style="width:100%">Agregar</button></div>
+          </div>
+          <div class="tbl-wrap"><table class="tbl" id="bc-tabla">
+            <thead><tr><th>Empresa</th><th>Banco</th><th>Cuenta</th><th>Moneda</th><th>Estado</th><th class="actions"></th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+      </div>
       <div class="subtab-content" id="aj-datos" style="display:none">
         <div class="card">
           <h3>Exportar / Importar</h3>
@@ -1726,6 +1805,10 @@ const state = {
   instructivos: [],
   retiros: [],
   cocheras: [],
+  bancosCuentas: [],
+  transfBanco: [],
+  uvi: [],
+  cotizacionesBna: [],
   retirosPersonas: [],
   users: [],
   feriados: {}, // {year: [{fecha, nombre}]}
@@ -1895,6 +1978,7 @@ async function afterLogin() {
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
     loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadCocheras(),
+    loadBancosCuentas(), loadTransferenciasBanco(), loadCotizacionesUvi(), loadCotizacionesBna(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -1907,6 +1991,8 @@ async function afterLogin() {
   // Realtime: se suscribe acá (no en el init) para que funcione también
   // cuando el usuario entra con usuario/contraseña, no solo con sesión guardada.
   subscribeChanges();
+  llenarSelectoresTB();
+  purgarRealizadas();   // borra las realizadas hace más de 5 días
   renderCampanita();
   // Recalcular cada 10 min para que el contador cruce la medianoche solo,
   // sin depender de que el usuario recargue la pestaña.
@@ -2104,6 +2190,9 @@ function switchTab(tab) {
   if (tab === 'ajustes') loadUsers();
   if (tab === 'retiros') renderRetiros();
   if (tab === 'cocheras') renderCocheras();
+  if (tab === 'transferencias') { llenarSelectoresTB(); renderTransfBanco(); }
+  if (tab === 'cotizacion') renderCotizDia();
+  if (tab === 'ajustes') renderBancosCuentas();
 }
 
 $$('.nav-item[data-tab]').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
@@ -6101,6 +6190,570 @@ async function abrirVentanaFlotante() {
 }
 
 // =================================================================
+// MODULO: TRANSFERENCIAS POR BANCO (importación masiva de extractos)
+// =================================================================
+const MONEDAS = { ARS: '$', USD: 'US$', UVI: 'UVI' };
+let _tbSel = new Set();
+
+async function loadBancosCuentas() {
+  state.bancosCuentas = await fetchPaged('bancos_cuentas', q => q.order('banco').order('nombre'));
+}
+async function loadTransferenciasBanco() {
+  state.transfBanco = await fetchPaged('transferencias_banco', q => q.order('fecha', { ascending: false }));
+}
+async function loadCotizacionesUvi() {
+  state.uvi = await fetchPaged('cotizaciones_uvi', q => q.order('fecha', { ascending: false }));
+}
+
+// Purga local: la app borra al entrar las realizadas hace más de 5 días.
+// El cron de la base hace lo mismo por su cuenta; esto cubre el caso de que
+// pg_cron no esté habilitado.
+async function purgarRealizadas() {
+  const limite = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+  const { error } = await sb.from('transferencias_banco')
+    .delete().eq('realizada', true).lt('realizada_at', limite);
+  if (error) console.warn('No se pudo purgar realizadas:', error.message);
+}
+
+function cuentasDeEmpresa(empId) {
+  return (state.bancosCuentas || []).filter(c => c.empresa_id === empId && c.activo);
+}
+
+function llenarSelectoresTB() {
+  const selE = $('#tb-empresa'), selC = $('#tb-cuenta');
+  if (!selE) return;
+  const empActual = selE.value;
+  const empresasConCuenta = (state.empresas || [])
+    .filter(e => cuentasDeEmpresa(e.id).length);
+  selE.innerHTML = empresasConCuenta.length
+    ? empresasConCuenta.map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('')
+    : '<option value="">— sin cuentas cargadas —</option>';
+  if (empActual && empresasConCuenta.some(e => e.id === empActual)) selE.value = empActual;
+
+  const ctaActual = selC.value;
+  const ctas = cuentasDeEmpresa(selE.value);
+  selC.innerHTML = ctas.length
+    ? ctas.map(c => `<option value="${c.id}">${esc(c.banco)} · ${esc(c.nombre)} (${c.moneda})</option>`).join('')
+    : '<option value="">—</option>';
+  if (ctaActual && ctas.some(c => c.id === ctaActual)) selC.value = ctaActual;
+}
+
+function cuentaTBActual() {
+  return (state.bancosCuentas || []).find(c => c.id === $('#tb-cuenta')?.value);
+}
+
+function transfBancoFiltradas() {
+  const ctaId = $('#tb-cuenta')?.value;
+  const vista = $('#tb-vista')?.value || 'pendientes';
+  const q = ($('#tb-search')?.value || '').toLowerCase().trim();
+  return (state.transfBanco || []).filter(t => {
+    if (t.cuenta_id !== ctaId) return false;
+    if (vista === 'pendientes' && t.realizada) return false;
+    if (vista === 'realizadas' && !t.realizada) return false;
+    if (q && !`${t.descripcion} ${t.importe}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+// Días que faltan para que se borre (5 desde que se marcó realizada)
+function diasParaBorrado(t) {
+  if (!t.realizada_at) return null;
+  const ms = new Date(t.realizada_at).getTime() + 5 * 864e5 - Date.now();
+  return Math.max(0, Math.ceil(ms / 864e5));
+}
+
+function renderTransfBanco() {
+  if (!$('#tb-tabla')) return;
+  const cta = cuentaTBActual();
+  const filt = transfBancoFiltradas();
+  const vista = $('#tb-vista').value;
+  const simb = cta ? MONEDAS[cta.moneda] : '$';
+
+  const total = filt.reduce((a, t) => a + Number(t.importe || 0), 0);
+  const pend = (state.transfBanco || []).filter(t => t.cuenta_id === cta?.id && !t.realizada).length;
+  $('#tb-resumen').innerHTML = cta
+    ? `${filt.length} ${vista === 'realizadas' ? 'realizadas' : 'pendientes'} · ${simb} ${fmt(total)}` +
+      (vista === 'realizadas' && pend ? ` — quedan ${pend} pendientes` : '')
+    : 'Elegí una cuenta';
+
+  const tb = $('#tb-tabla tbody');
+  if (!filt.length) {
+    tb.innerHTML = `<tr><td colspan="7" class="empty">${cta ? 'Sin movimientos' : 'Cargá una cuenta bancaria en Ajustes'}</td></tr>`;
+    _tbSel.clear(); actualizarAccionesTB();
+    return;
+  }
+
+  tb.innerHTML = filt.map(t => {
+    const dias = diasParaBorrado(t);
+    const aviso = vista === 'realizadas' && dias !== null
+      ? `<span class="badge ${dias <= 1 ? 'err' : 'muted'}" style="font-size:.68rem">se borra en ${dias} día${dias === 1 ? '' : 's'}</span>` : '';
+    return `<tr data-id="${t.id}" style="${t.realizada ? 'opacity:.72' : ''}">
+      <td><input type="checkbox" class="tb-chk" data-id="${t.id}" ${_tbSel.has(t.id) ? 'checked' : ''}></td>
+      <td>${fmtFecha(t.fecha)}</td>
+      <td style="max-width:420px">${esc(t.descripcion)} ${aviso}</td>
+      <td class="num"><b>${simb} ${fmt(t.importe)}</b></td>
+      <td class="num">${t.cotiz_usd != null ? fmt(t.cotiz_usd) : '<span class="muted">—</span>'}</td>
+      <td class="num">${t.cotiz_uvi != null ? fmt(t.cotiz_uvi) : '<span class="muted">—</span>'}</td>
+      <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
+        <button class="btn ghost sm" onclick="verTransfFlotante('${t.id}')" title="Abrir en ventana flotante">🪟</button>
+        <button class="btn ${t.realizada ? 'ghost' : 'accent'} sm" onclick="toggleRealizada('${t.id}')">${t.realizada ? '↩' : '✓'}</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  tb.querySelectorAll('.tb-chk').forEach(ch => ch.addEventListener('change', () => {
+    ch.checked ? _tbSel.add(ch.dataset.id) : _tbSel.delete(ch.dataset.id);
+    actualizarAccionesTB();
+  }));
+  actualizarAccionesTB();
+}
+
+function actualizarAccionesTB() {
+  const box = $('#tb-acciones');
+  if (!box) return;
+  const n = _tbSel.size;
+  box.style.display = n ? 'flex' : 'none';
+  if (!n) return;
+  const vista = $('#tb-vista').value;
+  $('#tb-sel-txt').textContent = `${n} seleccionada${n === 1 ? '' : 's'}`;
+  $('#tb-marcar').style.display = vista === 'pendientes' ? '' : 'none';
+  $('#tb-desmarcar').style.display = vista === 'realizadas' ? '' : 'none';
+}
+
+window.toggleRealizada = async function(id) {
+  const t = (state.transfBanco || []).find(x => x.id === id);
+  if (!t) return;
+  const { error } = await sb.from('transferencias_banco').update({ realizada: !t.realizada }).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  await loadTransferenciasBanco(); renderTransfBanco();
+};
+
+async function marcarSeleccionadas(valor) {
+  const ids = [...(_tbSel)];
+  if (!ids.length) return;
+  const { error } = await sb.from('transferencias_banco').update({ realizada: valor }).in('id', ids);
+  if (error) { toast(error.message, 'err'); return; }
+  _tbSel.clear();
+  toast(valor ? `${ids.length} marcada${ids.length === 1 ? '' : 's'} como realizada${ids.length === 1 ? '' : 's'}` : 'Vueltas a pendientes', 'ok');
+  await loadTransferenciasBanco(); renderTransfBanco();
+}
+
+// ---------- Importación del Excel ----------
+// Formato esperado (hoja limpia): Fecha | Descripción | Importe
+async function importarExcelTB(file) {
+  const cta = cuentaTBActual();
+  if (!cta) { toast('Elegí primero una cuenta', 'warn'); return; }
+
+  let filas;
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { cellDates: true });
+    const hoja = wb.Sheets[wb.SheetNames[0]];
+    filas = XLSX.utils.sheet_to_json(hoja, { header: 1, raw: true, blankrows: false });
+  } catch (e) {
+    toast('No se pudo leer el archivo: ' + e.message, 'err'); return;
+  }
+  if (!filas.length) { toast('El archivo está vacío', 'warn'); return; }
+
+  // La primera fila puede ser encabezado o ya un dato; se detecta.
+  const esEncabezado = filas[0].some(c => /fecha|descrip|importe/i.test(String(c || '')));
+  const datos = esEncabezado ? filas.slice(1) : filas;
+
+  const parseImporte = v => {
+    if (typeof v === 'number') return v;
+    let s = String(v ?? '').replace(/[^\d,.\-]/g, '');
+    if (!s) return null;
+    if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+    else if (s.includes(',')) s = s.replace(',', '.');
+    else if (s.includes('.')) {
+      const p = s.split('.');
+      if (p.slice(1).every(x => x.length === 3)) s = s.replace(/\./g, '');
+    }
+    const n = Number(s);
+    return isNaN(n) ? null : n;
+  };
+  const parseFecha = v => {
+    if (v instanceof Date && !isNaN(v)) {
+      return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+    }
+    const s = String(v ?? '').trim();
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);   // dd/mm/aaaa
+    if (m) {
+      const a = m[3].length === 2 ? '20' + m[3] : m[3];
+      return `${a}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+    }
+    return null;
+  };
+
+  const nuevas = [], descartadas = [];
+  datos.forEach((r, i) => {
+    const fecha = parseFecha(r[0]);
+    const desc = String(r[1] ?? '').trim();
+    const importe = parseImporte(r[2]);
+    if (!fecha || !desc || importe == null) {
+      if (r.some(c => c !== '' && c != null)) descartadas.push(i + (esEncabezado ? 2 : 1));
+      return;
+    }
+    nuevas.push({ fecha, descripcion: desc, importe });
+  });
+
+  if (!nuevas.length) { toast('No se encontraron filas válidas (Fecha | Descripción | Importe)', 'err'); return; }
+
+  // Deduplicación POR CANTIDAD, no por existencia.
+  // Una misma persona puede transferir el mismo importe varias veces el mismo
+  // día (en el extracto de prueba hay 3 movimientos idénticos). Descartar los
+  // repetidos perdería plata. Entonces: si el archivo trae N copias de una fila
+  // y la base ya tiene M, se insertan las N-M que faltan.
+  const clave = x => `${x.fecha}|${x.descripcion}|${Number(x.importe)}`;
+  const enBase = {};
+  (state.transfBanco || [])
+    .filter(t => t.cuenta_id === cta.id)
+    .forEach(t => { const k = clave(t); enBase[k] = (enBase[k] || 0) + 1; });
+
+  const enArchivo = {};
+  nuevas.forEach(n => { const k = clave(n); enArchivo[k] = (enArchivo[k] || 0) + 1; });
+
+  const usados = {};
+  const aInsertar = [], dupBase = [];
+  nuevas.forEach(n => {
+    const k = clave(n);
+    usados[k] = (usados[k] || 0) + 1;
+    if (usados[k] <= (enBase[k] || 0)) { dupBase.push(n); return; }  // ya estaba
+    aInsertar.push({ ...n, ocurrencia: usados[k] });
+  });
+
+  // Repeticiones legítimas dentro del archivo, para avisar en la previsualización
+  const repetidasOk = Object.entries(enArchivo).filter(([, n]) => n > 1)
+    .reduce((a, [, n]) => a + n - 1, 0);
+
+  // Cotizaciones congeladas según la fecha y la moneda de la cuenta
+  const usdPorFecha = {}, uviPorFecha = {};
+  (state.cotizacionesBna || []).forEach(c => { usdPorFecha[c.fecha] = Number(c.compra); });
+  (state.uvi || []).forEach(u => { uviPorFecha[u.fecha] = Number(u.valor); });
+  let sinCotiz = 0;
+  aInsertar.forEach(n => {
+    if (cta.moneda === 'USD') {
+      n.cotiz_usd = usdPorFecha[n.fecha] ?? null;
+      if (n.cotiz_usd == null) sinCotiz++;
+    } else if (cta.moneda === 'UVI') {
+      n.cotiz_uvi = uviPorFecha[n.fecha] ?? null;
+      if (n.cotiz_uvi == null) sinCotiz++;
+    }
+  });
+
+  const totalNuevo = aInsertar.reduce((a, n) => a + n.importe, 0);
+  const detalle = [
+    `<b>${aInsertar.length}</b> movimientos nuevos por <b>${MONEDAS[cta.moneda]} ${fmt(totalNuevo)}</b>`,
+    dupBase.length ? `${dupBase.length} ya estaban cargados (se omiten)` : '',
+    repetidasOk ? `<span style="color:var(--warn)">⚠ ${repetidasOk} movimiento${repetidasOk === 1 ? '' : 's'} idéntico${repetidasOk === 1 ? '' : 's'} a otro del mismo día: se importan igual (pueden ser transferencias repetidas reales). Revisalos abajo.</span>` : '',
+    descartadas.length ? `${descartadas.length} filas sin fecha/descripción/importe válidos (se omiten)` : '',
+    sinCotiz ? `<span style="color:var(--warn)">⚠ ${sinCotiz} sin cotización ${cta.moneda} para su fecha</span>` : '',
+  ].filter(Boolean);
+
+  if (!aInsertar.length) { toast('No hay movimientos nuevos para importar', 'warn'); return; }
+
+  showModal(`<div class="modal-head"><h3>Importar a ${esc(cta.banco)} · ${esc(cta.nombre)}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <ul style="margin:0 0 12px 18px;line-height:1.7">${detalle.map(d => `<li>${d}</li>`).join('')}</ul>
+      <div class="tbl-wrap" style="max-height:260px;overflow:auto"><table class="tbl">
+        <thead><tr><th>Fecha</th><th>Descripción</th><th class="num">Importe</th></tr></thead>
+        <tbody>${aInsertar.slice(0, 50).map(n => `<tr><td>${fmtFecha(n.fecha)}</td><td>${esc(n.descripcion)}</td><td class="num">${fmt(n.importe)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      ${aInsertar.length > 50 ? `<p class="hint" style="margin-top:8px">Mostrando las primeras 50 de ${aInsertar.length}.</p>` : ''}
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" id="tb-confirmar">Importar ${aInsertar.length}</button>
+    </div>`);
+
+  $('#tb-confirmar').addEventListener('click', async () => {
+    const btn = $('#tb-confirmar');
+    btn.disabled = true; btn.textContent = 'Importando...';
+    const payload = aInsertar.map(n => ({
+      ...n, cuenta_id: cta.id, importado_por: state.user.id,
+    }));
+    // De a 500 para no pasarse del límite del request
+    let ok = 0;
+    for (let i = 0; i < payload.length; i += 500) {
+      const { error } = await sb.from('transferencias_banco').insert(payload.slice(i, i + 500));
+      if (error) { toast(error.message, 'err'); btn.disabled = false; btn.textContent = 'Reintentar'; return; }
+      ok += Math.min(500, payload.length - i);
+      btn.textContent = `Importando... ${ok}/${payload.length}`;
+    }
+    closeModal();
+    toast(`${ok} transferencias importadas`, 'ok');
+    await loadTransferenciasBanco(); renderTransfBanco();
+  });
+}
+
+// ---------- Ventana flotante de lectura ----------
+window.verTransfFlotante = async function(id) {
+  const t = (state.transfBanco || []).find(x => x.id === id);
+  if (!t) return;
+  await abrirFlotanteLectura(t);
+};
+
+let _pipLect = null;
+async function abrirFlotanteLectura(t) {
+  if (!pipDisponible()) { toast('Tu navegador no soporta ventana flotante. Usá Chrome o Edge.', 'warn'); return; }
+  if (!_pipLect || _pipLect.closed) {
+    try { _pipLect = await documentPictureInPicture.requestWindow({ width: 460, height: 340 }); }
+    catch (e) { toast('No se pudo abrir: ' + e.message, 'err'); return; }
+    const est = document.querySelector('style');
+    if (est) { const s = _pipLect.document.createElement('style'); s.textContent = est.textContent; _pipLect.document.head.appendChild(s); }
+    const p = _pipLect.document.createElement('style');
+    p.textContent = `body{margin:0;padding:14px;background:var(--bg);font-family:var(--font)}
+      .fl-campo{margin-bottom:10px}
+      .fl-lab{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);margin-bottom:2px}
+      .fl-val{font-size:1rem;font-weight:600;color:var(--ink);word-break:break-word;display:flex;gap:8px;align-items:flex-start}
+      .fl-val button{font-size:.68rem;padding:2px 6px;border:1px solid var(--line);background:var(--surface);border-radius:4px;cursor:pointer;flex-shrink:0}
+      .fl-row{display:flex;gap:14px}.fl-row>div{flex:1}
+      .fl-nav{display:flex;gap:6px;margin-top:12px}
+      .fl-nav button{flex:1;padding:8px;border:none;border-radius:var(--radius);cursor:pointer;font-size:.82rem}
+      .fl-ok{background:var(--accent);color:#fff;font-weight:600}
+      .fl-sec{background:var(--surface-2);border:1px solid var(--line);color:var(--ink)}`;
+    _pipLect.document.head.appendChild(p);
+    _pipLect.addEventListener('pagehide', () => { _pipLect = null; });
+  }
+  pintarFlotanteLectura(t);
+  _pipLect.focus();
+}
+
+function pintarFlotanteLectura(t) {
+  if (!_pipLect || _pipLect.closed) return;
+  const pd = _pipLect.document;
+  const cta = (state.bancosCuentas || []).find(c => c.id === t.cuenta_id);
+  const simb = cta ? MONEDAS[cta.moneda] : '$';
+  // El extracto trae el CUIT embebido en la descripción; separarlo ahorra
+  // tener que buscarlo a ojo en un texto largo.
+  const cuit = (t.descripcion.match(/\b(\d{11})\b/) || [])[1];
+  const pend = transfBancoFiltradas();
+  const idx = pend.findIndex(x => x.id === t.id);
+
+  const copiar = (v, lab) => `<button onclick="navigator.clipboard.writeText('${String(v).replace(/'/g, "\\'")}')">⎘</button>`;
+  pd.body.innerHTML = `
+    <div class="fl-campo"><div class="fl-lab">Descripción</div>
+      <div class="fl-val" style="font-size:.9rem">${esc(t.descripcion)} ${copiar(t.descripcion)}</div></div>
+    <div class="fl-row">
+      <div class="fl-campo"><div class="fl-lab">Fecha</div><div class="fl-val">${fmtFecha(t.fecha)}</div></div>
+      <div class="fl-campo"><div class="fl-lab">Importe</div><div class="fl-val">${simb} ${fmt(t.importe)} ${copiar(t.importe)}</div></div>
+    </div>
+    ${cuit ? `<div class="fl-campo"><div class="fl-lab">CUIT detectado</div><div class="fl-val" style="font-family:monospace">${cuit} ${copiar(cuit)}</div></div>` : ''}
+    ${(t.cotiz_usd != null || t.cotiz_uvi != null) ? `<div class="fl-row">
+      ${t.cotiz_usd != null ? `<div class="fl-campo"><div class="fl-lab">USD BNA comprador</div><div class="fl-val">${fmt(t.cotiz_usd)}</div></div>` : ''}
+      ${t.cotiz_uvi != null ? `<div class="fl-campo"><div class="fl-lab">UVI</div><div class="fl-val">${fmt(t.cotiz_uvi)}</div></div>` : ''}
+    </div>` : ''}
+    <div class="fl-nav">
+      <button class="fl-sec" id="fl-prev" ${idx <= 0 ? 'disabled' : ''}>← Anterior</button>
+      <button class="fl-ok" id="fl-hecho">${t.realizada ? '↩ Volver a pendiente' : '✓ Realizada y siguiente'}</button>
+      <button class="fl-sec" id="fl-next" ${idx < 0 || idx >= pend.length - 1 ? 'disabled' : ''}>Siguiente →</button>
+    </div>
+    <div style="text-align:center;font-size:.72rem;color:var(--ink-3);margin-top:8px">${idx + 1} de ${pend.length}</div>`;
+
+  const ir = d => { const n = pend[idx + d]; if (n) pintarFlotanteLectura(n); };
+  pd.getElementById('fl-prev').onclick = () => ir(-1);
+  pd.getElementById('fl-next').onclick = () => ir(1);
+  pd.getElementById('fl-hecho').onclick = async () => {
+    await toggleRealizada(t.id);
+    const quedan = transfBancoFiltradas();
+    if (quedan.length) pintarFlotanteLectura(quedan[Math.min(idx, quedan.length - 1)]);
+    else pd.body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--ink-3)">✓ No quedan pendientes</div>';
+  };
+}
+
+// ---------- Handlers ----------
+if ($('#tb-empresa')) {
+  $('#tb-empresa').addEventListener('change', () => { llenarSelectoresTB(); _tbSel.clear(); renderTransfBanco(); });
+  $('#tb-cuenta').addEventListener('change', () => { _tbSel.clear(); renderTransfBanco(); });
+  $('#tb-vista').addEventListener('change', () => { _tbSel.clear(); renderTransfBanco(); });
+  $('#tb-search').addEventListener('input', renderTransfBanco);
+  $('#tb-all').addEventListener('change', e => {
+    const filt = transfBancoFiltradas();
+    _tbSel.clear();
+    if (e.target.checked) filt.forEach(t => _tbSel.add(t.id));
+    renderTransfBanco();
+  });
+  $('#tb-importar').addEventListener('click', () => $('#tb-file').click());
+  $('#tb-file').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (f) importarExcelTB(f);
+    e.target.value = '';
+  });
+  $('#tb-marcar').addEventListener('click', () => marcarSeleccionadas(true));
+  $('#tb-desmarcar').addEventListener('click', () => marcarSeleccionadas(false));
+  $('#tb-flotante').addEventListener('click', () => {
+    const f = transfBancoFiltradas();
+    if (!f.length) { toast('No hay transferencias para mostrar', 'warn'); return; }
+    abrirFlotanteLectura(f[0]);
+  });
+  $('#tb-excel').addEventListener('click', () => {
+    const cta = cuentaTBActual();
+    const filt = transfBancoFiltradas();
+    if (!filt.length) { toast('Nada para exportar', 'warn'); return; }
+    exportarExcel(filt.map(t => ({
+      Fecha: fmtFecha(t.fecha), Descripcion: t.descripcion, Importe: t.importe,
+      Moneda: cta?.moneda || '', 'USD BNA': t.cotiz_usd ?? '', UVI: t.cotiz_uvi ?? '',
+      Estado: t.realizada ? 'Realizada' : 'Pendiente',
+    })), `transferencias-${cta?.banco || 'banco'}`);
+  });
+}
+
+// =================================================================
+// COTIZACIONES DIA A DIA (BNA y UVI) · carga manual de respaldo
+// =================================================================
+let _cdModo = 'bna';
+
+async function loadCotizacionesBna() {
+  const { data, error } = await sb.from('cotizaciones_bna').select('*')
+    .order('fecha', { ascending: false }).limit(400);
+  if (error) console.warn('cotizaciones_bna:', error.message);
+  state.cotizacionesBna = data || [];
+}
+
+function renderCotizDia() {
+  if (!$('#cd-tabla')) return;
+  const esBna = _cdModo === 'bna';
+  $('#cd-head').innerHTML = esBna
+    ? '<th>Fecha</th><th class="num">Compra</th><th class="num">Venta</th><th>Fuente</th><th class="actions"></th>'
+    : '<th>Fecha</th><th class="num">Valor UVI</th><th>Fuente</th><th class="actions"></th>';
+
+  const filas = esBna ? (state.cotizacionesBna || []) : (state.uvi || []);
+  const tb = $('#cd-tabla tbody');
+  if (!filas.length) {
+    tb.innerHTML = `<tr><td colspan="5" class="empty">Sin cotizaciones cargadas</td></tr>`; return;
+  }
+  tb.innerHTML = filas.slice(0, 200).map(c => {
+    const manual = (c.fuente || '').toLowerCase().includes('manual');
+    const fuente = `<span class="badge ${manual ? 'warn' : 'muted'}" style="font-size:.68rem">${esc(c.fuente || '—')}</span>`;
+    return esBna
+      ? `<tr><td>${fmtFecha(c.fecha)}</td><td class="num">${fmt(c.compra)}</td><td class="num">${fmt(c.venta)}</td><td>${fuente}</td>
+         <td class="actions"><button class="btn ghost sm" onclick="editarCotizDia('${c.fecha}','bna')">Editar</button></td></tr>`
+      : `<tr><td>${fmtFecha(c.fecha)}</td><td class="num">${fmt(c.valor)}</td><td>${fuente}</td>
+         <td class="actions"><button class="btn ghost sm" onclick="editarCotizDia('${c.fecha}','uvi')">Editar</button></td></tr>`;
+  }).join('');
+}
+
+window.editarCotizDia = function(fecha, modo) {
+  cambiarModoCd(modo);
+  $('#cd-fecha').value = fecha;
+  if (modo === 'bna') {
+    const c = (state.cotizacionesBna || []).find(x => x.fecha === fecha);
+    $('#cd-compra').value = c?.compra ?? ''; $('#cd-venta').value = c?.venta ?? '';
+  } else {
+    const u = (state.uvi || []).find(x => x.fecha === fecha);
+    $('#cd-uvi').value = u?.valor ?? '';
+  }
+  $('#cd-fecha').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+function cambiarModoCd(modo) {
+  _cdModo = modo;
+  const esBna = modo === 'bna';
+  $('#cd-tab-bna').classList.toggle('active', esBna);
+  $('#cd-tab-uvi').classList.toggle('active', !esBna);
+  $('#cd-wrap-compra').style.display = esBna ? '' : 'none';
+  $('#cd-wrap-venta').style.display  = esBna ? '' : 'none';
+  $('#cd-wrap-uvi').style.display    = esBna ? 'none' : '';
+  renderCotizDia();
+}
+
+if ($('#cd-tabla')) {
+  $('#cd-fecha').value = todayISO();
+  $('#cd-tab-bna').addEventListener('click', () => cambiarModoCd('bna'));
+  $('#cd-tab-uvi').addEventListener('click', () => cambiarModoCd('uvi'));
+  $('#cd-guardar').addEventListener('click', async () => {
+    const fecha = $('#cd-fecha').value;
+    if (!fecha) { toast('Falta la fecha', 'warn'); return; }
+    if (_cdModo === 'bna') {
+      const compra = Number($('#cd-compra').value), venta = Number($('#cd-venta').value);
+      if (!compra || !venta) { toast('Cargá compra y venta', 'warn'); return; }
+      if (venta < compra) { toast('La venta no puede ser menor que la compra', 'warn'); return; }
+      // promedio es columna generada: no se manda
+      const { error } = await sb.from('cotizaciones_bna')
+        .upsert({ fecha, compra, venta, fuente: 'carga manual', scrapeado_en: new Date().toISOString() },
+                { onConflict: 'fecha' });
+      if (error) { toast(error.message, 'err'); return; }
+      await loadCotizacionesBna();
+    } else {
+      const valor = Number($('#cd-uvi').value);
+      if (!valor || valor <= 0) { toast('Cargá el valor UVI', 'warn'); return; }
+      const { error } = await sb.from('cotizaciones_uvi')
+        .upsert({ fecha, valor, fuente: 'carga manual', scrapeado_en: new Date().toISOString() },
+                { onConflict: 'fecha' });
+      if (error) { toast(error.message, 'err'); return; }
+      await loadCotizacionesUvi();
+    }
+    toast('Cotización guardada', 'ok');
+    ['#cd-compra','#cd-venta','#cd-uvi'].forEach(x => $(x).value = '');
+    renderCotizDia();
+  });
+}
+
+// =================================================================
+// AJUSTES: CUENTAS BANCARIAS (sólo admin)
+// =================================================================
+function renderBancosCuentas() {
+  if (!$('#bc-tabla')) return;
+  const sel = $('#bc-empresa');
+  if (sel && !sel.options.length) {
+    sel.innerHTML = (state.empresas || []).map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
+  }
+  const tb = $('#bc-tabla tbody');
+  const filas = state.bancosCuentas || [];
+  if (!filas.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">Sin cuentas cargadas</td></tr>'; return; }
+  tb.innerHTML = filas.map(c => {
+    const emp = (state.empresas || []).find(e => e.id === c.empresa_id);
+    return `<tr style="${c.activo ? '' : 'opacity:.55'}">
+      <td>${esc(emp?.nombre || '—')}</td><td><b>${esc(c.banco)}</b></td><td>${esc(c.nombre)}</td>
+      <td><span class="badge ${c.moneda === 'ARS' ? 'muted' : 'accent'}">${c.moneda}</span></td>
+      <td>${c.activo ? '<span class="badge ok">Activa</span>' : '<span class="badge muted">Inactiva</span>'}</td>
+      <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
+        <button class="btn ghost sm" onclick="toggleCuentaBanco('${c.id}')">${c.activo ? 'Desactivar' : 'Activar'}</button>
+        <button class="btn ghost sm" style="color:var(--err)" onclick="borrarCuentaBanco('${c.id}')">🗑</button>
+      </td></tr>`;
+  }).join('');
+}
+
+window.toggleCuentaBanco = async function(id) {
+  const c = (state.bancosCuentas || []).find(x => x.id === id);
+  const { error } = await sb.from('bancos_cuentas').update({ activo: !c.activo }).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  await loadBancosCuentas(); renderBancosCuentas(); llenarSelectoresTB();
+};
+
+window.borrarCuentaBanco = async function(id) {
+  const c = (state.bancosCuentas || []).find(x => x.id === id);
+  const n = (state.transfBanco || []).filter(t => t.cuenta_id === id).length;
+  const aviso = n ? `\n\nOJO: se van a borrar también ${n} transferencia${n === 1 ? '' : 's'} asociada${n === 1 ? '' : 's'}.` : '';
+  if (!await confirmAction(`¿Eliminar la cuenta ${c?.banco} · ${c?.nombre}?${aviso}`)) return;
+  const { error } = await sb.from('bancos_cuentas').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  toast('Cuenta eliminada', 'ok');
+  await loadBancosCuentas(); await loadTransferenciasBanco();
+  renderBancosCuentas(); llenarSelectoresTB(); renderTransfBanco();
+};
+
+if ($('#bc-add')) {
+  $('#bc-add').addEventListener('click', async () => {
+    const empresa_id = $('#bc-empresa').value;
+    const banco = $('#bc-banco').value.trim();
+    const nombre = $('#bc-nombre').value.trim();
+    if (!empresa_id || !banco || !nombre) { toast('Completá empresa, banco y nombre', 'warn'); return; }
+    const { error } = await sb.from('bancos_cuentas')
+      .insert({ empresa_id, banco, nombre, moneda: $('#bc-moneda').value });
+    if (error) {
+      toast(error.message.includes('bancos_cuentas_key') ? 'Esa cuenta ya existe' : error.message, 'err');
+      return;
+    }
+    $('#bc-banco').value = ''; $('#bc-nombre').value = '';
+    toast('Cuenta agregada', 'ok');
+    await loadBancosCuentas(); renderBancosCuentas(); llenarSelectoresTB();
+  });
+}
+
+// =================================================================
 // MODULO: IDENTIFICADOR DE TRANSFERENCIAS
 // =================================================================
 let _identActiveIdx = -1;
@@ -7408,7 +8061,7 @@ let realtimeActivo = false;
 function subscribeChanges() {
   if (realtimeActivo) return;   // evita canales duplicados
   realtimeActivo = true;
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','bancos_cuentas','cotizaciones_uvi'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -7428,6 +8081,9 @@ function subscribeChanges() {
         if (tabla==='sellos_alicuotas') { await loadAlicuotas(); if(state.profile?.rol==='admin') renderAlicuotas(); updateAlicuotaForFecha(); }
         if (tabla==='retiros_documentacion') { await loadRetiros(); renderRetiros(); }
         if (tabla==='cocheras') { await loadCocheras(); renderCocheras(); }
+        if (tabla==='transferencias_banco') { await loadTransferenciasBanco(); renderTransfBanco(); }
+        if (tabla==='bancos_cuentas') { await loadBancosCuentas(); llenarSelectoresTB(); renderBancosCuentas(); }
+        if (tabla==='cotizaciones_uvi') { await loadCotizacionesUvi(); renderCotizDia(); }
         if (tabla==='retiros_personas') { await loadRetirosPersonas(); renderPersonasRetiros(); }
       })
       .subscribe();
