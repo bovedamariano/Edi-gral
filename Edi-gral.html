@@ -1280,7 +1280,10 @@ details[open] .ident-toggle{transform:rotate(180deg)}
     <section class="tab-content" id="tab-transferencias" style="display:none">
       <div class="page-head">
         <div><h1>Transferencias</h1><p>Registro de transferencias recibidas</p></div>
-        <button class="btn accent" id="transf-add">+ Nueva transferencia</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn ghost" id="transf-flotante" title="Abre una ventana chica siempre visible sobre cualquier programa, para cargar sin alt-tab">🪟 Ventana flotante</button>
+          <button class="btn accent" id="transf-add">+ Nueva transferencia</button>
+        </div>
       </div>
 
       <!-- Identificador de transferencias -->
@@ -5903,6 +5906,7 @@ window.saveTransf = async function(id) {
 };
 
 $('#transf-add').addEventListener('click', () => editTransf(null));
+$('#transf-flotante').addEventListener('click', abrirVentanaFlotante);
 $('#transf-search').addEventListener('input', renderTransferencias);
 $('#transf-filtro-estado').addEventListener('change', renderTransferencias);
 $('#transf-filtro-concepto').addEventListener('change', renderTransferencias);
@@ -5932,6 +5936,169 @@ $('#transf-excel').addEventListener('click', () => {
   }));
   exportarExcel(datos, 'transferencias');
 });
+
+// =================================================================
+// VENTANA FLOTANTE (Document Picture-in-Picture)
+// =================================================================
+// Abre una ventana chica SIEMPRE VISIBLE sobre cualquier aplicación
+// (home banking, PDF, Excel), arrastrable y redimensionable, para cargar
+// transferencias sin alt-tab. Requiere Chrome/Edge 116+ y HTTPS.
+// El popup común de window.open() NO sirve: queda detrás al cambiar de app.
+let _pipWin = null;
+
+function pipDisponible() {
+  return 'documentPictureInPicture' in window;
+}
+
+async function abrirVentanaFlotante() {
+  if (!pipDisponible()) {
+    toast('Tu navegador no soporta ventana flotante. Usá Chrome o Edge actualizado.', 'warn');
+    return;
+  }
+  if (_pipWin && !_pipWin.closed) { _pipWin.focus(); return; }
+
+  try {
+    _pipWin = await documentPictureInPicture.requestWindow({ width: 420, height: 620 });
+  } catch (e) {
+    toast('No se pudo abrir la ventana flotante: ' + e.message, 'err');
+    return;
+  }
+
+  const pd = _pipWin.document;
+
+  // Los estilos NO se heredan: hay que copiar la hoja de la app.
+  const estilos = document.querySelector('style');
+  if (estilos) {
+    const s = pd.createElement('style');
+    s.textContent = estilos.textContent;
+    pd.head.appendChild(s);
+  }
+  const propio = pd.createElement('style');
+  propio.textContent = `
+    body{margin:0;padding:12px;background:var(--bg);font-family:var(--font);overflow-y:auto}
+    .pip-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .pip-head h3{font-size:.95rem;margin:0}
+    .pip-cont{font-size:.72rem;color:var(--ink-3)}
+    .pip-form .field{margin-bottom:8px}
+    .pip-form label{font-size:.7rem}
+    .pip-form input,.pip-form textarea,.pip-form select{padding:6px 8px;font-size:.85rem}
+    .pip-row{display:flex;gap:8px}.pip-row .field{flex:1}
+    .pip-btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+    .pip-btns button{flex:1;min-width:64px;padding:7px 4px;font-size:.78rem;border:1px solid var(--line);
+      background:var(--surface);border-radius:var(--radius);cursor:pointer;color:var(--ink)}
+    .pip-btns button.sel{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .pip-match{font-size:.74rem;padding:6px 8px;border-radius:var(--radius);margin-bottom:8px;display:none}
+    .pip-match.ok{background:var(--accent-soft);border:1px solid var(--accent-2)}
+    .pip-match.no{background:#fff7ed;border:1px solid var(--warn);color:#92400e}
+    .pip-guardar{width:100%;padding:10px;font-size:.9rem;font-weight:600;background:var(--accent);
+      color:#fff;border:none;border-radius:var(--radius);cursor:pointer}
+    .pip-guardar:disabled{opacity:.6;cursor:default}
+    .pip-ult{font-size:.74rem;color:var(--ink-3);margin-top:8px;text-align:center;min-height:16px}
+  `;
+  pd.head.appendChild(propio);
+
+  const btnsConcepto = Object.entries(CONCEPTOS_TRANSF)
+    .map(([k, v]) => `<button type="button" data-c="${k}">${v}</button>`).join('');
+
+  pd.body.innerHTML = `
+    <div class="pip-head">
+      <h3>💸 Cargar transferencia</h3>
+      <span class="pip-cont" id="p-cont">0 cargadas</span>
+    </div>
+    <div class="pip-form">
+      <div class="pip-row">
+        <div class="field"><label>Fecha</label><input type="date" id="p-fecha"></div>
+        <div class="field"><label>Unidad</label><input type="text" id="p-unidad" placeholder="M5-L23"></div>
+      </div>
+      <div class="field"><label>Nombre que transfiere</label><input type="text" id="p-nombre" placeholder="Apellido y Nombre" autocomplete="off"></div>
+      <div class="pip-match" id="p-match"></div>
+      <div class="field"><label>Concepto</label><div class="pip-btns" id="p-btns">${btnsConcepto}</div></div>
+      <div class="field" id="p-det-wrap" style="display:none"><label>Detalle</label><input type="text" id="p-detalle"></div>
+      <div class="pip-row">
+        <div class="field"><label>Monto</label><input type="number" id="p-monto" step="0.01" placeholder="0.00"></div>
+      </div>
+      <div class="field"><label>Observaciones</label><textarea id="p-obs" rows="2"></textarea></div>
+      <button class="pip-guardar" id="p-save">Guardar y seguir</button>
+      <div class="pip-ult" id="p-ult"></div>
+    </div>`;
+
+  const q = sel => pd.querySelector(sel);
+  q('#p-fecha').value = todayISO();
+  let concepto = '';
+  let cargadas = 0;
+
+  q('#p-btns').querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => {
+      q('#p-btns').querySelectorAll('button').forEach(x => x.classList.remove('sel'));
+      b.classList.add('sel');
+      concepto = b.dataset.c;
+      q('#p-det-wrap').style.display = concepto === 'otro' ? 'block' : 'none';
+    });
+  });
+
+  // Al tipear el nombre del extracto, muestra a quién hay que imputarlo.
+  // Es el dato que obliga a abrir otra pantalla, así que va acá adentro.
+  q('#p-nombre').addEventListener('input', () => {
+    const txt = q('#p-nombre').value.trim().toLowerCase();
+    const box = q('#p-match');
+    if (txt.length < 3) { box.style.display = 'none'; return; }
+    const m = (state.identificadores || []).filter(i =>
+      (i.nombre_transfiere || '').toLowerCase().includes(txt));
+    box.style.display = 'block';
+    if (!m.length) {
+      box.className = 'pip-match no';
+      box.textContent = 'Sin identificador cargado para ese nombre';
+    } else {
+      box.className = 'pip-match ok';
+      box.innerHTML = m.slice(0, 3).map(i =>
+        `→ <b>${esc(i.nombre_titular)}</b>${i.numero_cliente ? ` · <span style="font-family:monospace">${esc(i.numero_cliente)}</span>` : ''}`
+      ).join('<br>');
+    }
+  });
+
+  q('#p-save').addEventListener('click', async () => {
+    const btn = q('#p-save');
+    const payload = {
+      fecha: q('#p-fecha').value,
+      nombre_persona: q('#p-nombre').value.trim(),
+      concepto,
+      concepto_detalle: concepto === 'otro' ? (q('#p-detalle').value.trim() || null) : null,
+      unidad: q('#p-unidad').value.trim(),
+      monto: q('#p-monto').value ? parseFloat(q('#p-monto').value) : null,
+      observaciones: q('#p-obs').value.trim() || null,
+    };
+    if (!concepto) { q('#p-ult').textContent = '⚠ Elegí un concepto'; return; }
+    if (!payload.fecha || !payload.nombre_persona || !payload.unidad) {
+      q('#p-ult').textContent = '⚠ Faltan fecha, nombre o unidad'; return;
+    }
+    btn.disabled = true; btn.textContent = 'Guardando...';
+    const { error } = await sb.from('transferencias')
+      .insert({ ...payload, created_by: state.user.id });
+    btn.disabled = false; btn.textContent = 'Guardar y seguir';
+    if (error) { q('#p-ult').textContent = '⚠ ' + error.message; return; }
+
+    cargadas++;
+    q('#p-cont').textContent = `${cargadas} cargada${cargadas === 1 ? '' : 's'}`;
+    q('#p-ult').textContent = `✓ ${payload.nombre_persona} · ${payload.unidad}`;
+
+    // Se limpia solo lo que cambia entre transferencias; la fecha se conserva
+    // porque al cargar un extracto suelen ser todas del mismo día.
+    ['#p-nombre','#p-unidad','#p-monto','#p-obs','#p-detalle'].forEach(s => q(s).value = '');
+    q('#p-match').style.display = 'none';
+    q('#p-nombre').focus();
+
+    await loadTransferencias();
+    renderTransferencias();
+  });
+
+  // Enter en cualquier campo guarda
+  pd.body.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') { e.preventDefault(); q('#p-save').click(); }
+  });
+
+  _pipWin.addEventListener('pagehide', () => { _pipWin = null; });
+  q('#p-nombre').focus();
+}
 
 // =================================================================
 // MODULO: IDENTIFICADOR DE TRANSFERENCIAS
