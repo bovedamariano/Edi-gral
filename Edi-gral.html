@@ -41,6 +41,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.0/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- MSAL: login con la cuenta de Microsoft de Edisur para buscar en Outlook -->
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"></script>
 <style>
 :root{
   --bg:#f6f4ef;
@@ -6267,6 +6269,182 @@ function identificarTransferencia(desc) {
 }
 
 // =================================================================
+// OUTLOOK · buscar mails relacionados con una transferencia
+// =================================================================
+// No guarda NADA: consulta en vivo el buzón del usuario con su propio
+// token (Microsoft Graph, permiso Mail.Read de sólo lectura) y muestra
+// los resultados. El link abre el mail en Outlook web.
+//
+// PARA ACTIVARLO: pegar abajo el "Application (client) ID" que da Azure
+// al registrar la app. Mientras esté vacío, el botón no aparece.
+const OUTLOOK_CLIENT_ID = 'b7686020-bea9-4d9a-b7de-23cd86198ce5';
+const OUTLOOK_TENANT    = '1569716c-5df5-42cd-b349-aece4c117fb5';   // tenant de EDISUR SA
+const OUTLOOK_SCOPES    = ['Mail.Read'];
+
+let _msal = null, _msalListo = false;
+
+function outlookConfigurado() {
+  return !!OUTLOOK_CLIENT_ID && typeof msal !== 'undefined';
+}
+
+async function outlookInit() {
+  if (_msalListo) return _msal;
+  if (!outlookConfigurado()) throw new Error('Outlook no está configurado');
+  _msal = new msal.PublicClientApplication({
+    auth: {
+      clientId: OUTLOOK_CLIENT_ID,
+      authority: `https://login.microsoftonline.com/${OUTLOOK_TENANT}`,
+      redirectUri: location.origin + location.pathname,
+    },
+    cache: { cacheLocation: 'sessionStorage' },   // se borra al cerrar el navegador
+  });
+  await _msal.initialize();
+  _msalListo = true;
+  return _msal;
+}
+
+// Token: primero silencioso; si no hay sesión, popup.
+async function outlookToken() {
+  const app = await outlookInit();
+  const cuentas = app.getAllAccounts();
+  if (cuentas.length) {
+    try {
+      const r = await app.acquireTokenSilent({ scopes: OUTLOOK_SCOPES, account: cuentas[0] });
+      return r.accessToken;
+    } catch (e) { /* cayó la sesión: se pide de nuevo abajo */ }
+  }
+  const r = await app.acquireTokenPopup({ scopes: OUTLOOK_SCOPES });
+  return r.accessToken;
+}
+
+// Variantes de escritura de un importe. Según Mariano, en los mails suele ir
+// sin signo $ y con puntos de miles: 837.900. Igual se prueban otras formas
+// porque alcanza con que un cliente lo escriba distinto para perder el match.
+function variantesImporte(monto) {
+  const n = Number(monto);
+  if (!n || isNaN(n)) return [];
+  const entero = Math.trunc(n);
+  const conPuntos = v => v.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  const set = new Set([
+    conPuntos(entero),                    // 837.900
+    String(entero),                       // 837900
+    conPuntos(entero) + ',' + String(Math.round((n - entero) * 100)).padStart(2, '0'), // 837.900,00
+  ]);
+  if (Math.round(n) !== entero) set.add(conPuntos(Math.round(n)));   // 1.269.420
+  return [...set].filter(Boolean);
+}
+
+// Una consulta a Graph. Devuelve [] ante cualquier problema de esa consulta
+// puntual, para que un término que falla no tumbe la búsqueda entera.
+async function graphBuscar(token, termino) {
+  const url = 'https://graph.microsoft.com/v1.0/me/messages'
+    + `?$search="${encodeURIComponent(termino).replace(/'/g, '%27')}"`
+    + '&$select=id,subject,from,receivedDateTime,bodyPreview,webLink&$top=25';
+  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+  if (r.status === 401) throw new Error('SESION');
+  if (r.status === 403) throw new Error('PERMISO');
+  if (!r.ok) { console.warn('Graph', r.status, termino); _graphFallos++; return []; }
+  const j = await r.json();
+  return (j.value || []).map(m => ({ ...m, _termino: termino }));
+}
+
+// Dos búsquedas SEPARADAS (importe y nombre) porque combinarlas con AND en
+// $search devuelve resultados incompletos. Después se cruzan acá.
+let _graphFallos = 0;
+
+async function buscarMailsDeTransferencia(t) {
+  _graphFallos = 0;
+  const token = await outlookToken();
+  const ident = identificarTransferencia(t.descripcion);
+  const nombreBanco = nombreDeDescripcion(t.descripcion);
+
+  const terminosImporte = variantesImporte(t.importe);
+  const terminosNombre = [...new Set([
+    nombreBanco ? normalizarNombre(nombreBanco).split(' ').slice(0, 2).join(' ') : '',
+    ident ? ident.titular : '',
+  ].filter(x => x && x.length > 3))];
+
+  const [porImporte, porNombre] = await Promise.all([
+    Promise.all(terminosImporte.map(x => graphBuscar(token, x))).then(a => a.flat()),
+    Promise.all(terminosNombre.map(x => graphBuscar(token, x))).then(a => a.flat()),
+  ]);
+
+  const idsImporte = new Set(porImporte.map(m => m.id));
+  const idsNombre = new Set(porNombre.map(m => m.id));
+
+  // Un mail que aparece en las dos búsquedas es una coincidencia fuerte.
+  const porId = new Map();
+  [...porImporte, ...porNombre].forEach(m => { if (!porId.has(m.id)) porId.set(m.id, m); });
+  const fechaT = new Date(t.fecha + 'T00:00:00').getTime();
+
+  const res = [...porId.values()].map(m => {
+    const enAmbas = idsImporte.has(m.id) && idsNombre.has(m.id);
+    const dias = Math.round(Math.abs(new Date(m.receivedDateTime).getTime() - fechaT) / 864e5);
+    return { ...m, enAmbas, porImporte: idsImporte.has(m.id), porNombre: idsNombre.has(m.id), dias };
+  }).sort((a, b) => (b.enAmbas - a.enAmbas) || (a.dias - b.dias));
+  // Si TODAS las consultas fallaron, "sin resultados" sería mentira.
+  if (!res.length && _graphFallos && _graphFallos >= terminosImporte.length + terminosNombre.length) {
+    throw new Error('Outlook no respondió a ninguna consulta. Probá de nuevo en un rato.');
+  }
+  return res;
+}
+
+window.buscarMailsTransf = async function(id) {
+  const t = (state.transfBanco || []).find(x => x.id === id);
+  if (!t) return;
+  if (!outlookConfigurado()) {
+    toast('Falta configurar el ID de la app de Outlook (ver OUTLOOK_CLIENT_ID en el código)', 'warn');
+    return;
+  }
+  showModal(`<div class="modal-head"><h3>📧 Mails relacionados</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body"><div id="om-cuerpo" style="text-align:center;padding:30px;color:var(--ink-3)">Buscando en tu buzón...</div></div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Cerrar</button></div>`);
+
+  let res;
+  try {
+    res = await buscarMailsDeTransferencia(t);
+  } catch (e) {
+    const msg = e.message === 'PERMISO'
+      ? 'Tu cuenta no tiene permiso Mail.Read. Hay que aprobarlo desde el panel de Microsoft 365.'
+      : e.message === 'SESION'
+      ? 'Se venció la sesión de Microsoft. Cerrá y volvé a intentar.'
+      : 'No se pudo consultar Outlook: ' + e.message;
+    const c = $('#om-cuerpo');
+    if (c) c.innerHTML = `<div style="color:var(--err);padding:16px">${esc(msg)}</div>`;
+    return;
+  }
+
+  const c = $('#om-cuerpo');
+  if (!c) return;   // el usuario cerró el modal mientras buscaba
+
+  if (!res.length) {
+    c.innerHTML = `<div style="padding:20px">Sin resultados para <b>${esc(variantesImporte(t.importe)[0] || '')}</b> ni para el nombre del extracto.
+      <div class="hint" style="margin-top:8px">Puede que el mail escriba el importe de otra forma, o que esté en una casilla compartida.</div></div>`;
+    return;
+  }
+
+  c.style.textAlign = 'left'; c.style.padding = '0'; c.style.color = 'var(--ink)';
+  c.innerHTML = res.map(m => {
+    const etiquetas = m.enAmbas
+      ? '<span class="badge ok">importe + nombre</span>'
+      : (m.porImporte ? '<span class="badge accent">importe</span>' : '<span class="badge muted">nombre</span>');
+    const cerca = m.dias === 0 ? 'mismo día' : `${m.dias} día${m.dias === 1 ? '' : 's'} de diferencia`;
+    return `<div style="border:1px solid var(--line);border-left-width:3px;border-left-color:${m.enAmbas ? 'var(--ok)' : 'var(--line)'};border-radius:var(--radius);padding:9px 11px;margin-bottom:8px">
+      <div style="display:flex;gap:8px;align-items:baseline;justify-content:space-between">
+        <b style="font-size:.92rem">${esc(m.subject || '(sin asunto)')}</b>
+        ${etiquetas}
+      </div>
+      <div class="muted" style="font-size:.78rem;margin:2px 0 5px">
+        ${esc(m.from?.emailAddress?.name || m.from?.emailAddress?.address || '—')} ·
+        ${fmtFecha(m.receivedDateTime.slice(0,10))} · ${cerca}
+      </div>
+      <div style="font-size:.8rem;color:var(--ink-2);max-height:2.6em;overflow:hidden">${esc(m.bodyPreview || '')}</div>
+      <a href="${esc(m.webLink)}" target="_blank" rel="noopener" class="btn ghost sm" style="margin-top:7px;display:inline-block">Abrir en Outlook ↗</a>
+    </div>`;
+  }).join('');
+};
+
+// =================================================================
 // MODULO: TRANSFERENCIAS POR BANCO (importación masiva de extractos)
 // =================================================================
 const MONEDAS = { ARS: '$', USD: 'US$', UVI: 'UVI' };
@@ -6372,6 +6550,7 @@ function renderTransfBanco() {
       <td class="num">${t.cotiz_usd != null ? fmt(t.cotiz_usd) : '<span class="muted">—</span>'}</td>
       <td class="num">${t.cotiz_uvi != null ? fmt(t.cotiz_uvi) : '<span class="muted">—</span>'}</td>
       <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
+        ${outlookConfigurado() ? `<button class="btn ghost sm" onclick="buscarMailsTransf('${t.id}')" title="Buscar mails relacionados en Outlook">📧</button>` : ''}
         <button class="btn ghost sm" onclick="verTransfFlotante('${t.id}')" title="Abrir en ventana flotante">🪟</button>
         <button class="btn ${t.realizada ? 'ghost' : 'accent'} sm" onclick="toggleRealizada('${t.id}')">${t.realizada ? '↩' : '✓'}</button>
       </td>
