@@ -6576,44 +6576,43 @@ let _pipLect = null;
 async function abrirFlotanteLectura(t) {
   if (!pipDisponible()) { toast('Tu navegador no soporta ventana flotante. Usá Chrome o Edge.', 'warn'); return; }
   if (!_pipLect || _pipLect.closed) {
-    try { _pipLect = await documentPictureInPicture.requestWindow({ width: 400, height: 330 }); }
+    try { _pipLect = await documentPictureInPicture.requestWindow({ width: 480, height: 205 }); }
     catch (e) { toast('No se pudo abrir: ' + e.message, 'err'); return; }
     const est = document.querySelector('style');
     if (est) { const s = _pipLect.document.createElement('style'); s.textContent = est.textContent; _pipLect.document.head.appendChild(s); }
     const p = _pipLect.document.createElement('style');
     p.textContent = `
-      /* Todo tiene que entrar sin scroll en una ventana chica: tipografías
-         justas, sin márgenes muertos y los datos en grilla en vez de apilados. */
-      body{margin:0;padding:9px 11px;background:var(--bg);font-family:var(--font);
+      /* Máxima densidad: una sola fila de datos, descripción en un renglón
+         (el texto completo va en el title) y sin nada que no aporte. */
+      body{margin:0;padding:7px 9px;background:var(--bg);font-family:var(--font);
            display:flex;flex-direction:column;height:100vh;box-sizing:border-box;overflow:hidden}
-      .fl-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:5px}
-      .fl-cta{font-size:.8rem;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .fl-cta span{font-weight:400;font-size:.68rem;color:var(--ink-3);margin-left:4px}
-      .fl-pos{font-size:.7rem;color:var(--ink-3);white-space:nowrap}
-      .fl-desc{font-size:.78rem;line-height:1.35;color:var(--ink);background:var(--surface);
-               border:1px solid var(--line);border-radius:var(--radius);padding:5px 7px;margin-bottom:5px;
-               display:flex;gap:6px;align-items:flex-start}
-      .fl-desc span{flex:1;word-break:break-word;max-height:2.7em;overflow:hidden}
-      .fl-ident{font-size:.76rem;padding:4px 7px;border-radius:var(--radius);margin-bottom:6px;line-height:1.3}
+      .fl-top{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+      .fl-cta{font-size:.74rem;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .fl-cta span{font-weight:400;font-size:.62rem;color:var(--ink-3);margin-left:3px}
+      .fl-pos{font-size:.66rem;color:var(--ink-3);white-space:nowrap}
+      .fl-desc{font-size:.75rem;color:var(--ink);margin:3px 0;display:flex;gap:4px;align-items:center}
+      .fl-desc span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:help}
+      .fl-ident{font-size:.73rem;padding:2px 6px;border-radius:4px;margin-bottom:4px;line-height:1.35;
+                white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .fl-ident.ok{background:var(--accent-soft);border:1px solid var(--accent-2);color:var(--ink)}
       .fl-ident.duda{background:#fff7ed;border:1px solid var(--warn);color:#92400e}
-      .fl-ident.no{background:var(--surface-2);border:1px solid var(--line);color:var(--ink-3);font-size:.72rem}
-      .fl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 7px;flex:1;align-content:start}
-      .fl-c{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:4px 6px;min-width:0}
-      .fl-c.w2{grid-column:span 2}
-      .fl-lab{font-size:.6rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);line-height:1.2}
-      .fl-val{font-size:.9rem;font-weight:700;color:var(--ink);display:flex;gap:4px;align-items:center;
-              white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .fl-val.mono{font-family:monospace;font-size:.82rem}
-      .fl-val small{font-weight:400;font-size:.72rem;color:var(--warn)}
-      button.cp{font-size:.6rem;padding:0 3px;border:1px solid var(--line);background:var(--bg);
-                border-radius:3px;cursor:pointer;flex-shrink:0;line-height:1.4;opacity:.65}
-      button.cp:hover{opacity:1;background:var(--accent-soft)}
-      .fl-nav{display:flex;gap:5px;margin-top:7px;flex-shrink:0}
-      .fl-nav button{padding:7px 4px;border:none;border-radius:var(--radius);cursor:pointer;font-size:.78rem}
+      .fl-ident.no{background:var(--surface-2);border:1px solid var(--line);color:var(--ink-3);font-size:.69rem}
+      .fl-grid{display:grid;grid-template-columns:minmax(0,.78fr) minmax(0,1.08fr) minmax(0,1fr) minmax(0,.82fr) minmax(0,.82fr);gap:5px;
+               background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:4px 6px}
+      .fl-c{min-width:0}
+      .fl-lab{font-size:.55rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);line-height:1.1}
+      .fl-val{font-size:.78rem;font-weight:700;color:var(--ink);display:flex;gap:2px;align-items:center;
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+      .fl-val.mono{font-family:monospace;font-size:.7rem;letter-spacing:-.02em}
+      .fl-val small{font-weight:400;font-size:.66rem;color:var(--warn)}
+      button.cp{font-size:.58rem;padding:0 2px;border:none;background:transparent;
+                cursor:pointer;flex-shrink:0;opacity:.5;color:var(--ink-3)}
+      button.cp:hover{opacity:1;color:var(--accent)}
+      .fl-nav{display:flex;gap:4px;margin-top:auto;padding-top:5px;flex-shrink:0}
+      .fl-nav button{padding:6px 4px;border:none;border-radius:var(--radius);cursor:pointer;font-size:.76rem}
       .fl-nav .fl-ok{flex:1;background:var(--accent);color:#fff;font-weight:700}
-      .fl-nav .fl-sec{width:38px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink);font-size:.9rem}
-      .fl-nav button:disabled{opacity:.35;cursor:default}`;
+      .fl-nav .fl-sec{width:32px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink);font-size:.85rem}
+      .fl-nav button:disabled{opacity:.3;cursor:default}`;
     _pipLect.document.head.appendChild(p);
     _pipLect.addEventListener('pagehide', () => { _pipLect = null; });
   }
@@ -6641,26 +6640,26 @@ function pintarFlotanteLectura(t) {
   const ident = identificarTransferencia(t.descripcion);
 
   const cp = v => `<button class="cp" title="Copiar" onclick="navigator.clipboard.writeText('${String(v).replace(/'/g, "\\'")}')">⎘</button>`;
-  const celda = (lab, val, cls = '', ancho = '') =>
-    `<div class="fl-c ${ancho}"><div class="fl-lab">${lab}</div><div class="fl-val ${cls}">${val}</div></div>`;
-  const sinDato = '<small>sin cargar</small>';
+  const celda = (lab, val, cls = '') =>
+    `<div class="fl-c"><div class="fl-lab">${lab}</div><div class="fl-val ${cls}">${val}</div></div>`;
+  const sinDato = '<small>—</small>';
 
   pd.body.innerHTML = `
     <div class="fl-top">
       <div class="fl-cta">${esc(cta ? `${cta.banco} · ${cta.nombre}` : '—')}<span>${cta?.moneda || ''}</span></div>
-      <div class="fl-pos">${idx + 1} / ${pend.length}</div>
+      <div class="fl-pos">${idx + 1}/${pend.length}</div>
     </div>
-    <div class="fl-desc"><span>${esc(t.descripcion)}</span>${cp(t.descripcion)}</div>
-    ${ident ? `<div class="fl-ident ${ident.seguro ? 'ok' : 'duda'}">
-        ${ident.seguro ? '✓ Identificada como' : '≈ ¿Será'} <b>${esc(ident.titular)}</b>${ident.seguro ? '' : '?'}${ident.nc ? ` · ${esc(ident.nc)}` : ''}${cp(ident.titular)}
+    <div class="fl-desc"><span title="${esc(t.descripcion)}">${esc(t.descripcion)}</span>${cp(t.descripcion)}</div>
+    ${ident ? `<div class="fl-ident ${ident.seguro ? 'ok' : 'duda'}" title="${ident.seguro ? 'según' : 'se parece a'} ${esc(ident.coincide)}">
+        ${ident.seguro ? '✓' : '≈ ¿'}<b>${esc(ident.titular)}</b>${ident.seguro ? '' : '?'}${ident.nc ? ` · ${esc(ident.nc)}` : ''}${cp(ident.titular)}
       </div>`
-      : `<div class="fl-ident no">Sin identificador para "${esc(nombreDeDescripcion(t.descripcion) || '—')}"</div>`}
+      : `<div class="fl-ident no" title="No hay identificador cargado">Sin identificador · ${esc(nombreDeDescripcion(t.descripcion) || '—')}</div>`}
     <div class="fl-grid">
-      ${celda('Fecha', fmtFecha(t.fecha))}
-      ${celda('Importe', `${simb} ${fmt(t.importe)} ${cp(t.importe)}`, '', 'w2')}
-      ${celda('CUIT', cuit ? `${cuit} ${cp(cuit)}` : '<small>no detectado</small>', 'mono')}
-      ${celda(`USD BNA${t.cotiz_usd != null ? ' ✓' : ''}`, usdRef != null ? `${fmt(usdRef)} ${cp(usdRef)}` : sinDato)}
-      ${celda(`UVI${t.cotiz_uvi != null ? ' ✓' : ''}`, uviRef != null ? `${fmt(uviRef)} ${cp(uviRef)}` : sinDato)}
+      ${celda('Fecha', t.fecha.slice(8,10) + '/' + t.fecha.slice(5,7) + '/' + t.fecha.slice(2,4))}
+      ${celda(`Importe ${simb}`, `${fmt(t.importe)}${cp(t.importe)}`)}
+      ${celda('CUIT', cuit ? `${cuit}${cp(cuit)}` : sinDato, 'mono')}
+      ${celda(`USD${t.cotiz_usd != null ? '✓' : ''}`, usdRef != null ? `${fmt(usdRef)}${cp(usdRef)}` : sinDato)}
+      ${celda(`UVI${t.cotiz_uvi != null ? '✓' : ''}`, uviRef != null ? `${fmt(uviRef)}${cp(uviRef)}` : sinDato)}
     </div>
     <div class="fl-nav">
       <button class="fl-sec" id="fl-prev" title="Anterior" ${idx <= 0 ? 'disabled' : ''}>←</button>
