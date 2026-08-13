@@ -6576,26 +6576,44 @@ let _pipLect = null;
 async function abrirFlotanteLectura(t) {
   if (!pipDisponible()) { toast('Tu navegador no soporta ventana flotante. Usá Chrome o Edge.', 'warn'); return; }
   if (!_pipLect || _pipLect.closed) {
-    try { _pipLect = await documentPictureInPicture.requestWindow({ width: 470, height: 470 }); }
+    try { _pipLect = await documentPictureInPicture.requestWindow({ width: 400, height: 330 }); }
     catch (e) { toast('No se pudo abrir: ' + e.message, 'err'); return; }
     const est = document.querySelector('style');
     if (est) { const s = _pipLect.document.createElement('style'); s.textContent = est.textContent; _pipLect.document.head.appendChild(s); }
     const p = _pipLect.document.createElement('style');
-    p.textContent = `body{margin:0;padding:14px;background:var(--bg);font-family:var(--font)}
-      .fl-campo{margin-bottom:10px}
-      .fl-lab{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);margin-bottom:2px}
-      .fl-val{font-size:1rem;font-weight:600;color:var(--ink);word-break:break-word;display:flex;gap:8px;align-items:flex-start}
-      .fl-val button{font-size:.68rem;padding:2px 6px;border:1px solid var(--line);background:var(--surface);border-radius:4px;cursor:pointer;flex-shrink:0}
-      .fl-row{display:flex;gap:14px}.fl-row>div{flex:1}
-      .fl-ident{font-size:.82rem;padding:7px 9px;border-radius:var(--radius);margin-bottom:10px}
+    p.textContent = `
+      /* Todo tiene que entrar sin scroll en una ventana chica: tipografías
+         justas, sin márgenes muertos y los datos en grilla en vez de apilados. */
+      body{margin:0;padding:9px 11px;background:var(--bg);font-family:var(--font);
+           display:flex;flex-direction:column;height:100vh;box-sizing:border-box;overflow:hidden}
+      .fl-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:5px}
+      .fl-cta{font-size:.8rem;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .fl-cta span{font-weight:400;font-size:.68rem;color:var(--ink-3);margin-left:4px}
+      .fl-pos{font-size:.7rem;color:var(--ink-3);white-space:nowrap}
+      .fl-desc{font-size:.78rem;line-height:1.35;color:var(--ink);background:var(--surface);
+               border:1px solid var(--line);border-radius:var(--radius);padding:5px 7px;margin-bottom:5px;
+               display:flex;gap:6px;align-items:flex-start}
+      .fl-desc span{flex:1;word-break:break-word;max-height:2.7em;overflow:hidden}
+      .fl-ident{font-size:.76rem;padding:4px 7px;border-radius:var(--radius);margin-bottom:6px;line-height:1.3}
       .fl-ident.ok{background:var(--accent-soft);border:1px solid var(--accent-2);color:var(--ink)}
       .fl-ident.duda{background:#fff7ed;border:1px solid var(--warn);color:#92400e}
-      .fl-ident.no{background:var(--surface-2);border:1px solid var(--line);color:var(--ink-3);font-size:.76rem}
-      .fl-ident button{margin-left:4px}
-      .fl-nav{display:flex;gap:6px;margin-top:12px}
-      .fl-nav button{flex:1;padding:8px;border:none;border-radius:var(--radius);cursor:pointer;font-size:.82rem}
-      .fl-ok{background:var(--accent);color:#fff;font-weight:600}
-      .fl-sec{background:var(--surface-2);border:1px solid var(--line);color:var(--ink)}`;
+      .fl-ident.no{background:var(--surface-2);border:1px solid var(--line);color:var(--ink-3);font-size:.72rem}
+      .fl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px 7px;flex:1;align-content:start}
+      .fl-c{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:4px 6px;min-width:0}
+      .fl-c.w2{grid-column:span 2}
+      .fl-lab{font-size:.6rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);line-height:1.2}
+      .fl-val{font-size:.9rem;font-weight:700;color:var(--ink);display:flex;gap:4px;align-items:center;
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .fl-val.mono{font-family:monospace;font-size:.82rem}
+      .fl-val small{font-weight:400;font-size:.72rem;color:var(--warn)}
+      button.cp{font-size:.6rem;padding:0 3px;border:1px solid var(--line);background:var(--bg);
+                border-radius:3px;cursor:pointer;flex-shrink:0;line-height:1.4;opacity:.65}
+      button.cp:hover{opacity:1;background:var(--accent-soft)}
+      .fl-nav{display:flex;gap:5px;margin-top:7px;flex-shrink:0}
+      .fl-nav button{padding:7px 4px;border:none;border-radius:var(--radius);cursor:pointer;font-size:.78rem}
+      .fl-nav .fl-ok{flex:1;background:var(--accent);color:#fff;font-weight:700}
+      .fl-nav .fl-sec{width:38px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink);font-size:.9rem}
+      .fl-nav button:disabled{opacity:.35;cursor:default}`;
     _pipLect.document.head.appendChild(p);
     _pipLect.addEventListener('pagehide', () => { _pipLect = null; });
   }
@@ -6622,34 +6640,33 @@ function pintarFlotanteLectura(t) {
 
   const ident = identificarTransferencia(t.descripcion);
 
-  const copiar = (v) => `<button onclick="navigator.clipboard.writeText('${String(v).replace(/'/g, "\\'")}')">⎘</button>`;
+  const cp = v => `<button class="cp" title="Copiar" onclick="navigator.clipboard.writeText('${String(v).replace(/'/g, "\\'")}')">⎘</button>`;
+  const celda = (lab, val, cls = '', ancho = '') =>
+    `<div class="fl-c ${ancho}"><div class="fl-lab">${lab}</div><div class="fl-val ${cls}">${val}</div></div>`;
+  const sinDato = '<small>sin cargar</small>';
+
   pd.body.innerHTML = `
-    <div class="fl-campo"><div class="fl-lab">Cuenta</div>
-      <div class="fl-val" style="font-size:.86rem">${esc(cta ? `${cta.banco} · ${cta.nombre}` : '—')} <span class="badge muted" style="font-size:.66rem">${cta?.moneda || ''}</span></div></div>
-    <div class="fl-campo"><div class="fl-lab">Descripción</div>
-      <div class="fl-val" style="font-size:.88rem">${esc(t.descripcion)} ${copiar(t.descripcion)}</div></div>
-    ${ident ? `<div class="fl-ident ${ident.seguro ? 'ok' : 'duda'}">
-        ${ident.seguro ? 'Transferencia identificada como' : '¿Será'} <b>${esc(ident.titular)}</b>${ident.seguro ? '' : '?'}
-        ${ident.nc ? ` <span style="font-family:monospace;font-size:.74rem">· ${esc(ident.nc)}</span>` : ''}
-        <div style="font-size:.7rem;opacity:.8;margin-top:2px">${ident.seguro ? 'según' : 'se parece a'} "${esc(ident.coincide)}" ${copiar(ident.titular)}</div>
-      </div>` : `<div class="fl-ident no">Sin identificador cargado para "${esc(nombreDeDescripcion(t.descripcion) || '—')}"</div>`}
-    <div class="fl-row">
-      <div class="fl-campo"><div class="fl-lab">Fecha</div><div class="fl-val">${fmtFecha(t.fecha)}</div></div>
-      <div class="fl-campo"><div class="fl-lab">Importe</div><div class="fl-val">${simb} ${fmt(t.importe)} ${copiar(t.importe)}</div></div>
+    <div class="fl-top">
+      <div class="fl-cta">${esc(cta ? `${cta.banco} · ${cta.nombre}` : '—')}<span>${cta?.moneda || ''}</span></div>
+      <div class="fl-pos">${idx + 1} / ${pend.length}</div>
     </div>
-    ${cuit ? `<div class="fl-campo"><div class="fl-lab">CUIT detectado</div><div class="fl-val" style="font-family:monospace">${cuit} ${copiar(cuit)}</div></div>` : ''}
-    <div class="fl-row">
-      <div class="fl-campo"><div class="fl-lab">USD BNA comprador${congelada && t.cotiz_usd != null ? ' (imputado)' : ''}</div>
-        <div class="fl-val">${usdRef != null ? fmt(usdRef) + ' ' + copiar(usdRef) : '<span style="color:var(--warn);font-size:.8rem">sin cargar</span>'}</div></div>
-      <div class="fl-campo"><div class="fl-lab">UVI${congelada && t.cotiz_uvi != null ? ' (imputado)' : ''}</div>
-        <div class="fl-val">${uviRef != null ? fmt(uviRef) + ' ' + copiar(uviRef) : '<span style="color:var(--warn);font-size:.8rem">sin cargar</span>'}</div></div>
+    <div class="fl-desc"><span>${esc(t.descripcion)}</span>${cp(t.descripcion)}</div>
+    ${ident ? `<div class="fl-ident ${ident.seguro ? 'ok' : 'duda'}">
+        ${ident.seguro ? '✓ Identificada como' : '≈ ¿Será'} <b>${esc(ident.titular)}</b>${ident.seguro ? '' : '?'}${ident.nc ? ` · ${esc(ident.nc)}` : ''}${cp(ident.titular)}
+      </div>`
+      : `<div class="fl-ident no">Sin identificador para "${esc(nombreDeDescripcion(t.descripcion) || '—')}"</div>`}
+    <div class="fl-grid">
+      ${celda('Fecha', fmtFecha(t.fecha))}
+      ${celda('Importe', `${simb} ${fmt(t.importe)} ${cp(t.importe)}`, '', 'w2')}
+      ${celda('CUIT', cuit ? `${cuit} ${cp(cuit)}` : '<small>no detectado</small>', 'mono')}
+      ${celda(`USD BNA${t.cotiz_usd != null ? ' ✓' : ''}`, usdRef != null ? `${fmt(usdRef)} ${cp(usdRef)}` : sinDato)}
+      ${celda(`UVI${t.cotiz_uvi != null ? ' ✓' : ''}`, uviRef != null ? `${fmt(uviRef)} ${cp(uviRef)}` : sinDato)}
     </div>
     <div class="fl-nav">
-      <button class="fl-sec" id="fl-prev" ${idx <= 0 ? 'disabled' : ''}>← Anterior</button>
+      <button class="fl-sec" id="fl-prev" title="Anterior" ${idx <= 0 ? 'disabled' : ''}>←</button>
       <button class="fl-ok" id="fl-hecho">${t.realizada ? '↩ Volver a pendiente' : '✓ Realizada y siguiente'}</button>
-      <button class="fl-sec" id="fl-next" ${idx < 0 || idx >= pend.length - 1 ? 'disabled' : ''}>Siguiente →</button>
-    </div>
-    <div style="text-align:center;font-size:.72rem;color:var(--ink-3);margin-top:8px">${idx + 1} de ${pend.length}</div>`;
+      <button class="fl-sec" id="fl-next" title="Siguiente" ${idx < 0 || idx >= pend.length - 1 ? 'disabled' : ''}>→</button>
+    </div>`;
 
   const ir = d => { const n = pend[idx + d]; if (n) pintarFlotanteLectura(n); };
   pd.getElementById('fl-prev').onclick = () => ir(-1);
@@ -6778,15 +6795,24 @@ function parsearBulkCotiz(texto, modo) {
       const n = Number(x);
       return isNaN(n) ? null : n;
     };
-    const fecha = (() => {
-      const s = p[0] || '';
-      let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    const aFecha = s => {
+      let m = String(s).match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
       if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
-      m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+      m = String(s).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
       if (m) { const a = m[3].length === 2 ? '20' + m[3] : m[3];
                return `${a}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; }
       return null;
-    })();
+    };
+    // La planilla del banco suele traer una columna previa ("Dolar U.S.A") y una
+    // fila de encabezado. Se busca el primer token que sea una fecha y se toman
+    // los números que vienen después; una línea sin fecha se saltea sin ruido.
+    const posFecha = p.findIndex(x => aFecha(x));
+    if (posFecha === -1) {
+      if (/moneda|fecha|compra|venta|valor/i.test(l)) return;   // encabezado
+      errores.push(`línea ${i+1}: no encontré una fecha`); return;
+    }
+    p = p.slice(posFecha);
+    const fecha = aFecha(p[0]);
     if (!fecha) { errores.push(`línea ${i+1}: fecha inválida`); return; }
     if (modo === 'bna') {
       const compra = num(p[1]), venta = num(p[2]);
