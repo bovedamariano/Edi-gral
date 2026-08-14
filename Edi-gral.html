@@ -1460,6 +1460,8 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <input type="file" id="tb-file" accept=".xlsx,.xls" style="display:none">
           <button class="btn ghost sm" id="tb-flotante">🪟 Ventana flotante</button>
           <button class="btn ghost sm" id="tb-excel">↓ Excel</button>
+          <button class="btn ghost sm" id="tb-uvis" title="Exporta sólo las identificadas, en el formato de UVIs">↓ Formato UVIs</button>
+          <button class="btn ghost sm" id="tb-borrar-pend" title="Borra todas las pendientes de esta cuenta (requiere admin)" style="color:var(--err)">🗑 Borrar pendientes</button>
           <span id="tb-resumen" class="hint" style="margin-left:auto"></span>
         </div>
 
@@ -6269,6 +6271,214 @@ function identificarTransferencia(desc) {
 }
 
 // =================================================================
+// EXPORTAR IDENTIFICADAS AL FORMATO UVIs
+// =================================================================
+// Columnas exactas del template: CLIENTES | FACTURA | COTI UVIS |
+// MONTO DE TRANSFERENCIA | FECHA DE TRANSFERENCIA
+// Sólo entran las identificadas con certeza (nombre exacto o mismas
+// palabras). Las "posibles" quedan afuera a propósito: exportar una
+// imputación dudosa a un sistema contable es peor que exportar de menos.
+function exportarUvis() {
+  const cta = cuentaTBActual();
+  if (!cta) { toast('Elegí una cuenta', 'warn'); return; }
+  const base = transfBancoFiltradas();
+  if (!base.length) { toast('No hay transferencias en la vista actual', 'warn'); return; }
+
+  const uviPorFecha = {};
+  (state.uvi || []).forEach(u => { uviPorFecha[u.fecha] = Number(u.valor); });
+
+  const filas = [], sinIdent = [], sinUvi = [], sinCliente = [];
+  base.forEach(t => {
+    const id = identificarTransferencia(t.descripcion);
+    if (!id || !id.seguro) { sinIdent.push(t); return; }
+    if (!id.nc) { sinCliente.push({ t, id }); return; }
+    const uvi = t.cotiz_uvi != null ? Number(t.cotiz_uvi) : uviPorFecha[t.fecha];
+    if (uvi == null) { sinUvi.push(t); return; }
+    filas.push({
+      cliente: Number(id.nc),
+      uvi,
+      monto: Number(t.importe),
+      fecha: t.fecha,
+      _titular: id.titular,
+    });
+  });
+
+  if (!filas.length) {
+    toast(`Ninguna transferencia identificada con certeza${sinUvi.length ? ' y con UVI cargada' : ''}`, 'warn');
+    return;
+  }
+
+  const detalle = [
+    `<b>${filas.length}</b> transferencias listas para exportar`,
+    sinIdent.length ? `${sinIdent.length} sin identificar con certeza (quedan afuera)` : '',
+    sinCliente.length ? `${sinCliente.length} identificadas pero sin N° de cliente cargado` : '',
+    sinUvi.length ? `<span style="color:var(--warn)">⚠ ${sinUvi.length} sin cotización UVI para su fecha (quedan afuera)</span>` : '',
+  ].filter(Boolean);
+
+  showModal(`<div class="modal-head"><h3>Exportar formato UVIs</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <ul style="margin:0 0 12px 18px;line-height:1.7">${detalle.map(d => `<li>${d}</li>`).join('')}</ul>
+      <div class="tbl-wrap" style="max-height:260px;overflow:auto"><table class="tbl">
+        <thead><tr><th>Cliente</th><th>Titular</th><th class="num">Coti UVIs</th><th class="num">Monto</th><th>Fecha</th></tr></thead>
+        <tbody>${filas.slice(0, 60).map(f => `<tr><td>${f.cliente}</td><td>${esc(f._titular)}</td>
+          <td class="num">${fmt(f.uvi)}</td><td class="num">${fmt(f.monto)}</td><td>${fmtFecha(f.fecha)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      ${filas.length > 60 ? `<p class="hint" style="margin-top:8px">Mostrando 60 de ${filas.length}.</p>` : ''}
+      ${sinIdent.length ? `<details style="margin-top:10px"><summary style="cursor:pointer;font-size:.85rem;color:var(--accent)">Ver las ${sinIdent.length} que quedan afuera</summary>
+        <div style="max-height:150px;overflow:auto;font-size:.78rem;padding:8px 0">
+        ${sinIdent.map(t => `<div style="padding:2px 0">${fmtFecha(t.fecha)} · ${esc(t.descripcion.slice(0,70))} · ${fmt(t.importe)}</div>`).join('')}
+        </div></details>` : ''}
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" id="uvi-bajar">Descargar Excel</button>
+    </div>`);
+
+  $('#uvi-bajar').addEventListener('click', () => {
+    // La fecha va como número de serie de Excel (días desde el 30/12/1899)
+    // con formato de fecha. Pasar un objeto Date depende de que la librería lo
+    // reconozca, y eso falla si Date viene de otro contexto de ejecución.
+    const aSerial = iso => {
+      const [a, m, d] = iso.split('-').map(Number);
+      return Math.round((Date.UTC(a, m - 1, d) - Date.UTC(1899, 11, 30)) / 864e5);
+    };
+    const aoa = [['CLIENTES ', 'FACTURA', 'COTI UVIS ', 'MONTO DE TRANSFERENCIA ', 'FECHA DE TRANSFERENCIA']];
+    filas.forEach(f => aoa.push([f.cliente, null, f.uvi, f.monto, aSerial(f.fecha)]));
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    // Formatos como en el archivo modelo: números con 2 decimales y fecha real
+    const contable = '_-* #,##0.00_-;\\-* #,##0.00_-;_-* "-"??_-;_-@_-';
+    for (let i = 0; i < filas.length; i++) {
+      const r = i + 2;
+      ['C', 'D'].forEach(col => { const c = ws[col + r]; if (c) c.z = contable; });
+      const e = ws['E' + r]; if (e) { e.t = 'n'; e.z = 'mm-dd-yy'; }
+    }
+    ws['!cols'] = [{ wch: 11 }, { wch: 10 }, { wch: 12 }, { wch: 24 }, { wch: 22 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Hoja1');
+    XLSX.writeFile(wb, `UVIs-${cta.banco}-${todayISO()}.xlsx`);
+    closeModal();
+    toast(`${filas.length} transferencias exportadas`, 'ok');
+  });
+}
+
+// =================================================================
+// BORRAR PENDIENTES DE UNA CUENTA (sólo admin, con contraseña)
+// =================================================================
+window.borrarPendientesCuenta = function() {
+  const cta = cuentaTBActual();
+  if (!cta) { toast('Elegí una cuenta', 'warn'); return; }
+  const pendientes = (state.transfBanco || []).filter(t => t.cuenta_id === cta.id && !t.realizada);
+  if (!pendientes.length) { toast('No hay pendientes en esta cuenta', 'warn'); return; }
+  const realizadas = (state.transfBanco || []).filter(t => t.cuenta_id === cta.id && t.realizada).length;
+  const total = pendientes.reduce((a, t) => a + Number(t.importe || 0), 0);
+
+  showModal(`<div class="modal-head"><h3>⚠ Borrar pendientes</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p style="margin-bottom:10px">Se van a borrar <b>${pendientes.length}</b> transferencias pendientes de
+        <b>${esc(cta.banco)} · ${esc(cta.nombre)}</b> por ${MONEDAS[cta.moneda]} ${fmt(total)}.</p>
+      <p class="hint" style="margin-bottom:12px">
+        ${realizadas ? `Las ${realizadas} ya marcadas como realizadas NO se tocan.` : 'No hay realizadas en esta cuenta.'}
+        <br>Esta acción no se puede deshacer. Después vas a poder volver a importar el reporte.</p>
+      <p style="margin-bottom:10px;color:var(--ink-2);font-size:.85rem">Autorizá con un usuario administrador.</p>
+      <div class="field"><label>Usuario</label>
+        <input type="text" id="bp-user" autocomplete="off" value="${esc(state.profile?.usuario || '')}"></div>
+      <div class="field"><label>Contraseña</label>
+        <input type="password" id="bp-pass" autocomplete="off" placeholder="Contraseña del administrador"></div>
+      <div id="bp-err" style="color:var(--err);font-size:.85rem;margin-top:6px;display:none"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" id="bp-btn" style="background:var(--err)">Borrar ${pendientes.length}</button>
+    </div>`);
+
+  setTimeout(() => { const u = $('#bp-user'); (u && u.value ? $('#bp-pass') : u).focus(); }, 100);
+  $('#bp-pass').addEventListener('keypress', e => { if (e.key === 'Enter') $('#bp-btn').click(); });
+
+  $('#bp-btn').addEventListener('click', async () => {
+    const btn = $('#bp-btn'), errEl = $('#bp-err');
+    const usuario = $('#bp-user').value.trim(), pass = $('#bp-pass').value;
+    const fallar = m => { errEl.textContent = m; errEl.style.display = 'block';
+                          btn.disabled = false; btn.textContent = `Borrar ${pendientes.length}`; };
+    errEl.style.display = 'none';
+    if (!usuario || !pass) return fallar('Completá usuario y contraseña');
+    btn.disabled = true; btn.textContent = 'Verificando...';
+
+    // Se valida contra Supabase en un cliente aparte para no tocar la sesión
+    // actual, y se exige rol admin. No hay contraseña escrita en el código.
+    let sbAux;
+    try {
+      sbAux = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false,
+                storageKey: 'sb-bp-aux-' + Date.now() }
+      });
+      const { data, error } = await sbAux.auth.signInWithPassword({ email: userToEmail(usuario), password: pass });
+      if (error) { $('#bp-pass').value = ''; $('#bp-pass').focus(); return fallar('Usuario o contraseña incorrectos'); }
+      const { data: perfil } = await sbAux.from('profiles').select('rol,activo').eq('id', data.user.id).single();
+      if (!perfil || !perfil.activo) { await sbAux.auth.signOut(); return fallar('Ese usuario no está activo'); }
+      if (perfil.rol !== 'admin') { await sbAux.auth.signOut(); return fallar('Sólo un administrador puede borrar transferencias'); }
+    } catch (e) { return fallar('Error de verificación: ' + (e.message || 'desconocido')); }
+
+    btn.textContent = 'Borrando...';
+    const { error } = await sb.from('transferencias_banco')
+      .delete().eq('cuenta_id', cta.id).eq('realizada', false);
+    try { await sbAux.auth.signOut(); } catch (e) { /* no crítico */ }
+    if (error) return fallar(error.message);
+
+    closeModal();
+    toast(`${pendientes.length} transferencias pendientes borradas`, 'ok');
+    _tbSel.clear();
+    await loadTransferenciasBanco(); renderTransfBanco();
+  });
+};
+
+// =================================================================
+// MATCH CON CESIONES
+// =================================================================
+// Las cesiones suelen cobrarse por transferencia. Se cruzan por importe
+// exacto y cercanía de fecha. El importe manda: dos cesiones distintas
+// difícilmente coincidan al centavo.
+const CESION_DIAS_TOLERANCIA = 7;
+
+function cesionesQueCoinciden(t) {
+  const monto = Number(t.importe);
+  if (!monto) return [];
+  const fT = new Date(t.fecha + 'T00:00:00').getTime();
+  return (state.cesiones || [])
+    .filter(c => Math.abs(Number(c.monto) - monto) < 0.01)
+    .map(c => ({ c, dias: Math.round((fT - new Date(c.fecha + 'T00:00:00').getTime()) / 864e5) }))
+    // La transferencia llega el día de la cesión o después, no antes
+    .filter(x => x.dias >= -1 && x.dias <= CESION_DIAS_TOLERANCIA)
+    .sort((a, b) => Math.abs(a.dias) - Math.abs(b.dias));
+}
+
+window.verCesionesCoincidentes = function(id) {
+  const t = (state.transfBanco || []).find(x => x.id === id);
+  if (!t) return;
+  const m = cesionesQueCoinciden(t);
+  if (!m.length) { toast('No hay cesiones que coincidan', 'warn'); return; }
+  showModal(`<div class="modal-head"><h3>🔗 Posibles cesiones</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="hint" style="margin-bottom:10px">Transferencia del ${fmtFecha(t.fecha)} por <b>${fmt(t.importe)}</b>.
+        Estas cesiones tienen el mismo importe:</p>
+      ${m.map(({ c, dias }) => `<div style="border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--radius);padding:9px 11px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;gap:8px">
+          <b>${esc(c.cedente)}${c.cesionario ? ` → ${esc(c.cesionario)}` : ''}</b>
+          <span>${fmt(c.monto)}</span>
+        </div>
+        <div class="muted" style="font-size:.79rem;margin-top:3px">
+          Cesión del ${fmtFecha(c.fecha)} · ${dias === 0 ? 'mismo día' : dias > 0 ? `cobrada ${dias} día${dias === 1 ? '' : 's'} después` : 'un día antes'}
+          · ${c.facturado ? '<span class="badge ok">facturada</span>' : '<span class="badge warn">sin facturar</span>'}
+        </div>
+        ${c.observacion ? `<div style="font-size:.79rem;margin-top:4px">${esc(c.observacion)}</div>` : ''}
+      </div>`).join('')}
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cerrar</button>
+      <button class="btn accent" onclick="closeModal(); switchTab('cesiones')">Ir a Cesiones</button>
+    </div>`);
+};
+
+// =================================================================
 // OUTLOOK · buscar mails relacionados con una transferencia
 // =================================================================
 // No guarda NADA: consulta en vivo el buzón del usuario con su propio
@@ -6542,10 +6752,14 @@ function renderTransfBanco() {
     const dias = diasParaBorrado(t);
     const aviso = vista === 'realizadas' && dias !== null
       ? `<span class="badge ${dias <= 1 ? 'err' : 'muted'}" style="font-size:.68rem">se borra en ${dias} día${dias === 1 ? '' : 's'}</span>` : '';
+    const ces = cesionesQueCoinciden(t);
+    const avisoCes = ces.length
+      ? ` <span class="badge accent" style="font-size:.68rem;cursor:pointer" onclick="event.stopPropagation();verCesionesCoincidentes('${t.id}')" title="Puede corresponder a una cesión">🔗 posible cesión${ces.length > 1 ? ` (${ces.length})` : ''}</span>`
+      : '';
     return `<tr data-id="${t.id}" style="${t.realizada ? 'opacity:.72' : ''}">
       <td><input type="checkbox" class="tb-chk" data-id="${t.id}" ${_tbSel.has(t.id) ? 'checked' : ''}></td>
       <td>${fmtFecha(t.fecha)}</td>
-      <td style="max-width:420px">${esc(t.descripcion)} ${aviso}</td>
+      <td style="max-width:420px">${esc(t.descripcion)} ${aviso}${avisoCes}</td>
       <td class="num"><b>${simb} ${fmt(t.importe)}</b></td>
       <td class="num">${t.cotiz_usd != null ? fmt(t.cotiz_usd) : '<span class="muted">—</span>'}</td>
       <td class="num">${t.cotiz_uvi != null ? fmt(t.cotiz_uvi) : '<span class="muted">—</span>'}</td>
@@ -6755,7 +6969,7 @@ let _pipLect = null;
 async function abrirFlotanteLectura(t) {
   if (!pipDisponible()) { toast('Tu navegador no soporta ventana flotante. Usá Chrome o Edge.', 'warn'); return; }
   if (!_pipLect || _pipLect.closed) {
-    try { _pipLect = await documentPictureInPicture.requestWindow({ width: 480, height: 205 }); }
+    try { _pipLect = await documentPictureInPicture.requestWindow({ width: 480, height: 240 }); }
     catch (e) { toast('No se pudo abrir: ' + e.message, 'err'); return; }
     const est = document.querySelector('style');
     if (est) { const s = _pipLect.document.createElement('style'); s.textContent = est.textContent; _pipLect.document.head.appendChild(s); }
@@ -6817,6 +7031,7 @@ function pintarFlotanteLectura(t) {
   const congelada = t.cotiz_usd != null || t.cotiz_uvi != null;
 
   const ident = identificarTransferencia(t.descripcion);
+  const ces = cesionesQueCoinciden(t);
 
   const cp = v => `<button class="cp" title="Copiar" onclick="navigator.clipboard.writeText('${String(v).replace(/'/g, "\\'")}')">⎘</button>`;
   const celda = (lab, val, cls = '') =>
@@ -6840,6 +7055,7 @@ function pintarFlotanteLectura(t) {
       ${celda(`USD${t.cotiz_usd != null ? '✓' : ''}`, usdRef != null ? `${fmt(usdRef)}${cp(usdRef)}` : sinDato)}
       ${celda(`UVI${t.cotiz_uvi != null ? '✓' : ''}`, uviRef != null ? `${fmt(uviRef)}${cp(uviRef)}` : sinDato)}
     </div>
+    ${ces.length ? `<div class="fl-ident duda" style="margin-top:4px" title="Cesión del ${fmtFecha(ces[0].c.fecha)} por el mismo importe">🔗 Puede corresponder a la cesión de <b>${esc(ces[0].c.cedente)}</b>${ces.length > 1 ? ` (+${ces.length - 1})` : ''}</div>` : ''}
     <div class="fl-nav">
       <button class="fl-sec" id="fl-prev" title="Anterior" ${idx <= 0 ? 'disabled' : ''}>←</button>
       <button class="fl-ok" id="fl-hecho">${t.realizada ? '↩ Volver a pendiente' : '✓ Realizada y siguiente'}</button>
@@ -6875,6 +7091,8 @@ if ($('#tb-empresa')) {
     if (f) importarExcelTB(f);
     e.target.value = '';
   });
+  $('#tb-uvis').addEventListener('click', exportarUvis);
+  $('#tb-borrar-pend').addEventListener('click', borrarPendientesCuenta);
   $('#tb-marcar').addEventListener('click', () => marcarSeleccionadas(true));
   $('#tb-desmarcar').addEventListener('click', () => marcarSeleccionadas(false));
   $('#tb-flotante').addEventListener('click', () => {
