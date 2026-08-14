@@ -6437,19 +6437,55 @@ window.borrarPendientesCuenta = function() {
 // Las cesiones suelen cobrarse por transferencia. Se cruzan por importe
 // exacto y cercanía de fecha. El importe manda: dos cesiones distintas
 // difícilmente coincidan al centavo.
-const CESION_DIAS_TOLERANCIA = 7;
-
+// Mismo día exacto: las transferencias impactan el día de la cesión, así que
+// una ventana de tolerancia sólo agregaba coincidencias falsas.
 function cesionesQueCoinciden(t) {
   const monto = Number(t.importe);
   if (!monto) return [];
-  const fT = new Date(t.fecha + 'T00:00:00').getTime();
   return (state.cesiones || [])
-    .filter(c => Math.abs(Number(c.monto) - monto) < 0.01)
-    .map(c => ({ c, dias: Math.round((fT - new Date(c.fecha + 'T00:00:00').getTime()) / 864e5) }))
-    // La transferencia llega el día de la cesión o después, no antes
-    .filter(x => x.dias >= -1 && x.dias <= CESION_DIAS_TOLERANCIA)
-    .sort((a, b) => Math.abs(a.dias) - Math.abs(b.dias));
+    .filter(c => c.fecha === t.fecha && Math.abs(Number(c.monto) - monto) < 0.01)
+    .map(c => ({ c, dias: 0 }));
 }
+
+// Se dibuja aparte para poder repintar sólo esta fila al tildar facturada,
+// sin cerrar el modal ni perder el lugar.
+function filaCesionCoincidente(c) {
+  return `<div id="cesfila-${c.id}" style="border:1px solid var(--line);border-left:3px solid ${c.facturado ? 'var(--ok)' : 'var(--accent)'};border-radius:var(--radius);padding:9px 11px;margin-bottom:8px">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+      <b>${esc(c.cedente)}${c.cesionario ? ` → ${esc(c.cesionario)}` : ''}</b>
+      <span>${fmt(c.monto)}</span>
+    </div>
+    <div class="muted" style="font-size:.79rem;margin:3px 0 7px">
+      Cesión del ${fmtFecha(c.fecha)} · mismo día
+      ${c.observacion ? ` · ${esc(c.observacion)}` : ''}
+    </div>
+    <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:.85rem;font-weight:${c.facturado ? '600' : '400'};color:${c.facturado ? 'var(--ok)' : 'var(--ink-2)'}">
+      <input type="checkbox" style="width:auto;margin:0" ${c.facturado ? 'checked' : ''}
+             onchange="facturarDesdeTransf('${c.id}', this.checked)">
+      <span>${c.facturado ? 'Facturada' : 'Marcar como facturada'}</span>
+    </label>
+  </div>`;
+}
+
+// Tilda facturada sin salir del modal de transferencias.
+window.facturarDesdeTransf = async function(id, val) {
+  const antes = (state.cesiones || []).find(x => x.id === id);
+  const { error } = await sb.from('cesiones').update({ facturado: val }).eq('id', id);
+  if (error) {
+    toast(error.message, 'err');
+    // Revertir el tilde: la base no aceptó el cambio
+    const chk = document.querySelector(`#cesfila-${id} input[type=checkbox]`);
+    if (chk) chk.checked = !val;
+    return;
+  }
+  await loadCesiones(); renderCesiones();
+  // Se repinta con lo que haya en el estado; si la recarga todavía no lo trae,
+  // se usa la copia local con el valor nuevo para que el tilde no quede a medias.
+  const c = (state.cesiones || []).find(x => x.id === id) || (antes ? { ...antes, facturado: val } : null);
+  const fila = document.getElementById('cesfila-' + id);
+  if (fila && c) fila.outerHTML = filaCesionCoincidente({ ...c, facturado: val });
+  toast(val ? 'Cesión marcada como facturada' : 'Cesión desmarcada', 'ok');
+};
 
 window.verCesionesCoincidentes = function(id) {
   const t = (state.transfBanco || []).find(x => x.id === id);
@@ -6459,18 +6495,8 @@ window.verCesionesCoincidentes = function(id) {
   showModal(`<div class="modal-head"><h3>🔗 Posibles cesiones</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <p class="hint" style="margin-bottom:10px">Transferencia del ${fmtFecha(t.fecha)} por <b>${fmt(t.importe)}</b>.
-        Estas cesiones tienen el mismo importe:</p>
-      ${m.map(({ c, dias }) => `<div style="border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--radius);padding:9px 11px;margin-bottom:8px">
-        <div style="display:flex;justify-content:space-between;gap:8px">
-          <b>${esc(c.cedente)}${c.cesionario ? ` → ${esc(c.cesionario)}` : ''}</b>
-          <span>${fmt(c.monto)}</span>
-        </div>
-        <div class="muted" style="font-size:.79rem;margin-top:3px">
-          Cesión del ${fmtFecha(c.fecha)} · ${dias === 0 ? 'mismo día' : dias > 0 ? `cobrada ${dias} día${dias === 1 ? '' : 's'} después` : 'un día antes'}
-          · ${c.facturado ? '<span class="badge ok">facturada</span>' : '<span class="badge warn">sin facturar</span>'}
-        </div>
-        ${c.observacion ? `<div style="font-size:.79rem;margin-top:4px">${esc(c.observacion)}</div>` : ''}
-      </div>`).join('')}
+        ${m.length === 1 ? 'Esta cesión coincide' : `Estas ${m.length} cesiones coinciden`} en fecha e importe:</p>
+      <div id="ces-lista">${m.map(({ c }) => filaCesionCoincidente(c)).join('')}</div>
     </div>
     <div class="modal-foot">
       <button class="btn ghost" onclick="closeModal()">Cerrar</button>
@@ -6753,8 +6779,10 @@ function renderTransfBanco() {
     const aviso = vista === 'realizadas' && dias !== null
       ? `<span class="badge ${dias <= 1 ? 'err' : 'muted'}" style="font-size:.68rem">se borra en ${dias} día${dias === 1 ? '' : 's'}</span>` : '';
     const ces = cesionesQueCoinciden(t);
+    // Verde si ya está facturada, ámbar si falta: el pendiente salta a la vista
+    const cesPend = ces.filter(x => !x.c.facturado).length;
     const avisoCes = ces.length
-      ? ` <span class="badge accent" style="font-size:.68rem;cursor:pointer" onclick="event.stopPropagation();verCesionesCoincidentes('${t.id}')" title="Puede corresponder a una cesión">🔗 posible cesión${ces.length > 1 ? ` (${ces.length})` : ''}</span>`
+      ? ` <span class="badge ${cesPend ? 'warn' : 'ok'}" style="font-size:.68rem;cursor:pointer" onclick="event.stopPropagation();verCesionesCoincidentes('${t.id}')" title="${cesPend ? 'Cesión del mismo día e importe, sin facturar' : 'Cesión del mismo día e importe, ya facturada'}">🔗 ${cesPend ? 'cesión sin facturar' : 'cesión facturada'}${ces.length > 1 ? ` (${ces.length})` : ''}</span>`
       : '';
     return `<tr data-id="${t.id}" style="${t.realizada ? 'opacity:.72' : ''}">
       <td><input type="checkbox" class="tb-chk" data-id="${t.id}" ${_tbSel.has(t.id) ? 'checked' : ''}></td>
@@ -7055,7 +7083,7 @@ function pintarFlotanteLectura(t) {
       ${celda(`USD${t.cotiz_usd != null ? '✓' : ''}`, usdRef != null ? `${fmt(usdRef)}${cp(usdRef)}` : sinDato)}
       ${celda(`UVI${t.cotiz_uvi != null ? '✓' : ''}`, uviRef != null ? `${fmt(uviRef)}${cp(uviRef)}` : sinDato)}
     </div>
-    ${ces.length ? `<div class="fl-ident duda" style="margin-top:4px" title="Cesión del ${fmtFecha(ces[0].c.fecha)} por el mismo importe">🔗 Puede corresponder a la cesión de <b>${esc(ces[0].c.cedente)}</b>${ces.length > 1 ? ` (+${ces.length - 1})` : ''}</div>` : ''}
+    ${ces.length ? `<div class="fl-ident ${ces.some(x => !x.c.facturado) ? 'duda' : 'ok'}" style="margin-top:4px">🔗 Cesión de <b>${esc(ces[0].c.cedente)}</b>${ces.length > 1 ? ` (+${ces.length - 1})` : ''} · ${ces.some(x => !x.c.facturado) ? 'sin facturar' : 'facturada'}</div>` : ''}
     <div class="fl-nav">
       <button class="fl-sec" id="fl-prev" title="Anterior" ${idx <= 0 ? 'disabled' : ''}>←</button>
       <button class="fl-ok" id="fl-hecho">${t.realizada ? '↩ Volver a pendiente' : '✓ Realizada y siguiente'}</button>
