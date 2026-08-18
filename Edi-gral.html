@@ -7646,6 +7646,19 @@ window.deleteEmpr = async function(id) {
 // =================================================================
 // MODULO: INSTRUCTIVOS (finanzas + admin)
 // =================================================================
+// Tipos aceptados en instructivos. El tipo se deduce de la extensión del
+// archivo guardado, así no hace falta agregar una columna en la base.
+const INSTR_TIPOS = {
+  pdf:  { ext: 'pdf',  icono: '📄', label: 'PDF',  mime: 'application/pdf', verEnPantalla: true },
+  docx: { ext: 'docx', icono: '📝', label: 'Word', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', verEnPantalla: false },
+  doc:  { ext: 'doc',  icono: '📝', label: 'Word', mime: 'application/msword', verEnPantalla: false },
+};
+
+function tipoDeArchivo(path) {
+  const ext = String(path || '').split('.').pop().toLowerCase();
+  return INSTR_TIPOS[ext] || null;
+}
+
 function renderInstructivos() {
   const q = ($('#instr-search')?.value || '').toLowerCase();
   const filt = state.instructivos.filter(i =>
@@ -7662,15 +7675,16 @@ function renderInstructivos() {
   cont.innerHTML = filt.map(i => {
     const fecha = i.updated_at ? fmtFechaHora(i.updated_at) : '';
     const hasFile = !!i.archivo_path;
+    const tipo = tipoDeArchivo(i.archivo_path);
     return `<div class="instr-card">
-      <div class="instr-icon">📄</div>
+      <div class="instr-icon">${tipo ? tipo.icono : '📄'}</div>
       <div class="instr-titulo">${esc(i.titulo)}</div>
       <div class="instr-desc">${esc(i.descripcion || '<span class="muted" style="font-style:italic">Sin descripción</span>')}</div>
       <div class="instr-meta">Actualizado: ${fecha}</div>
       <div class="instr-acciones">
         ${hasFile
-          ? `<button class="btn accent sm" onclick="verInstructivo('${i.id}')" title="Ver el PDF">👁 Ver PDF</button>`
-          : `<button class="btn ghost sm" disabled title="Sin archivo cargado">Sin PDF</button>`}
+          ? `<button class="btn accent sm" onclick="verInstructivo('${i.id}')" title="${tipo?.verEnPantalla ? 'Ver el archivo' : 'Descargar el archivo'}">${tipo?.verEnPantalla ? '👁 Ver PDF' : '⬇ Descargar Word'}</button>`
+          : `<button class="btn ghost sm" disabled title="Sin archivo cargado">Sin archivo</button>`}
         <button class="btn ghost sm" onclick="editInstructivo('${i.id}')" title="Editar">✎</button>
         ${state.profile?.rol === 'admin' ? `<button class="btn ghost sm" onclick="deleteInstructivo('${i.id}')" title="Eliminar">×</button>` : ''}
       </div>
@@ -7694,15 +7708,15 @@ window.editInstructivo = function(id) {
         <textarea id="ei-desc" rows="3" placeholder="Ej: Paso a paso para cerrar el banco a fin de mes">${esc(i.descripcion || '')}</textarea>
       </div>
       <div class="field" style="background:var(--surface-2);padding:12px;border-radius:var(--radius);border:1px dashed var(--line)">
-        <label>Archivo PDF ${!id ? '<span style="color:var(--err)">*</span>' : ''}</label>
+        <label>Archivo ${!id ? '<span style="color:var(--err)">*</span>' : ''}</label>
         ${i.archivo_path
           ? `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-              <span class="badge ok">✓ PDF cargado</span>
+              <span class="badge ok">${tipoDeArchivo(i.archivo_path)?.icono || ''} ${tipoDeArchivo(i.archivo_path)?.label || 'Archivo'} cargado</span>
               <button type="button" class="btn ghost sm" onclick="verInstructivo('${id}')">Ver actual</button>
             </div>`
           : '<div class="muted" style="font-size:.8rem;margin-bottom:8px;font-style:italic">Sin archivo cargado</div>'}
-        <input type="file" id="ei-pdf" accept="application/pdf">
-        <div class="hint">Solo PDF, máx 10 MB. ${i.archivo_path ? 'Si subís uno nuevo, reemplaza el actual.' : ''}</div>
+        <input type="file" id="ei-pdf" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+        <div class="hint">PDF o Word (.doc / .docx), máx 10 MB. ${i.archivo_path ? 'Si subís uno nuevo, reemplaza el actual.' : ''}</div>
       </div>
     </div>
     <div class="modal-foot">
@@ -7720,10 +7734,15 @@ window.saveInstructivo = async function(id) {
   if (!titulo) { toast('Falta el título', 'warn'); return; }
 
   const file = $('#ei-pdf')?.files?.[0];
-  if (!id && !file) { toast('Cargá el PDF del instructivo', 'warn'); return; }
+  if (!id && !file) { toast('Cargá el archivo del instructivo', 'warn'); return; }
+  let tipoArchivo = null;
   if (file) {
-    if (file.type !== 'application/pdf') { toast('Solo se aceptan archivos PDF', 'err'); return; }
-    if (file.size > 10 * 1024 * 1024) { toast('El PDF no puede superar 10 MB', 'err'); return; }
+    // Se valida por EXTENSIÓN y no por file.type: para los .doc viejos algunos
+    // navegadores devuelven un MIME vacío o genérico y el archivo se rechazaría.
+    const ext = file.name.split('.').pop().toLowerCase();
+    tipoArchivo = INSTR_TIPOS[ext];
+    if (!tipoArchivo) { toast('Solo se aceptan archivos PDF o Word (.doc / .docx)', 'err'); return; }
+    if (file.size > 10 * 1024 * 1024) { toast('El archivo no puede superar 10 MB', 'err'); return; }
   }
 
   btn.disabled = true;
@@ -7732,9 +7751,10 @@ window.saveInstructivo = async function(id) {
   try {
     let archivoPath = null;
     if (file) {
-      // Nombre seguro: <uuid>-<timestamp>.pdf
+      // Nombre seguro: <uuid>-<timestamp>.<ext>. La extensión importa porque
+      // de ahí se deduce después si es PDF o Word.
       const safeTs = Date.now();
-      const key = `${(id || crypto.randomUUID())}-${safeTs}.pdf`;
+      const key = `${(id || crypto.randomUUID())}-${safeTs}.${tipoArchivo.ext}`;
       // Borrar archivo anterior si existe
       if (id) {
         const prev = state.instructivos.find(x => x.id === id);
@@ -7743,9 +7763,12 @@ window.saveInstructivo = async function(id) {
         }
       }
       const { error: upErr } = await sb.storage.from('instructivos').upload(key, file, {
-        contentType: 'application/pdf',
+        contentType: tipoArchivo.mime,
         upsert: false
       });
+      if (upErr && /mime|content type/i.test(upErr.message || '')) {
+        throw new Error('El bucket "instructivos" no acepta archivos Word. Hay que habilitarlo en Supabase (ver instructivos_word.sql).');
+      }
       if (upErr) throw upErr;
       archivoPath = key;
     }
@@ -7775,19 +7798,26 @@ window.saveInstructivo = async function(id) {
 window.verInstructivo = async function(id) {
   const i = state.instructivos.find(x => x.id === id);
   if (!i || !i.archivo_path) { toast('Sin archivo cargado', 'warn'); return; }
+  const tipo = tipoDeArchivo(i.archivo_path);
   try {
-    const { data, error } = await sb.storage.from('instructivos').createSignedUrl(i.archivo_path, 3600);
+    // El PDF se abre en una pestaña; el Word no se puede mostrar en el
+    // navegador, así que se fuerza la descarga con un nombre legible.
+    const opciones = tipo && !tipo.verEnPantalla
+      ? { download: `${i.titulo.replace(/[^\w\sáéíóúñÁÉÍÓÚÑ-]/g, '').trim() || 'instructivo'}.${tipo.ext}` }
+      : undefined;
+    const { data, error } = await sb.storage.from('instructivos')
+      .createSignedUrl(i.archivo_path, 3600, opciones);
     if (error) throw error;
     window.open(data.signedUrl, '_blank');
   } catch (e) {
-    toast('No se pudo abrir el PDF: ' + e.message, 'err');
+    toast('No se pudo abrir el archivo: ' + e.message, 'err');
   }
 };
 
 window.deleteInstructivo = async function(id) {
   const i = state.instructivos.find(x => x.id === id);
   if (!i) return;
-  if (!await confirmAction(`¿Eliminar el instructivo "${esc(i.titulo)}"?\n\nSe borra el registro y el PDF asociado.`)) return;
+  if (!await confirmAction(`¿Eliminar el instructivo "${esc(i.titulo)}"?\n\nSe borra el registro y el archivo asociado.`)) return;
   try {
     if (i.archivo_path) {
       await sb.storage.from('instructivos').remove([i.archivo_path]);
