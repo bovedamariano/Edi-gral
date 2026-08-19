@@ -1355,11 +1355,33 @@ details[open] .ident-toggle{transform:rotate(180deg)}
               <label>N° Cliente (7 dígitos)</label>
               <input type="text" id="ident-nuevo-nc" maxlength="7" inputmode="numeric" pattern="\d{7}" placeholder="1234567">
             </div>
+            <div class="field" style="margin-bottom:0;min-width:180px">
+              <label>Qué cancela</label>
+              <select id="ident-nuevo-empr"></select>
+            </div>
             <button class="btn" id="ident-add">+ Agregar</button>
           </div>
 
+          <details style="margin:10px 0">
+            <summary style="cursor:pointer;font-size:.85rem;color:var(--accent);font-weight:600">📋 Carga masiva de clientes</summary>
+            <div style="padding:10px 0">
+              <p class="hint" style="margin-bottom:6px">Una línea por cliente, separando con <b>tabulaciones</b> (pegá directo desde Excel):<br>
+                <code>Cliente &nbsp; Quién transfiere &nbsp; A quién imputar &nbsp; Emprendimiento</code><br>
+                El emprendimiento puede ir escrito o dejarse vacío para usar el que elijas abajo.</p>
+              <textarea id="ident-bulk" rows="7" style="width:100%;font-family:monospace;font-size:.82rem"
+                placeholder="1007778	ACUÑA REMONDINO SILVINA	ACUÑA REMONDINO SILVINA	Las Tipas"></textarea>
+              <div class="field-row" style="align-items:end;margin-top:8px">
+                <div class="field" style="max-width:230px"><label>Emprendimiento por defecto</label>
+                  <select id="ident-bulk-empr"></select></div>
+                <div class="field" style="max-width:150px"><label>&nbsp;</label>
+                  <button class="btn accent" id="ident-bulk-btn" style="width:100%">Cargar</button></div>
+              </div>
+              <div id="ident-bulk-msg" class="hint" style="margin-top:6px"></div>
+            </div>
+          </details>
+
           <div class="tbl-wrap" style="margin-top:10px"><table class="tbl" id="ident-tabla">
-            <thead><tr><th>Quién transfiere</th><th>Se imputa a</th><th>N° Cliente</th><th>Obs.</th><th class="actions"></th></tr></thead>
+            <thead><tr><th>Quién transfiere</th><th>Se imputa a</th><th>N° Cliente</th><th>Qué cancela</th><th>Obs.</th><th class="actions"></th></tr></thead>
             <tbody></tbody>
           </table></div>
         </div>
@@ -1616,6 +1638,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <button class="tab" data-subtab="aj-emprendimientos">Emprendimientos</button>
         <button class="tab" data-subtab="aj-cuentas-rentas">Cuentas Rentas</button>
         <button class="tab" data-subtab="aj-bancos">Cuentas bancarias</button>
+        <button class="tab" data-subtab="aj-ident-empr">Qué cancela</button>
         <button class="tab" data-subtab="aj-datos">Datos / Backup</button>
       </div>
       <div class="subtab-content" id="aj-usuarios">
@@ -1756,6 +1779,20 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           </table></div>
         </div>
       </div>
+      <div class="subtab-content" id="aj-ident-empr" style="display:none">
+        <div class="card">
+          <h3>Emprendimientos a cancelar</h3>
+          <p class="sub" style="margin-bottom:12px">Lo que se elige al cargar un identificador de transferencias. Sólo el administrador puede modificarlo.</p>
+          <div class="field-row" style="align-items:end">
+            <div class="field"><label>Nombre</label><input type="text" id="ie-nombre" placeholder="Ej: Las Tipas"></div>
+            <div class="field" style="max-width:120px"><label>&nbsp;</label><button class="btn accent" id="ie-add" style="width:100%">Agregar</button></div>
+          </div>
+          <div class="tbl-wrap"><table class="tbl" id="ie-tabla">
+            <thead><tr><th>Nombre</th><th>Identificadores</th><th>Estado</th><th class="actions"></th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+      </div>
       <div class="subtab-content" id="aj-datos" style="display:none">
         <div class="card">
           <h3>Exportar / Importar</h3>
@@ -1834,6 +1871,7 @@ const state = {
   responsables: [],
   transferencias: [],
   emprendimientos: [],
+  identEmpr: [],
   identificadores: [],
   cuentasRentas: [],
   instructivos: [],
@@ -2012,7 +2050,7 @@ async function afterLogin() {
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
     loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadCocheras(),
-    loadBancosCuentas(), loadTransferenciasBanco(), loadCotizacionesUvi(), loadCotizacionesBna(),
+    loadBancosCuentas(), loadTransferenciasBanco(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -2026,6 +2064,7 @@ async function afterLogin() {
   // cuando el usuario entra con usuario/contraseña, no solo con sesión guardada.
   subscribeChanges();
   llenarSelectoresTB();
+  llenarSelectsEmpr();
   purgarRealizadas();   // borra las realizadas hace más de 5 días
   renderCampanita();
   // Recalcular cada 10 min para que el contador cruce la medianoche solo,
@@ -2226,7 +2265,8 @@ function switchTab(tab) {
   if (tab === 'cocheras') renderCocheras();
   if (tab === 'transferencias') { llenarSelectoresTB(); renderTransfBanco(); }
   if (tab === 'cotizacion') renderCotizDia();
-  if (tab === 'ajustes') renderBancosCuentas();
+  if (tab === 'ajustes') { renderBancosCuentas(); renderIdentEmpr(); }
+  if (tab === 'transferencias') llenarSelectsEmpr();
 }
 
 $$('.nav-item[data-tab]').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
@@ -6334,6 +6374,7 @@ function identificarTransferencia(desc) {
   const r = buscarPorNombre(crudo, state.identificadores || [], i => i.nombre_transfiere);
   if (!r) return null;
   return { seguro: r.seguro, titular: r.item.nombre_titular, nc: r.item.numero_cliente,
+           empr: nombreEmpr(r.item.emprendimiento_id),
            coincide: r.coincide, nombreBanco: crudo };
 }
 
@@ -6799,6 +6840,154 @@ window.buscarMailsTransf = async function(id) {
 };
 
 // =================================================================
+// EMPRENDIMIENTOS A CANCELAR (catálogo del identificador)
+// =================================================================
+async function loadIdentEmpr() {
+  state.identEmpr = await fetchPaged('identif_emprendimientos', q => q.order('orden').order('nombre'));
+}
+
+function nombreEmpr(id) {
+  return (state.identEmpr || []).find(e => e.id === id)?.nombre || null;
+}
+
+// Llena los desplegables de emprendimiento. Sin opción vacía en el alta:
+// el campo es obligatorio.
+function llenarSelectsEmpr() {
+  const activos = (state.identEmpr || []).filter(e => e.activo);
+  const opts = activos.map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
+  ['#ident-nuevo-empr', '#ident-bulk-empr'].forEach(sel => {
+    const el = $(sel);
+    if (!el) return;
+    const actual = el.value;
+    el.innerHTML = activos.length ? opts : '<option value="">— cargar en Ajustes —</option>';
+    if (actual && activos.some(e => e.id === actual)) el.value = actual;
+  });
+  const eSel = $('#ei-empr');
+  if (eSel) { const a = eSel.value; eSel.innerHTML = opts; if (a) eSel.value = a; }
+}
+
+// Busca por nombre escrito, tolerando mayúsculas y acentos.
+function emprPorNombre(txt) {
+  const n = normalizarNombre(txt);
+  if (!n) return null;
+  return (state.identEmpr || []).find(e => normalizarNombre(e.nombre) === n)
+      || (state.identEmpr || []).find(e => normalizarNombre(e.nombre).startsWith(n) && n.length >= 4)
+      || null;
+}
+
+function renderIdentEmpr() {
+  const tb = $('#ie-tabla tbody');
+  if (!tb) return;
+  const lista = state.identEmpr || [];
+  if (!lista.length) { tb.innerHTML = '<tr><td colspan="4" class="empty">Sin emprendimientos cargados</td></tr>'; return; }
+  tb.innerHTML = lista.map(e => {
+    const usos = (state.identificadores || []).filter(i => i.emprendimiento_id === e.id).length;
+    return `<tr style="${e.activo ? '' : 'opacity:.55'}">
+      <td><b>${esc(e.nombre)}</b></td>
+      <td>${usos || '<span class="muted">—</span>'}</td>
+      <td>${e.activo ? '<span class="badge ok">Activo</span>' : '<span class="badge muted">Inactivo</span>'}</td>
+      <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
+        <button class="btn ghost sm" onclick="toggleIdentEmpr('${e.id}')">${e.activo ? 'Desactivar' : 'Activar'}</button>
+        <button class="btn ghost sm" style="color:var(--err)" onclick="borrarIdentEmpr('${e.id}')">🗑</button>
+      </td></tr>`;
+  }).join('');
+}
+
+window.toggleIdentEmpr = async function(id) {
+  const e = (state.identEmpr || []).find(x => x.id === id);
+  const { error } = await sb.from('identif_emprendimientos').update({ activo: !e.activo }).eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  await loadIdentEmpr(); renderIdentEmpr(); llenarSelectsEmpr();
+};
+
+window.borrarIdentEmpr = async function(id) {
+  const e = (state.identEmpr || []).find(x => x.id === id);
+  const usos = (state.identificadores || []).filter(i => i.emprendimiento_id === id).length;
+  const aviso = usos ? `\n\n${usos} identificador${usos === 1 ? '' : 'es'} quedará${usos === 1 ? '' : 'n'} sin emprendimiento.` : '';
+  if (!await confirmAction(`¿Eliminar "${e?.nombre}"?${aviso}`)) return;
+  const { error } = await sb.from('identif_emprendimientos').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  toast('Emprendimiento eliminado', 'ok');
+  await loadIdentEmpr(); await loadIdentificadores();
+  renderIdentEmpr(); renderIdentLista(); llenarSelectsEmpr();
+};
+
+$('#ie-add')?.addEventListener('click', async () => {
+  const nombre = $('#ie-nombre').value.trim();
+  if (!nombre) { toast('Escribí el nombre', 'warn'); return; }
+  const orden = ((state.identEmpr || []).reduce((a, e) => Math.max(a, e.orden || 0), 0)) + 1;
+  const { error } = await sb.from('identif_emprendimientos').insert({ nombre, orden });
+  if (error) { toast(error.message.includes('duplicate') ? 'Ya existe uno con ese nombre' : error.message, 'err'); return; }
+  $('#ie-nombre').value = '';
+  toast('Emprendimiento agregado', 'ok');
+  await loadIdentEmpr(); renderIdentEmpr(); llenarSelectsEmpr();
+});
+
+// =================================================================
+// CARGA MASIVA DE CLIENTES (identificadores)
+// =================================================================
+// Formato: Cliente <tab> Quién transfiere <tab> A quién imputar <tab> Emprendimiento
+// La cuarta columna es opcional: si falta, se usa el emprendimiento por defecto.
+function parsearBulkIdent(texto, emprDefault) {
+  const filas = [], errores = [];
+  texto.split(/\r?\n/).forEach((linea, i) => {
+    const l = linea.trim();
+    if (!l) return;
+    // Se parte SOLO por tabulación: los nombres llevan espacios adentro.
+    const p = l.split('\t').map(x => x.trim());
+    if (p.length < 3) { errores.push(`línea ${i+1}: faltan columnas (separá con tabulaciones)`); return; }
+    const [cliente, transfiere, titular, emprTxt] = p;
+    if (/^cliente$/i.test(cliente)) return;                    // fila de encabezado
+    if (!/^\d{7}$/.test(cliente)) { errores.push(`línea ${i+1}: "${cliente}" no es un cliente de 7 dígitos`); return; }
+    if (!transfiere || !titular) { errores.push(`línea ${i+1}: falta un nombre`); return; }
+    let emprId = emprDefault || null;
+    if (emprTxt) {
+      const e = emprPorNombre(emprTxt);
+      if (!e) { errores.push(`línea ${i+1}: no existe el emprendimiento "${emprTxt}"`); return; }
+      emprId = e.id;
+    }
+    if (!emprId) { errores.push(`línea ${i+1}: falta el emprendimiento`); return; }
+    filas.push({ numero_cliente: cliente, nombre_transfiere: transfiere, nombre_titular: titular, emprendimiento_id: emprId });
+  });
+  return { filas, errores };
+}
+
+$('#ident-bulk-btn')?.addEventListener('click', async () => {
+  const msg = $('#ident-bulk-msg');
+  const { filas, errores } = parsearBulkIdent($('#ident-bulk').value, $('#ident-bulk-empr').value);
+  if (!filas.length) {
+    msg.innerHTML = `<span style="color:var(--err)">Nada válido para cargar. ${esc(errores[0] || '')}</span>`;
+    return;
+  }
+  // No duplicar: se saltean los que ya existen con el mismo "quién transfiere"
+  const yaHay = new Set((state.identificadores || []).map(i => normalizarNombre(i.nombre_transfiere)));
+  const nuevas = filas.filter(f => !yaHay.has(normalizarNombre(f.nombre_transfiere)));
+  const repetidos = filas.length - nuevas.length;
+  if (!nuevas.length) {
+    msg.innerHTML = `<span style="color:var(--warn)">Los ${filas.length} ya estaban cargados</span>`;
+    return;
+  }
+
+  const btn = $('#ident-bulk-btn');
+  btn.disabled = true; btn.textContent = 'Cargando...';
+  let ok = 0;
+  for (let i = 0; i < nuevas.length; i += 200) {
+    const { error } = await sb.from('identificadores_transf')
+      .insert(nuevas.slice(i, i + 200).map(f => ({ ...f, created_by: state.user.id })));
+    if (error) { msg.innerHTML = `<span style="color:var(--err)">${esc(error.message)}</span>`;
+                 btn.disabled = false; btn.textContent = 'Cargar'; return; }
+    ok += Math.min(200, nuevas.length - i);
+  }
+  btn.disabled = false; btn.textContent = 'Cargar';
+  $('#ident-bulk').value = '';
+  msg.innerHTML = `<span style="color:var(--ok)">✓ ${ok} cargados</span>` +
+    (repetidos ? ` · ${repetidos} ya existían` : '') +
+    (errores.length ? ` <span style="color:var(--warn)">· ${errores.length} con error: ${esc(errores[0])}</span>` : '');
+  toast(`${ok} clientes cargados`, 'ok');
+  await loadIdentificadores(); renderIdentLista(); renderIdentEmpr();
+});
+
+// =================================================================
 // MODULO: TRANSFERENCIAS POR BANCO (importación masiva de extractos)
 // =================================================================
 const MONEDAS = { ARS: '$', USD: 'US$', UVI: 'UVI' };
@@ -7196,7 +7385,7 @@ function pintarFlotanteLectura(t) {
     </div>
     <div class="fl-desc"><span title="${esc(t.descripcion)}">${esc(t.descripcion)}</span>${cp(t.descripcion)}</div>
     ${ident ? `<div class="fl-ident ${ident.seguro ? 'ok' : 'duda'}" title="${ident.seguro ? 'según' : 'se parece a'} ${esc(ident.coincide)}">
-        ${ident.seguro ? '✓' : '≈ ¿'}<b>${esc(ident.titular)}</b>${ident.seguro ? '' : '?'}${ident.nc ? ` · ${esc(ident.nc)}` : ''}${cp(ident.titular)}
+        ${ident.seguro ? '✓' : '≈ ¿'}<b>${esc(ident.titular)}</b>${ident.seguro ? '' : '?'}${ident.nc ? ` · ${esc(ident.nc)}` : ''}${ident.empr ? ` · ${esc(ident.empr)}` : ''}${cp(ident.titular)}
       </div>`
       : `<div class="fl-ident no" title="No hay identificador cargado">Sin identificador · ${esc(nombreDeDescripcion(t.descripcion) || '—')}</div>`}
     <div class="fl-grid">
@@ -7548,12 +7737,15 @@ function renderIdentLista() {
   const tb = $('#ident-tabla tbody');
   if (!tb) return;
   if (!state.identificadores.length) {
-    tb.innerHTML = '<tr><td colspan="5" class="empty">Sin identificadores cargados</td></tr>';
+    tb.innerHTML = '<tr><td colspan="6" class="empty">Sin identificadores cargados</td></tr>';
   } else {
     tb.innerHTML = state.identificadores.map(i => `<tr>
-      <td><b>${i.nombre_transfiere}</b></td>
-      <td>${i.nombre_titular}</td>
+      <td><b>${esc(i.nombre_transfiere)}</b></td>
+      <td>${esc(i.nombre_titular)}</td>
       <td class="mono">${i.numero_cliente || '<span class="muted" style="font-style:italic">—</span>'}</td>
+      <td>${nombreEmpr(i.emprendimiento_id)
+            ? esc(nombreEmpr(i.emprendimiento_id))
+            : '<span class="badge warn" style="font-size:.68rem">falta completar</span>'}</td>
       <td class="muted" style="font-size:.78rem">${esc(i.observaciones||'')}</td>
       <td class="actions">
         <button class="btn ghost sm" onclick="editIdent('${i.id}')" title="Editar">✎</button>
@@ -7579,9 +7771,17 @@ $('#ident-add')?.addEventListener('click', async () => {
     $('#ident-nuevo-nc').focus();
     return;
   }
+  const emprId = $('#ident-nuevo-empr')?.value;
+  if (!emprId) {
+    toast((state.identEmpr || []).some(e => e.activo)
+      ? 'Elegí qué cancela'
+      : 'No hay emprendimientos cargados. Agregalos en Ajustes → Qué cancela', 'warn');
+    $('#ident-nuevo-empr')?.focus();
+    return;
+  }
   const { error } = await sb.from('identificadores_transf').insert({
     nombre_transfiere: transfiere, nombre_titular: titular,
-    numero_cliente: nc, created_by: state.user.id
+    numero_cliente: nc, emprendimiento_id: emprId, created_by: state.user.id
   });
   if (error) { toast(error.message, 'err'); return; }
   $('#ident-nuevo-transfiere').value = '';
@@ -7599,12 +7799,15 @@ window.editIdent = function(id) {
       <div class="field"><label>Quién transfiere</label><input id="ei-transfiere" value="${i.nombre_transfiere.replace(/"/g,'&quot;')}"></div>
       <div class="field"><label>A nombre de (titular)</label><input id="ei-titular" value="${i.nombre_titular.replace(/"/g,'&quot;')}"></div>
       <div class="field"><label>N° Cliente (7 dígitos)</label><input id="ei-nc" maxlength="7" inputmode="numeric" value="${(i.numero_cliente||'').replace(/"/g,'&quot;')}" placeholder="1234567"></div>
+      <div class="field"><label>Qué cancela</label><select id="ei-empr"></select></div>
       <div class="field"><label>Observaciones (opcional)</label><input id="ei-obs" value="${esc(i.observaciones||'')}"></div>
     </div>
     <div class="modal-foot">
       <button class="btn ghost" onclick="closeModal()">Cancelar</button>
       <button class="btn" onclick="saveIdent('${id}')">Guardar</button>
     </div>`);
+  llenarSelectsEmpr();
+  if (i.emprendimiento_id) $('#ei-empr').value = i.emprendimiento_id;
 };
 window.saveIdent = async function(id) {
   const transfiere = $('#ei-transfiere').value.trim();
@@ -7616,9 +7819,11 @@ window.saveIdent = async function(id) {
     $('#ei-nc').focus();
     return;
   }
+  const emprId = $('#ei-empr').value;
+  if (!emprId) { toast('Elegí qué cancela', 'warn'); $('#ei-empr').focus(); return; }
   const { error } = await sb.from('identificadores_transf').update({
     nombre_transfiere: transfiere, nombre_titular: titular,
-    numero_cliente: nc,
+    numero_cliente: nc, emprendimiento_id: emprId,
     observaciones: $('#ei-obs').value.trim() || null
   }).eq('id', id);
   if (error) { toast(error.message, 'err'); return; }
@@ -8822,7 +9027,7 @@ let realtimeActivo = false;
 function subscribeChanges() {
   if (realtimeActivo) return;   // evita canales duplicados
   realtimeActivo = true;
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','bancos_cuentas','cotizaciones_uvi'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -8845,6 +9050,7 @@ function subscribeChanges() {
         if (tabla==='transferencias_banco') { await loadTransferenciasBanco(); renderTransfBanco(); }
         if (tabla==='bancos_cuentas') { await loadBancosCuentas(); llenarSelectoresTB(); renderBancosCuentas(); }
         if (tabla==='cotizaciones_uvi') { await loadCotizacionesUvi(); renderCotizDia(); }
+        if (tabla==='identif_emprendimientos') { await loadIdentEmpr(); renderIdentEmpr(); llenarSelectsEmpr(); }
         if (tabla==='retiros_personas') { await loadRetirosPersonas(); renderPersonasRetiros(); }
       })
       .subscribe();
