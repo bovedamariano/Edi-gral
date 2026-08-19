@@ -1571,6 +1571,23 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         </div>
       </div>
 
+      <details style="margin-bottom:10px">
+        <summary style="cursor:pointer;font-size:.85rem;color:var(--accent);font-weight:600">💲 Cargar montos de alquiler en tanda</summary>
+        <div style="padding:10px 0">
+          <p class="hint" style="margin-bottom:6px">Una línea por cochera: <code>número monto</code> (opcionalmente un segundo monto para el 2° semestre).<br>
+            Se aplica a la ubicación elegida en el filtro. Ej: <code>4 85000</code> o <code>4 85000 92000</code></p>
+          <div class="field-row" style="align-items:end">
+            <div class="field" style="max-width:170px"><label>Ubicación</label><select id="coch-bulk-ubic">
+              <option value="pilares">Pilares</option><option value="casonas">Casonas</option>
+            </select></div>
+          </div>
+          <textarea id="coch-bulk" rows="6" style="width:100%;font-family:monospace;font-size:.82rem" placeholder="1	85000&#10;2	85000	92000"></textarea>
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+            <button class="btn accent sm" id="coch-bulk-guardar">Guardar montos</button>
+            <span class="hint" id="coch-bulk-msg"></span>
+          </div>
+        </div>
+      </details>
       <div id="coch-resumen" class="hint" style="margin-bottom:10px"></div>
 
       <div class="card">
@@ -4193,6 +4210,50 @@ window.eliminarCochera = async function(id) {
   await loadCocheras(); renderCocheras();
 };
 
+// Carga de montos en tanda: "numero monto [monto2]" por línea.
+$('#coch-bulk-guardar')?.addEventListener('click', async () => {
+  const ubic = $('#coch-bulk-ubic').value;
+  const msg = $('#coch-bulk-msg');
+  const num = v => {
+    let x = String(v).replace(/[^\d.,\-]/g, '');
+    if (x.includes(',') && x.includes('.')) x = x.replace(/\./g, '').replace(',', '.');
+    else if (x.includes(',')) x = x.replace(',', '.');
+    else if (x.includes('.')) { const p = x.split('.'); if (p.slice(1).every(y => y.length === 3)) x = x.replace(/\./g, ''); }
+    const n = Number(x);
+    return isNaN(n) ? null : n;
+  };
+
+  const cambios = [], errores = [];
+  ($('#coch-bulk').value || '').split(/\r?\n/).forEach((linea, i) => {
+    const l = linea.trim();
+    if (!l) return;
+    const p = l.split(/[\t;]+|\s+/).filter(Boolean);
+    const numero = parseInt(p[0], 10);
+    const monto = num(p[1]);
+    if (!numero || monto == null) { errores.push(`línea ${i+1}: falta número o monto`); return; }
+    const c = (state.cocheras || []).find(x => x.ubicacion === ubic && x.numero === numero);
+    if (!c) { errores.push(`línea ${i+1}: no existe la cochera ${numero}`); return; }
+    const payload = { monto };
+    if (p[2] != null && num(p[2]) != null) payload.monto_2do_semestre = num(p[2]);
+    cambios.push({ id: c.id, numero, payload });
+  });
+
+  if (!cambios.length) {
+    msg.innerHTML = `<span style="color:var(--err)">Nada válido para guardar. ${esc(errores[0] || '')}</span>`;
+    return;
+  }
+  let ok = 0;
+  for (const c of cambios) {
+    const { error } = await sb.from('cocheras').update(c.payload).eq('id', c.id);
+    if (error) errores.push(`cochera ${c.numero}: ${error.message}`); else ok++;
+  }
+  await loadCocheras(); renderCocheras();
+  $('#coch-bulk').value = '';
+  msg.innerHTML = `<span style="color:var(--ok)">✓ ${ok} monto${ok===1?'':'s'} guardado${ok===1?'':'s'}</span>` +
+    (errores.length ? ` <span style="color:var(--warn)">· ${errores.length} con error: ${esc(errores[0])}</span>` : '');
+  toast(`${ok} montos actualizados`, 'ok');
+});
+
 $('#coch-add').addEventListener('click', () => editCochera(null));
 ['#coch-f-ubic','#coch-f-estado','#coch-f-tipo'].forEach(s => $(s).addEventListener('change', renderCocheras));
 $('#coch-search').addEventListener('input', renderCocheras);
@@ -6240,34 +6301,63 @@ function nombreDeDescripcion(desc) {
 // Busca en los identificadores. Sólo se da por segura una coincidencia exacta
 // o con exactamente las mismas palabras; cualquier otra cosa se marca como
 // posible, porque imputar mal una transferencia cuesta más que revisarla.
-function identificarTransferencia(desc) {
-  const crudo = nombreDeDescripcion(desc);
+// Matcher genérico: busca un nombre suelto dentro de una lista.
+// Sólo devuelve seguro=true con coincidencia exacta o mismas palabras.
+// Cualquier parecido inexacto vuelve como posible, porque imputar mal
+// cuesta más que revisar una fila de más.
+function buscarPorNombre(crudo, lista, getNombre) {
   const norm = normalizarNombre(crudo);
   if (!norm || norm.length < 4) return null;
   const tk = tokensNombre(crudo);
   if (!tk.size) return null;
 
-  const lista = state.identificadores || [];
   let posible = null, mejorPuntaje = 0;
-
-  for (const i of lista) {
-    const nt = i.nombre_transfiere || '';
-    if (normalizarNombre(nt) === norm) {
-      return { seguro: true, titular: i.nombre_titular, nc: i.numero_cliente, coincide: nt, nombreBanco: crudo };
-    }
+  for (const item of lista) {
+    const nt = getNombre(item) || '';
+    if (!nt) continue;
+    if (normalizarNombre(nt) === norm) return { seguro: true, item, coincide: nt };
     const ti = tokensNombre(nt);
     if (!ti.size) continue;
     const comunes = [...tk].filter(p => ti.has(p)).length;
-    if (comunes === tk.size && comunes === ti.size) {
-      return { seguro: true, titular: i.nombre_titular, nc: i.numero_cliente, coincide: nt, nombreBanco: crudo };
-    }
+    if (comunes === tk.size && comunes === ti.size) return { seguro: true, item, coincide: nt };
     const puntaje = comunes / Math.min(tk.size, ti.size);
     if (comunes >= 2 && puntaje > mejorPuntaje) {
       mejorPuntaje = puntaje;
-      posible = { seguro: false, titular: i.nombre_titular, nc: i.numero_cliente, coincide: nt, nombreBanco: crudo };
+      posible = { seguro: false, item, coincide: nt };
     }
   }
   return posible;
+}
+
+function identificarTransferencia(desc) {
+  const crudo = nombreDeDescripcion(desc);
+  const r = buscarPorNombre(crudo, state.identificadores || [], i => i.nombre_transfiere);
+  if (!r) return null;
+  return { seguro: r.seguro, titular: r.item.nombre_titular, nc: r.item.numero_cliente,
+           coincide: r.coincide, nombreBanco: crudo };
+}
+
+// Igual que la anterior pero contra las cocheras alquiladas. Se buscan sólo
+// las que tenían contrato vigente EL DÍA de la transferencia (no hoy): un pago
+// de julio tiene que matchear con el contrato que estaba activo en julio.
+function identificarCochera(desc, fecha) {
+  const crudo = nombreDeDescripcion(desc);
+  const vigentes = (state.cocheras || []).filter(c =>
+    c.cliente && c.nombre &&
+    (!c.fecha_inicio || c.fecha_inicio <= fecha) &&
+    (!c.fecha_fin || c.fecha_fin >= fecha));
+  const r = buscarPorNombre(crudo, vigentes, c => c.nombre);
+  if (!r) return null;
+  const c = r.item;
+  return {
+    seguro: r.seguro, coincide: r.coincide, nombreBanco: crudo,
+    nc: c.cliente, nombre: c.nombre,
+    cochera: `${COCH_UBIC[c.ubicacion] || c.ubicacion} ${c.numero}`,
+    monto: c.monto != null ? Number(c.monto) : null,
+    monto2: c.monto_2do_semestre != null ? Number(c.monto_2do_semestre) : null,
+    enDeuda: !!c.en_deuda,
+    id: c.id,
+  };
 }
 
 // =================================================================
@@ -6485,6 +6575,34 @@ window.facturarDesdeTransf = async function(id, val) {
   const fila = document.getElementById('cesfila-' + id);
   if (fila && c) fila.outerHTML = filaCesionCoincidente({ ...c, facturado: val });
   toast(val ? 'Cesión marcada como facturada' : 'Cesión desmarcada', 'ok');
+};
+
+window.verCocheraDeTransf = function(id) {
+  const t = (state.transfBanco || []).find(x => x.id === id);
+  if (!t) return;
+  const c = identificarCochera(t.descripcion, t.fecha);
+  if (!c) { toast('No hay cochera que coincida', 'warn'); return; }
+  const dif = c.monto != null ? Number(t.importe) - c.monto : null;
+  showModal(`<div class="modal-head"><h3>🅿️ Alquiler de cochera</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      ${c.seguro
+        ? `<div class="badge ok" style="margin-bottom:10px">✓ Identificada como <b>${esc(c.nombre)}</b></div>`
+        : `<div class="badge warn" style="margin-bottom:10px">≈ Se parece a <b>${esc(c.nombre)}</b> — confirmá antes de imputar</div>`}
+      <table class="tbl" style="margin-bottom:10px"><tbody>
+        <tr><td>N° de cliente</td><td><b style="font-family:monospace">${esc(c.nc)}</b></td></tr>
+        <tr><td>Cochera</td><td><b>${esc(c.cochera)}</b></td></tr>
+        <tr><td>Monto del alquiler</td><td>${c.monto != null ? '<b>$' + fmt(c.monto) + '</b>' : '<span style="color:var(--warn)">sin cargar</span>'}</td></tr>
+        ${c.monto2 != null ? `<tr><td>Monto 2do semestre</td><td>$${fmt(c.monto2)}</td></tr>` : ''}
+        <tr><td>Transferido</td><td><b>$${fmt(t.importe)}</b></td></tr>
+        ${dif !== null ? `<tr><td>Diferencia</td><td style="color:${Math.abs(dif) < 0.01 ? 'var(--ok)' : 'var(--warn)'}">${Math.abs(dif) < 0.01 ? 'coincide exacto' : (dif > 0 ? '+' : '') + fmt(dif)}</td></tr>` : ''}
+        <tr><td>Estado</td><td>${c.enDeuda ? '<span class="badge err">En deuda</span>' : '<span class="badge ok">Al día</span>'}</td></tr>
+      </tbody></table>
+      ${c.monto == null ? '<p class="hint">Cargá el monto del alquiler en Cocheras para poder comparar contra lo transferido.</p>' : ''}
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cerrar</button>
+      <button class="btn accent" onclick="closeModal(); switchTab('cocheras'); setTimeout(()=>editCochera('${c.id}'),150)">Abrir cochera</button>
+    </div>`);
 };
 
 window.verCesionesCoincidentes = function(id) {
@@ -6780,6 +6898,10 @@ function renderTransfBanco() {
       ? `<span class="badge ${dias <= 1 ? 'err' : 'muted'}" style="font-size:.68rem">se borra en ${dias} día${dias === 1 ? '' : 's'}</span>` : '';
     const ces = cesionesQueCoinciden(t);
     // Verde si ya está facturada, ámbar si falta: el pendiente salta a la vista
+    const coch = identificarCochera(t.descripcion, t.fecha);
+    const avisoCoch = coch
+      ? ` <span class="badge ${coch.seguro ? 'accent' : 'warn'}" style="font-size:.68rem;cursor:pointer" onclick="event.stopPropagation();verCocheraDeTransf('${t.id}')" title="${coch.seguro ? 'Alquiler de cochera' : 'Se parece a un alquiler de cochera'}">🅿️ ${coch.seguro ? '' : '¿'}${esc(coch.cochera)}${coch.seguro ? '' : '?'} · ${esc(coch.nc)}${coch.monto != null ? ` · ${fmt(coch.monto)}` : ''}</span>`
+      : '';
     const cesPend = ces.filter(x => !x.c.facturado).length;
     const avisoCes = ces.length
       ? ` <span class="badge ${cesPend ? 'warn' : 'ok'}" style="font-size:.68rem;cursor:pointer" onclick="event.stopPropagation();verCesionesCoincidentes('${t.id}')" title="${cesPend ? 'Cesión del mismo día e importe, sin facturar' : 'Cesión del mismo día e importe, ya facturada'}">🔗 ${cesPend ? 'cesión sin facturar' : 'cesión facturada'}${ces.length > 1 ? ` (${ces.length})` : ''}</span>`
@@ -6787,7 +6909,7 @@ function renderTransfBanco() {
     return `<tr data-id="${t.id}" style="${t.realizada ? 'opacity:.72' : ''}">
       <td><input type="checkbox" class="tb-chk" data-id="${t.id}" ${_tbSel.has(t.id) ? 'checked' : ''}></td>
       <td>${fmtFecha(t.fecha)}</td>
-      <td style="max-width:420px">${esc(t.descripcion)} ${aviso}${avisoCes}</td>
+      <td style="max-width:420px">${esc(t.descripcion)} ${aviso}${avisoCoch}${avisoCes}</td>
       <td class="num"><b>${simb} ${fmt(t.importe)}</b></td>
       <td class="num">${t.cotiz_usd != null ? fmt(t.cotiz_usd) : '<span class="muted">—</span>'}</td>
       <td class="num">${t.cotiz_uvi != null ? fmt(t.cotiz_uvi) : '<span class="muted">—</span>'}</td>
@@ -6997,7 +7119,7 @@ let _pipLect = null;
 async function abrirFlotanteLectura(t) {
   if (!pipDisponible()) { toast('Tu navegador no soporta ventana flotante. Usá Chrome o Edge.', 'warn'); return; }
   if (!_pipLect || _pipLect.closed) {
-    try { _pipLect = await documentPictureInPicture.requestWindow({ width: 480, height: 240 }); }
+    try { _pipLect = await documentPictureInPicture.requestWindow({ width: 480, height: 275 }); }
     catch (e) { toast('No se pudo abrir: ' + e.message, 'err'); return; }
     const est = document.querySelector('style');
     if (est) { const s = _pipLect.document.createElement('style'); s.textContent = est.textContent; _pipLect.document.head.appendChild(s); }
@@ -7060,6 +7182,7 @@ function pintarFlotanteLectura(t) {
 
   const ident = identificarTransferencia(t.descripcion);
   const ces = cesionesQueCoinciden(t);
+  const coch = identificarCochera(t.descripcion, t.fecha);
 
   const cp = v => `<button class="cp" title="Copiar" onclick="navigator.clipboard.writeText('${String(v).replace(/'/g, "\\'")}')">⎘</button>`;
   const celda = (lab, val, cls = '') =>
@@ -7083,6 +7206,7 @@ function pintarFlotanteLectura(t) {
       ${celda(`USD${t.cotiz_usd != null ? '✓' : ''}`, usdRef != null ? `${fmt(usdRef)}${cp(usdRef)}` : sinDato)}
       ${celda(`UVI${t.cotiz_uvi != null ? '✓' : ''}`, uviRef != null ? `${fmt(uviRef)}${cp(uviRef)}` : sinDato)}
     </div>
+    ${coch ? `<div class="fl-ident ${coch.seguro ? 'ok' : 'duda'}" style="margin-top:4px">🅿️ ${coch.seguro ? 'Cochera' : '¿Cochera'} <b>${esc(coch.cochera)}</b>${coch.seguro ? '' : '?'} · ${esc(coch.nc)}${coch.monto != null ? ` · $${fmt(coch.monto)}` : ' · <small>sin monto</small>'}</div>` : ''}
     ${ces.length ? `<div class="fl-ident ${ces.some(x => !x.c.facturado) ? 'duda' : 'ok'}" style="margin-top:4px">🔗 Cesión de <b>${esc(ces[0].c.cedente)}</b>${ces.length > 1 ? ` (+${ces.length - 1})` : ''} · ${ces.some(x => !x.c.facturado) ? 'sin facturar' : 'facturada'}</div>` : ''}
     <div class="fl-nav">
       <button class="fl-sec" id="fl-prev" title="Anterior" ${idx <= 0 ? 'disabled' : ''}>←</button>
