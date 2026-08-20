@@ -6402,13 +6402,82 @@ function identificarCochera(desc, fecha) {
 }
 
 // =================================================================
-// EXPORTAR IDENTIFICADAS AL FORMATO UVIs
+// REPORTE FORMATO UVIs · un archivo por emprendimiento
 // =================================================================
-// Columnas exactas del template: CLIENTES | FACTURA | COTI UVIS |
-// MONTO DE TRANSFERENCIA | FECHA DE TRANSFERENCIA
-// Sólo entran las identificadas con certeza (nombre exacto o mismas
-// palabras). Las "posibles" quedan afuera a propósito: exportar una
-// imputación dudosa a un sistema contable es peor que exportar de menos.
+// Las transferencias se agrupan por el emprendimiento que cancela, que sale
+// del identificador. Quedan afuera las que no tienen identificador, las que
+// lo tienen pero sin emprendimiento cargado, y las que no tienen cotización
+// UVI para su fecha. Las identificaciones dudosas SÍ entran, marcadas.
+function filasUvisDe(base, uviPorFecha) {
+  const grupos = new Map();          // emprendimiento -> filas
+  const fuera = { sinIdent: [], sinEmpr: [], sinCliente: [], sinUvi: [] };
+
+  base.forEach(t => {
+    const id = identificarTransferencia(t.descripcion);
+    if (!id) { fuera.sinIdent.push(t); return; }
+    if (!id.empr) { fuera.sinEmpr.push({ t, id }); return; }
+    if (!id.nc) { fuera.sinCliente.push({ t, id }); return; }
+    const uvi = t.cotiz_uvi != null ? Number(t.cotiz_uvi) : uviPorFecha[t.fecha];
+    if (uvi == null) { fuera.sinUvi.push(t); return; }
+    if (!grupos.has(id.empr)) grupos.set(id.empr, []);
+    grupos.get(id.empr).push({
+      cliente: Number(id.nc),
+      uvi,
+      monto: Number(t.importe),
+      fecha: t.fecha,
+      _titular: id.titular,
+      _dudosa: !id.seguro,
+      _coincide: id.coincide,
+    });
+  });
+
+  // Orden estable: como están en el catálogo, y los demás al final
+  const orden = (state.identEmpr || []).map(e => e.nombre);
+  const ordenadas = [...grupos.keys()].sort((a, b) => {
+    const ia = orden.indexOf(a), ib = orden.indexOf(b);
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+  });
+  return { grupos, ordenadas, fuera };
+}
+
+function bajarUvisXlsx(filas, nombreArchivo) {
+  // La fecha va como número de serie de Excel con formato de fecha: pasar un
+  // objeto Date depende de que la librería lo reconozca y eso falla si Date
+  // viene de otro contexto de ejecución.
+  const aSerial = iso => {
+    const [a, m, d] = iso.split('-').map(Number);
+    return Math.round((Date.UTC(a, m - 1, d) - Date.UTC(1899, 11, 30)) / 864e5);
+  };
+  const aoa = [['CLIENTES ', 'FACTURA', 'COTI UVIS ', 'MONTO DE TRANSFERENCIA ', 'FECHA DE TRANSFERENCIA']];
+  filas.forEach(f => aoa.push([f.cliente, null, f.uvi, f.monto, aSerial(f.fecha)]));
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const contable = '_-* #,##0.00_-;\\-* #,##0.00_-;_-* "-"??_-;_-@_-';
+  for (let i = 0; i < filas.length; i++) {
+    const r = i + 2;
+    ['C', 'D'].forEach(col => { const c = ws[col + r]; if (c) c.z = contable; });
+    const e = ws['E' + r]; if (e) { e.t = 'n'; e.z = 'mm-dd-yy'; }
+  }
+  ws['!cols'] = [{ wch: 11 }, { wch: 10 }, { wch: 12 }, { wch: 24 }, { wch: 22 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Hoja1');
+  XLSX.writeFile(wb, nombreArchivo);
+}
+
+let _uvisGrupos = null;
+
+window.bajarReporteUvis = function(empr) {
+  const filas = _uvisGrupos?.get(empr);
+  if (!filas || !filas.length) { toast('Sin filas para ese emprendimiento', 'warn'); return; }
+  const slug = empr.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '');
+  bajarUvisXlsx(filas, `UVIs-${slug}-${todayISO()}.xlsx`);
+  toast(`${filas.length} transferencias exportadas · ${empr}`, 'ok');
+};
+
+window.verDetalleUvis = function(empr) {
+  const cont = document.getElementById('uvi-det-' + btoa(unescape(encodeURIComponent(empr))).replace(/=/g, ''));
+  if (cont) cont.style.display = cont.style.display === 'none' ? 'block' : 'none';
+};
+
 function exportarUvis() {
   const cta = cuentaTBActual();
   if (!cta) { toast('Elegí una cuenta', 'warn'); return; }
@@ -6418,78 +6487,64 @@ function exportarUvis() {
   const uviPorFecha = {};
   (state.uvi || []).forEach(u => { uviPorFecha[u.fecha] = Number(u.valor); });
 
-  const filas = [], sinIdent = [], sinUvi = [], sinCliente = [];
-  base.forEach(t => {
-    const id = identificarTransferencia(t.descripcion);
-    if (!id || !id.seguro) { sinIdent.push(t); return; }
-    if (!id.nc) { sinCliente.push({ t, id }); return; }
-    const uvi = t.cotiz_uvi != null ? Number(t.cotiz_uvi) : uviPorFecha[t.fecha];
-    if (uvi == null) { sinUvi.push(t); return; }
-    filas.push({
-      cliente: Number(id.nc),
-      uvi,
-      monto: Number(t.importe),
-      fecha: t.fecha,
-      _titular: id.titular,
-    });
-  });
+  const { grupos, ordenadas, fuera } = filasUvisDe(base, uviPorFecha);
+  _uvisGrupos = grupos;
 
-  if (!filas.length) {
-    toast(`Ninguna transferencia identificada con certeza${sinUvi.length ? ' y con UVI cargada' : ''}`, 'warn');
-    return;
-  }
+  const totalFuera = fuera.sinIdent.length + fuera.sinEmpr.length + fuera.sinCliente.length + fuera.sinUvi.length;
 
-  const detalle = [
-    `<b>${filas.length}</b> transferencias listas para exportar`,
-    sinIdent.length ? `${sinIdent.length} sin identificar con certeza (quedan afuera)` : '',
-    sinCliente.length ? `${sinCliente.length} identificadas pero sin N° de cliente cargado` : '',
-    sinUvi.length ? `<span style="color:var(--warn)">⚠ ${sinUvi.length} sin cotización UVI para su fecha (quedan afuera)</span>` : '',
-  ].filter(Boolean);
+  const bloqueFuera = (titulo, lista, extra) => lista.length
+    ? `<details style="margin-top:6px"><summary style="cursor:pointer;font-size:.82rem">${titulo} (${lista.length})</summary>
+        <div style="max-height:140px;overflow:auto;font-size:.76rem;padding:6px 0">
+        ${lista.map(x => { const t = x.t || x;
+          return `<div style="padding:2px 0">${fmtFecha(t.fecha)} · ${esc(t.descripcion.slice(0, 62))} · ${fmt(t.importe)}${extra && x.id ? ` <span class="muted">→ ${esc(x.id.titular)}</span>` : ''}</div>`;
+        }).join('')}</div></details>`
+    : '';
 
-  showModal(`<div class="modal-head"><h3>Exportar formato UVIs</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+  showModal(`<div class="modal-head"><h3>Reportes formato UVIs</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
-      <ul style="margin:0 0 12px 18px;line-height:1.7">${detalle.map(d => `<li>${d}</li>`).join('')}</ul>
-      <div class="tbl-wrap" style="max-height:260px;overflow:auto"><table class="tbl">
-        <thead><tr><th>Cliente</th><th>Titular</th><th class="num">Coti UVIs</th><th class="num">Monto</th><th>Fecha</th></tr></thead>
-        <tbody>${filas.slice(0, 60).map(f => `<tr><td>${f.cliente}</td><td>${esc(f._titular)}</td>
-          <td class="num">${fmt(f.uvi)}</td><td class="num">${fmt(f.monto)}</td><td>${fmtFecha(f.fecha)}</td></tr>`).join('')}</tbody>
-      </table></div>
-      ${filas.length > 60 ? `<p class="hint" style="margin-top:8px">Mostrando 60 de ${filas.length}.</p>` : ''}
-      ${sinIdent.length ? `<details style="margin-top:10px"><summary style="cursor:pointer;font-size:.85rem;color:var(--accent)">Ver las ${sinIdent.length} que quedan afuera</summary>
-        <div style="max-height:150px;overflow:auto;font-size:.78rem;padding:8px 0">
-        ${sinIdent.map(t => `<div style="padding:2px 0">${fmtFecha(t.fecha)} · ${esc(t.descripcion.slice(0,70))} · ${fmt(t.importe)}</div>`).join('')}
-        </div></details>` : ''}
+      <p class="hint" style="margin-bottom:12px">Un archivo por emprendimiento, según lo que cancela cada identificador.
+        Sobre ${base.length} transferencias de ${esc(cta.banco)} · ${esc(cta.nombre)}.</p>
+
+      ${ordenadas.length ? ordenadas.map(empr => {
+        const filas = grupos.get(empr);
+        const total = filas.reduce((a, f) => a + f.monto, 0);
+        const dudosas = filas.filter(f => f._dudosa).length;
+        const key = btoa(unescape(encodeURIComponent(empr))).replace(/=/g, '');
+        return `<div style="border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+            <div>
+              <b style="font-size:.95rem">${esc(empr)}</b>
+              <div class="muted" style="font-size:.79rem">${filas.length} transferencia${filas.length === 1 ? '' : 's'} · $${fmt(total)}
+                ${dudosas ? ` · <span style="color:var(--warn)">${dudosas} con identificación dudosa</span>` : ''}</div>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="btn ghost sm" onclick="verDetalleUvis('${esc(empr)}')">Ver detalle</button>
+              <button class="btn accent sm" onclick="bajarReporteUvis('${esc(empr).replace(/'/g, "\\'")}')">↓ Descargar</button>
+            </div>
+          </div>
+          <div id="uvi-det-${key}" style="display:none;margin-top:8px">
+            <div class="tbl-wrap" style="max-height:220px;overflow:auto"><table class="tbl">
+              <thead><tr><th>Cliente</th><th>Titular</th><th class="num">UVI</th><th class="num">Monto</th><th>Fecha</th></tr></thead>
+              <tbody>${filas.map(f => `<tr style="${f._dudosa ? 'background:#fff7ed' : ''}">
+                <td>${f.cliente}</td>
+                <td>${esc(f._titular)}${f._dudosa ? ` <span class="badge warn" style="font-size:.65rem" title="Coincide con &quot;${esc(f._coincide)}&quot;">dudosa</span>` : ''}</td>
+                <td class="num">${fmt(f.uvi)}</td><td class="num">${fmt(f.monto)}</td><td>${fmtFecha(f.fecha)}</td></tr>`).join('')}</tbody>
+            </table></div>
+          </div>
+        </div>`;
+      }).join('') : '<div class="empty" style="padding:20px">Ninguna transferencia identificada con emprendimiento cargado.</div>'}
+
+      ${totalFuera ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+        <b style="font-size:.88rem">Quedan afuera ${totalFuera}</b>
+        ${bloqueFuera('Sin identificador cargado', fuera.sinIdent)}
+        ${bloqueFuera('Identificadas pero sin emprendimiento', fuera.sinEmpr, true)}
+        ${bloqueFuera('Sin N° de cliente', fuera.sinCliente, true)}
+        ${bloqueFuera('Sin cotización UVI para su fecha', fuera.sinUvi)}
+      </div>` : ''}
     </div>
     <div class="modal-foot">
-      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
-      <button class="btn accent" id="uvi-bajar">Descargar Excel</button>
+      <button class="btn ghost" onclick="closeModal()">Cerrar</button>
     </div>`);
-
-  $('#uvi-bajar').addEventListener('click', () => {
-    // La fecha va como número de serie de Excel (días desde el 30/12/1899)
-    // con formato de fecha. Pasar un objeto Date depende de que la librería lo
-    // reconozca, y eso falla si Date viene de otro contexto de ejecución.
-    const aSerial = iso => {
-      const [a, m, d] = iso.split('-').map(Number);
-      return Math.round((Date.UTC(a, m - 1, d) - Date.UTC(1899, 11, 30)) / 864e5);
-    };
-    const aoa = [['CLIENTES ', 'FACTURA', 'COTI UVIS ', 'MONTO DE TRANSFERENCIA ', 'FECHA DE TRANSFERENCIA']];
-    filas.forEach(f => aoa.push([f.cliente, null, f.uvi, f.monto, aSerial(f.fecha)]));
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    // Formatos como en el archivo modelo: números con 2 decimales y fecha real
-    const contable = '_-* #,##0.00_-;\\-* #,##0.00_-;_-* "-"??_-;_-@_-';
-    for (let i = 0; i < filas.length; i++) {
-      const r = i + 2;
-      ['C', 'D'].forEach(col => { const c = ws[col + r]; if (c) c.z = contable; });
-      const e = ws['E' + r]; if (e) { e.t = 'n'; e.z = 'mm-dd-yy'; }
-    }
-    ws['!cols'] = [{ wch: 11 }, { wch: 10 }, { wch: 12 }, { wch: 24 }, { wch: 22 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Hoja1');
-    XLSX.writeFile(wb, `UVIs-${cta.banco}-${todayISO()}.xlsx`);
-    closeModal();
-    toast(`${filas.length} transferencias exportadas`, 'ok');
-  });
 }
 
 // =================================================================
