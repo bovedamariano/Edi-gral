@@ -1482,7 +1482,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <input type="file" id="tb-file" accept=".xlsx,.xls" style="display:none">
           <button class="btn ghost sm" id="tb-flotante">🪟 Ventana flotante</button>
           <button class="btn ghost sm" id="tb-excel">↓ Excel</button>
-          <button class="btn ghost sm" id="tb-uvis" title="Exporta sólo las identificadas, en el formato de UVIs">↓ Formato UVIs</button>
+          <button class="btn ghost sm" id="tb-uvis" title="Un archivo por emprendimiento con las transferencias identificadas">↓ Descargar por emprendimiento</button>
           <button class="btn ghost sm" id="tb-borrar-pend" title="Borra todas las pendientes de esta cuenta (requiere admin)" style="color:var(--err)">🗑 Borrar pendientes</button>
           <span id="tb-resumen" class="hint" style="margin-left:auto"></span>
         </div>
@@ -6345,6 +6345,25 @@ function nombreDeDescripcion(desc) {
 // Sólo devuelve seguro=true con coincidencia exacta o mismas palabras.
 // Cualquier parecido inexacto vuelve como posible, porque imputar mal
 // cuesta más que revisar una fila de más.
+// ¿Están todas las letras de `a` dentro de `b`, en el mismo orden?
+// Sirve para los nombres que el banco escribe con letras perdidas.
+function esSubsecuencia(a, b) {
+  let i = 0;
+  for (let j = 0; j < b.length && i < a.length; j++) if (b[j] === a[i]) i++;
+  return i === a.length;
+}
+
+function sinEspacios(t) { return normalizarNombre(t).replace(/ /g, ''); }
+function primerToken(t) { return normalizarNombre(t).split(' ')[0] || ''; }
+
+// El apellido es la primera palabra con peso: los identificadores están
+// escritos APELLIDO NOMBRE. Se saltean partículas para que "DE LA TORRE
+// ESTEBAN" dé TORRE y no DE.
+function apellidoDe(t) {
+  return normalizarNombre(t).split(' ')
+    .find(p => p.length > 1 && !PALABRAS_VACIAS.has(p)) || '';
+}
+
 function buscarPorNombre(crudo, lista, getNombre) {
   const norm = normalizarNombre(crudo);
   if (!norm || norm.length < 4) return null;
@@ -6360,13 +6379,58 @@ function buscarPorNombre(crudo, lista, getNombre) {
     if (!ti.size) continue;
     const comunes = [...tk].filter(p => ti.has(p)).length;
     if (comunes === tk.size && comunes === ti.size) return { seguro: true, item, coincide: nt };
+    // El apellido tiene que estar sí o sí. Sin esto, dos personas distintas
+    // que comparten los nombres de pila (dos "MARÍA INÉS" con apellidos
+    // diferentes) tienen 2 palabras en común y se vinculan entre sí.
+    const apeCand = apellidoDe(nt);
+    if (!apeCand || !tk.has(apeCand)) continue;
+
     const puntaje = comunes / Math.min(tk.size, ti.size);
     if (comunes >= 2 && puntaje > mejorPuntaje) {
       mejorPuntaje = puntaje;
       posible = { seguro: false, item, coincide: nt };
     }
   }
-  return posible;
+  if (posible) return posible;
+
+  // Último recurso: el banco pierde letras acentuadas y parte los nombres.
+  // "NORES MARÍA SOLEDAD" llega como "NORES MAR A": la Í se cae, la A queda
+  // suelta y se descarta por tener una sola letra, así que sólo coincide el
+  // apellido y no alcanza. Sin los espacios, NORESMARA sigue siendo una
+  // subsecuencia de NORESMARIASOLEDAD.
+  // Se exige apellido idéntico y un largo mínimo para no matchear cualquier cosa,
+  // y el resultado SIEMPRE vuelve como dudoso, nunca como seguro.
+  const sinEsp = sinEspacios(crudo);
+  const apellido = apellidoDe(crudo);
+  if (sinEsp.length < 7) return null;
+
+  const candidatos = [];
+  for (const item of lista) {
+    const nt = getNombre(item) || '';
+    if (!nt) continue;
+    const b = sinEspacios(nt);
+    if (!esSubsecuencia(sinEsp, b)) continue;
+    const faltan = b.length - sinEsp.length;
+
+    // Caso 1 · faltan pocas letras dentro del mismo nombre.
+    //   "NUÑEZ CARLOS" llega como "NU EZ CARLOS": se pierde una sola letra,
+    //   pero cae en el apellido, así que no se puede exigir que coincida.
+    //   Se compensa pidiendo que casi no falte nada.
+    const pocasLetras = faltan <= 3 && sinEsp.length / b.length >= 0.8;
+
+    // Caso 2 · el banco recorta un nombre entero.
+    //   "NORES MARÍA SOLEDAD" llega como "NORES MAR A": falta SOLEDAD completo.
+    //   Acá sí se exige apellido idéntico, que es lo que evita disparates.
+    const recorte = apellido.length >= 3 && apellidoDe(nt) === apellido && faltan <= 14;
+
+    if (pocasLetras || recorte) {
+      candidatos.push({ item, nt, ratio: sinEsp.length / b.length });
+    }
+  }
+  if (!candidatos.length) return null;
+  candidatos.sort((x, y) => y.ratio - x.ratio);
+  return { seguro: false, item: candidatos[0].item, coincide: candidatos[0].nt,
+           ambiguo: candidatos.length > 1 };
 }
 
 function identificarTransferencia(desc) {
@@ -6500,7 +6564,7 @@ function exportarUvis() {
         }).join('')}</div></details>`
     : '';
 
-  showModal(`<div class="modal-head"><h3>Reportes formato UVIs</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+  showModal(`<div class="modal-head"><h3>Descargar por emprendimiento</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <p class="hint" style="margin-bottom:12px">Un archivo por emprendimiento, según lo que cancela cada identificador.
         Sobre ${base.length} transferencias de ${esc(cta.banco)} · ${esc(cta.nombre)}.</p>
