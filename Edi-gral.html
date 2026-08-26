@@ -701,6 +701,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
       <div class="tabs">
         <button class="tab active" data-subtab="icc-actualizar">Calcular por boleto</button>
         <button class="tab" data-subtab="icc-historico">Histórico ICC</button>
+        <button class="tab" data-subtab="icc-deuda" id="tab-btn-deuda" style="display:none">Cálculo de deuda</button>
       </div>
 
       <div class="subtab-content" id="icc-actualizar">
@@ -755,6 +756,75 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <div class="tbl-wrap" style="margin-top:14px"><table class="tbl" id="icc-tabla"><thead><tr><th>Mes</th><th>Año</th><th class="num">Valor</th><th>Cargado</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
+
+      <div class="subtab-content" id="icc-deuda" style="display:none">
+        <div class="card" style="margin-bottom:14px">
+          <h3>Datos del cálculo</h3>
+          <div class="field-row" style="align-items:end">
+            <div class="field" style="max-width:130px"><label>N° cliente</label>
+              <input type="text" id="dd-cliente" maxlength="7" inputmode="numeric" placeholder="1234567"></div>
+            <div class="field"><label>Nombre</label><input type="text" id="dd-nombre" placeholder="Apellido y nombre"></div>
+            <div class="field"><label>Emprendimiento</label><select id="dd-empr"></select></div>
+            <div class="field" style="max-width:150px"><label>Calcular al día</label>
+              <input type="date" id="dd-fecha"></div>
+          </div>
+          <div class="field-row" style="align-items:end">
+            <div class="field" style="max-width:150px"><label>Tasa anual (TNA %)</label>
+              <input type="number" id="dd-tasa" step="0.01" placeholder="38.50"></div>
+            <div class="field" style="max-width:230px"><label>&nbsp;</label>
+              <button class="btn ghost" id="dd-badlar" style="width:100%">↻ Usar BADLAR + 8%</button></div>
+            <div class="field"><label>&nbsp;</label>
+              <div class="hint" id="dd-badlar-info" style="padding:8px 0">—</div></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h3 style="margin:0">Cuotas adeudadas</h3>
+            <div style="display:flex;gap:6px">
+              <button class="btn ghost sm" id="dd-replicar">⧉ Replicar mensual</button>
+              <button class="btn ghost sm" id="dd-add">+ Cuota</button>
+            </div>
+          </div>
+          <div class="tbl-wrap"><table class="tbl" id="dd-cuotas">
+            <thead><tr><th style="width:170px">Vencimiento</th><th class="num" style="width:170px">Monto</th><th class="actions"></th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+          <div style="margin-top:12px"><button class="btn accent" id="dd-calcular">Calcular deuda</button></div>
+        </div>
+
+        <div class="card" id="dd-resultado-card" style="display:none;margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+            <h3 style="margin:0">Resultado</h3>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn ghost sm" id="dd-pdf-simple">↓ PDF simple</button>
+              <button class="btn ghost sm" id="dd-pdf-comp">↓ PDF compuesto</button>
+              <button class="btn accent sm" id="dd-guardar">Guardar cálculo</button>
+            </div>
+          </div>
+          <div id="dd-resumen" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
+          <div class="tbl-wrap"><table class="tbl" id="dd-tabla">
+            <thead><tr>
+              <th>Vencimiento</th><th class="num">Capital</th><th class="num">Días</th>
+              <th class="num">Int. simple</th><th class="num">Total simple</th>
+              <th class="num">Int. compuesto</th><th class="num">Total compuesto</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h3 style="margin:0">Cálculos guardados</h3>
+            <input type="text" id="dd-buscar" placeholder="Buscar por nombre o cliente" style="width:auto;min-width:200px;padding:5px 8px;font-size:.82rem">
+          </div>
+          <div class="tbl-wrap"><table class="tbl" id="dd-guardados">
+            <thead><tr><th>Fecha</th><th>Cliente</th><th>Nombre</th><th class="num">Tasa</th><th class="num">Capital</th><th class="num">Simple</th><th class="num">Compuesto</th><th class="actions"></th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+      </div>
+
     </section>
 
     <!-- SELLOS TAB -->
@@ -808,6 +878,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
             <label>Alícuota vigente (%) <span id="sello-alicuota-lock" style="font-size:.7rem;color:var(--ink-3);text-transform:none;letter-spacing:0;font-weight:400">· solo admin</span></label>
             <input type="number" id="sello-alicuota" step="0.01" value="0.70">
             <div class="hint" id="sello-alicuota-hint" style="display:none">Solo el administrador puede modificar este valor</div>
+            <div class="hint" id="sello-alicuota-aviso" style="display:none;margin-top:2px"></div>
           </div>
           <div class="field"><label>Observaciones (opcional)</label><textarea id="sello-obs" rows="2"></textarea></div>
 
@@ -1088,47 +1159,26 @@ details[open] .ident-toggle{transform:rotate(180deg)}
     <!-- COTIZACION TAB -->
     <section class="tab-content" id="tab-cotizacion" style="display:none">
       <div class="page-head"><div><h1>Cotización del dólar</h1></div></div>
-      <div class="grid-2">
-        <div class="card">
-          <h3>Dólar BNA (automático)</h3>
-          <div class="grid-3" style="gap:10px">
-            <div class="stat"><div class="lab">Compra</div><div class="val" id="cot-bna-c">—</div></div>
-            <div class="stat"><div class="lab">Venta</div><div class="val" id="cot-bna-v">—</div></div>
-            <div class="stat"><div class="lab">Promedio</div><div class="val" id="cot-bna-p">—</div></div>
-          </div>
-          <div class="hint" id="cot-bna-meta" style="margin-top:8px">—</div>
-          <button class="btn ghost sm" id="cot-refresh" style="margin-top:10px">↻ Refrescar</button>
-        </div>
-        <div class="card" id="card-tesoreria">
-          <h3>Valor Tesorería (manual)</h3>
-          <div class="hint" id="tes-no-permiso" style="display:none;color:var(--ink-3);padding:10px 0">Solo Finanzas y Administración pueden cargar cotizaciones de Tesorería.</div>
-          <div id="tes-form">
-          <div class="field"><label>Fecha</label><input type="date" id="tes-fecha"></div>
-          <div class="field-row">
-            <div class="field"><label>Compra</label><input type="number" id="tes-c" step="0.01"></div>
-            <div class="field"><label>Venta</label><input type="number" id="tes-v" step="0.01"></div>
-          </div>
-          <button class="btn accent" id="tes-save">Guardar cotización</button>
-          <div class="hint" style="margin-top:8px">Si ya existe una cotización para esa fecha, se reemplaza</div>
-          </div>
-        </div>
-      </div>
-      <div class="card">
+      <!-- Resumen: los tres valores vigentes de un vistazo -->
+      <div class="card" style="margin-bottom:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <h3 style="margin:0">Historial</h3>
-          <button class="btn ghost sm" id="cot-excel">↓ Excel</button>
+          <h3 style="margin:0">Valores vigentes</h3>
+          <button class="btn ghost sm" id="cot-refresh">↻ Refrescar BNA</button>
         </div>
-        <div class="tbl-wrap"><table class="tbl" id="cot-tabla">
-          <thead><tr><th>Fecha</th><th>Fuente</th><th class="num">Compra</th><th class="num">Venta</th><th class="num">Promedio</th></tr></thead><tbody></tbody></table></div>
+        <div id="cot-resumen" style="display:flex;gap:10px;flex-wrap:wrap"></div>
+        <div class="hint" id="cot-bna-meta" style="margin-top:8px">—</div>
+        <div style="display:none"><span id="cot-bna-c"></span><span id="cot-bna-v"></span><span id="cot-bna-p"></span></div>
       </div>
-    
-      <div class="card" style="margin-top:16px">
-        <h3>Cotizaciones día a día</h3>
-        <p class="sub" style="margin-bottom:12px">Se usan para valuar las transferencias en dólares y en UVI según su fecha.</p>
+
+      <div class="card" style="margin-bottom:16px">
+        <h3>Cargar cotizaciones</h3>
+        <p class="sub" style="margin-bottom:12px">Día a día. El dólar BNA y la UVI se usan para valuar las transferencias según su fecha.</p>
         <div class="tabs" style="margin-bottom:12px">
           <button class="tab active" id="cd-tab-bna">Dólar BNA</button>
           <button class="tab" id="cd-tab-uvi">UVI</button>
+          <button class="tab" id="cd-tab-tes">Tesorería</button>
         </div>
+        <div class="hint" id="tes-no-permiso" style="display:none;color:var(--warn);padding:6px 0">Solo Finanzas y Administración pueden cargar cotizaciones de Tesorería.</div>
         <div class="field-row" style="align-items:end">
           <div class="field"><label>Fecha</label><input type="date" id="cd-fecha"></div>
           <div class="field" id="cd-wrap-compra"><label>Compra</label><input type="number" id="cd-compra" step="0.01"></div>
@@ -1153,7 +1203,20 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <thead><tr id="cd-head"></tr></thead><tbody></tbody>
         </table></div>
       </div>
-</section>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h3 style="margin:0">Últimas 20 de Tesorería</h3>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="cot-mes" style="width:auto;min-width:150px;padding:5px 8px;font-size:.82rem"></select>
+            <button class="btn ghost sm" id="cot-excel">↓ Excel del mes</button>
+          </div>
+        </div>
+        <div class="tbl-wrap"><table class="tbl" id="cot-tabla">
+          <thead><tr><th>Fecha</th><th class="num">Compra</th><th class="num">Venta</th><th class="num">Promedio</th><th class="num">vs BNA</th></tr></thead><tbody></tbody></table></div>
+      </div>
+
+    </section>
 
     <!-- GASTOS TAB -->
     <section class="tab-content" id="tab-gastos" style="display:none">
@@ -1467,6 +1530,8 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <h3 style="margin-bottom:4px">Transferencias por banco</h3>
         <p class="sub" style="margin-bottom:14px">Importadas del extracto. Al marcarlas como realizadas pasan al repositorio y se borran a los 5 días.</p>
 
+        <div id="tb-dash" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
+
         <div class="field-row">
           <div class="field"><label>Empresa</label><select id="tb-empresa"></select></div>
           <div class="field"><label>Cuenta</label><select id="tb-cuenta"></select></div>
@@ -1674,15 +1739,17 @@ details[open] .ident-toggle{transform:rotate(180deg)}
       </div>
       <div class="subtab-content" id="aj-alicuotas" style="display:none">
         <div class="card">
-          <h3>Alícuotas de sellos por mes</h3>
+          <h3>Alícuotas de sellos</h3>
+          <p class="sub" style="margin-bottom:12px">Son anuales: alcanza con cargar una por año, con vigencia desde enero.
+            Se aplica la última vigente a la fecha de cada boleto, así que si en el medio del año cambia, se carga otra con el mes correspondiente.</p>
           <div class="grid-4" style="align-items:end">
-            <div class="field"><label>Mes</label><select id="ali-mes"></select></div>
+            <div class="field"><label>Vigente desde (mes)</label><select id="ali-mes"></select></div>
             <div class="field"><label>Año</label><input type="number" id="ali-anio"></div>
             <div class="field"><label>Alícuota (%)</label><input type="number" id="ali-valor" step="0.01"></div>
             <button class="btn" id="ali-save">Guardar</button>
           </div>
           <div class="tbl-wrap" style="margin-top:14px"><table class="tbl" id="ali-tabla">
-            <thead><tr><th>Mes</th><th>Año</th><th class="num">Alícuota</th><th>Jurisdicción</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
+            <thead><tr><th>Vigente desde</th><th class="num">Alícuota</th><th>Jurisdicción</th><th class="actions"></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
       <div class="subtab-content" id="aj-responsables" style="display:none">
@@ -1879,6 +1946,9 @@ const state = {
   cocheras: [],
   bancosCuentas: [],
   transfBanco: [],
+  finalizadas: [],
+  badlar: [],
+  deudaCalculos: [],
   uvi: [],
   cotizacionesBna: [],
   retirosPersonas: [],
@@ -2038,10 +2108,18 @@ async function afterLogin() {
     $('#audit-nav').style.display = 'flex';
     $('#sello-alicuota-lock').style.display = 'none';
   } else {
-    // No-admin: bloquear el campo de alícuota
-    $('#sello-alicuota').readOnly = true;
-    $('#sello-alicuota').style.background = 'var(--surface-2)';
-    $('#sello-alicuota').style.cursor = 'not-allowed';
+    // No-admin: el campo queda fijo. readOnly NO alcanza en un input number:
+    // Chrome igual lo cambia con las flechas del teclado y la rueda del mouse.
+    const ali = $('#sello-alicuota');
+    ali.readOnly = true;
+    ali.tabIndex = -1;
+    ali.style.background = 'var(--surface-2)';
+    ali.style.cursor = 'not-allowed';
+    ali.addEventListener('wheel', e => e.preventDefault(), { passive: false });
+    ali.addEventListener('keydown', e => {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(e.key)) e.preventDefault();
+    });
+    ali.addEventListener('mousedown', e => e.preventDefault());   // spinner del navegador
     $('#sello-alicuota-hint').style.display = 'block';
   }
   // Aplicar permisos por área
@@ -2050,7 +2128,7 @@ async function afterLogin() {
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
     loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadCocheras(),
-    loadBancosCuentas(), loadTransferenciasBanco(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(),
+    loadBancosCuentas(), loadTransferenciasBanco(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -2065,6 +2143,7 @@ async function afterLogin() {
   subscribeChanges();
   llenarSelectoresTB();
   llenarSelectsEmpr();
+  renderDeuda();
   purgarRealizadas();   // borra las realizadas hace más de 5 días
   renderCampanita();
   // Recalcular cada 10 min para que el contador cruce la medianoche solo,
@@ -2263,8 +2342,9 @@ function switchTab(tab) {
   if (tab === 'ajustes') loadUsers();
   if (tab === 'retiros') renderRetiros();
   if (tab === 'cocheras') renderCocheras();
-  if (tab === 'transferencias') { llenarSelectoresTB(); renderTransfBanco(); }
+  if (tab === 'transferencias') { llenarSelectoresTB(); renderTransfBanco(); renderDashTransf(); }
   if (tab === 'cotizacion') renderCotizDia();
+  if (tab === 'icc') renderDeuda();
   if (tab === 'ajustes') { renderBancosCuentas(); renderIdentEmpr(); }
   if (tab === 'transferencias') llenarSelectsEmpr();
 }
@@ -2900,12 +2980,49 @@ $('#sello-moneda').addEventListener('change', async () => {
     await fetchBNA($('#sello-fecha').value);
   }
 });
+// Alícuota VIGENTE a la fecha del boleto: la última cargada con fecha de
+// vigencia igual o anterior. Las alícuotas son anuales (una fila por año),
+// así que buscar coincidencia exacta de mes y año no encontraba nada salvo
+// justo ese mes. Con este criterio además siguen funcionando los cambios
+// a mitad de año, si alguna vez los hubiera.
+function alicuotaVigente(fecha) {
+  if (!fecha) return null;
+  const [y, m] = fecha.split('-').map(Number);
+  const clave = y * 12 + (m - 1);
+  const candidatas = (state.alicuotas || [])
+    .filter(x => (x.anio * 12 + ((x.mes || 1) - 1)) <= clave)
+    .sort((p, q) => (q.anio * 12 + ((q.mes || 1) - 1)) - (p.anio * 12 + ((p.mes || 1) - 1)));
+  return candidatas.length ? candidatas[0] : null;
+}
+
+function alicuotaOficial(fecha) {
+  const a = alicuotaVigente(fecha);
+  return a ? Number(a.alicuota) : null;
+}
+
+function alicuotaAplicable(fecha) {
+  const oficial = alicuotaOficial(fecha);
+  const enPantalla = parseFloat($('#sello-alicuota').value);
+  if (state.profile?.rol === 'admin') return enPantalla || oficial;
+  if (oficial != null) return oficial;
+  return enPantalla;   // sin alícuota cargada para ese mes: se usa la de pantalla y se avisa
+}
+
 function updateAlicuotaForFecha() {
   const f = $('#sello-fecha').value;
-  if (!f) return;
-  const [y,m] = f.split('-').map(Number);
-  const a = state.alicuotas.find(x => x.mes===m && x.anio===y);
-  if (a) $('#sello-alicuota').value = a.alicuota;
+  const aviso = $('#sello-alicuota-aviso');
+  if (!f) { if (aviso) aviso.style.display = 'none'; return; }
+  const oficial = alicuotaOficial(f);
+  if (oficial != null) $('#sello-alicuota').value = oficial;
+  if (!aviso) return;
+  if (oficial == null) {
+    const [y] = f.split('-').map(Number);
+    aviso.innerHTML = `<span style="color:var(--warn)">⚠ No hay alícuota cargada con vigencia hasta ${y}. Cargala en Ajustes → Alícuotas sellos.</span>`;
+  } else {
+    const v = alicuotaVigente(f);
+    aviso.innerHTML = `Vigente desde ${MESES[(v.mes || 1) - 1]} ${v.anio}`;
+  }
+  aviso.style.display = 'block';
 }
 
 // Busca cotización del día hábil INMEDIATO anterior a la fecha dada.
@@ -2968,7 +3085,10 @@ async function calcSello() {
   const unidad = $('#sello-unidad').value.trim();
   const moneda = $('#sello-moneda').value;
   const monto = parseFloat($('#sello-monto').value);
-  const alicuota = parseFloat($('#sello-alicuota').value);
+  // La alícuota se toma de la tabla oficial del mes del boleto, no del campo.
+  // Aunque alguien lograra tocar el input, el cálculo usa el valor cargado por
+  // el administrador. Sólo un admin puede apartarse de ese valor.
+  const alicuota = alicuotaAplicable(fecha);
   const tipoOperacion = $('#sello-tipo').value;
   if (!fecha || !prop || !unidad || !monto || !alicuota) { toast('Completá todos los campos', 'warn'); return null; }
   if (!tipoOperacion) { toast('Elegí el tipo de operación', 'warn'); return null; }
@@ -4474,33 +4594,72 @@ function aplicarPermisosTesoreria() {
   aviso.style.display = puede ? 'none' : 'block';
 }
 
-$('#tes-save').addEventListener('click', async () => {
-  if (!puedeEditarTesoreria()) {
-    toast('Solo Finanzas o Administración pueden cargar cotizaciones', 'err');
-    return;
-  }
-  const fecha = $('#tes-fecha').value || todayISO();
-  const c = parseFloat($('#tes-c').value), v = parseFloat($('#tes-v').value);
-  if (!c || !v) { toast('Completá compra y venta', 'warn'); return; }
-  const { error } = await sb.from('cotizaciones').upsert({
-    fecha, fuente: 'tesoreria', compra: c, venta: v, promedio: (c+v)/2,
-    created_by: state.user.id
-  }, { onConflict: 'fecha,fuente' });
-  if (error) { toast(error.message, 'err'); return; }
-  $('#tes-c').value = ''; $('#tes-v').value = '';
-  toast(`Cotización guardada para ${fmtFecha(fecha)}`, 'ok');
-  await loadCotizaciones(); renderCotizaciones();
-});
+// El alta de Tesorería vive ahora en el formulario unificado de "Cargar cotizaciones".
+
 
 function renderCotizaciones() {
   const tb = $('#cot-tabla tbody');
-  if (!state.cotizaciones.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">Sin historial</td></tr>'; return; }
-  tb.innerHTML = state.cotizaciones.map(c => `<tr>
-    <td>${fmtFecha(c.fecha)}</td><td><span class="badge ${c.fuente==='tesoreria'?'accent':'muted'}">${c.fuente.toUpperCase()}</span></td>
-    <td class="num">$${fmt(c.compra)}</td><td class="num">$${fmt(c.venta)}</td><td class="num">$${fmt(c.promedio)}</td>
-  </tr>`).join('');
+  if (!tb) return;
+  renderResumenCotiz();
+  llenarMesesCotiz();
+  const filas = (state.cotizaciones || [])
+    .filter(c => c.fuente === 'tesoreria')
+    .sort((a, b) => b.fecha < a.fecha ? -1 : 1)
+    .slice(0, 20);
+  if (!filas.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">Sin cotizaciones de Tesorería</td></tr>'; return; }
+  const bnaPorFecha = {};
+  (state.cotizacionesBna || []).forEach(b => { bnaPorFecha[b.fecha] = Number(b.promedio); });
+  tb.innerHTML = filas.map(c => {
+    const b = bnaPorFecha[c.fecha];
+    const dif = b != null ? Number(c.promedio) - b : null;
+    return `<tr>
+      <td>${fmtFecha(c.fecha)}</td>
+      <td class="num">$${fmt(c.compra)}</td><td class="num">$${fmt(c.venta)}</td>
+      <td class="num"><b>$${fmt(c.promedio)}</b></td>
+      <td class="num">${dif === null ? '<span class="muted">—</span>'
+        : `<span style="color:${Math.abs(dif) < 0.01 ? 'var(--ink-3)' : dif > 0 ? 'var(--ok)' : 'var(--err)'}">${dif > 0 ? '+' : ''}${fmt(dif)}</span>`}</td>
+    </tr>`;
+  }).join('');
 }
-$('#cot-excel').addEventListener('click', () => exportarExcel(state.cotizaciones, 'cotizaciones'));
+// Meses con cotizaciones de Tesorería cargadas, del más nuevo al más viejo.
+function llenarMesesCotiz() {
+  const sel = $('#cot-mes');
+  if (!sel) return;
+  const claves = [...new Set((state.cotizaciones || [])
+    .filter(c => c.fuente === 'tesoreria')
+    .map(c => c.fecha.slice(0, 7)))].sort().reverse();
+  const actual = sel.value;
+  sel.innerHTML = claves.length
+    ? claves.map(k => {
+        const [a, m] = k.split('-').map(Number);
+        const n = (state.cotizaciones || []).filter(c => c.fuente === 'tesoreria' && c.fecha.startsWith(k)).length;
+        return `<option value="${k}">${MESES[m - 1]} ${a} (${n})</option>`;
+      }).join('')
+    : '<option value="">— sin datos —</option>';
+  if (actual && claves.includes(actual)) sel.value = actual;
+}
+
+$('#cot-excel').addEventListener('click', () => {
+  const k = $('#cot-mes').value;
+  if (!k) { toast('No hay cotizaciones cargadas', 'warn'); return; }
+  const bnaPorFecha = {};
+  (state.cotizacionesBna || []).forEach(b => { bnaPorFecha[b.fecha] = Number(b.promedio); });
+  const filas = (state.cotizaciones || [])
+    .filter(c => c.fuente === 'tesoreria' && c.fecha.startsWith(k))
+    .sort((a, b) => a.fecha < b.fecha ? -1 : 1)
+    .map(c => ({
+      Fecha: fmtFecha(c.fecha),
+      Compra: Number(c.compra),
+      Venta: Number(c.venta),
+      Promedio: Number(c.promedio),
+      'BNA promedio': bnaPorFecha[c.fecha] ?? '',
+      Diferencia: bnaPorFecha[c.fecha] != null ? Number(c.promedio) - bnaPorFecha[c.fecha] : '',
+    }));
+  if (!filas.length) { toast('Ese mes no tiene cotizaciones', 'warn'); return; }
+  const [a, m] = k.split('-').map(Number);
+  exportarExcel(filas, `Tesoreria ${MESES[m - 1]} ${a}`);
+  toast(`${filas.length} cotizaciones de ${MESES[m - 1]} exportadas`, 'ok');
+});
 
 // =================================================================
 // MODULO: GASTOS POR BOLETO (estimador, informativo)
@@ -6466,6 +6625,103 @@ function identificarCochera(desc, fecha) {
 }
 
 // =================================================================
+// MINI DASHBOARD DE TRANSFERENCIAS
+// =================================================================
+// Período de un mes M: del 1 de M al 5 de M+1 inclusive. Durante los
+// primeros 5 días del mes siguiente los dos períodos están abiertos,
+// así que se muestran los dos.
+let _dashMes = null;   // {mes, anio} — null = automático
+
+async function loadFinalizadas() {
+  // Sólo lo necesario para el dashboard: 6 meses hacia atrás.
+  const desde = new Date();
+  desde.setMonth(desde.getMonth() - 6);
+  const { data, error } = await sb.from('transferencias_finalizadas')
+    .select('id,importe,moneda,finalizada_at')
+    .gte('finalizada_at', desde.toISOString())
+    .order('finalizada_at', { ascending: false })
+    .limit(5000);
+  if (error) console.warn('transferencias_finalizadas:', error.message);
+  state.finalizadas = data || [];
+}
+
+// Período = mes calendario, del 1 al último día. Cada finalización cae en
+// un solo mes, el de la fecha en que se apretó realizada.
+function periodoDe(mes, anio) {
+  return { desde: new Date(anio, mes - 1, 1, 0, 0, 0),
+           hasta: new Date(anio, mes, 1, 0, 0, 0) };
+}
+
+function mesEnCurso() {
+  const h = new Date();
+  return { mes: h.getMonth() + 1, anio: h.getFullYear() };
+}
+
+function mesAnterior1(mes, anio) {
+  return mes === 1 ? { mes: 12, anio: anio - 1 } : { mes: mes - 1, anio };
+}
+
+function finalizadasDe(mes, anio) {
+  const { desde, hasta } = periodoDe(mes, anio);
+  return (state.finalizadas || []).filter(f => {
+    const t = new Date(f.finalizada_at).getTime();
+    return t >= desde.getTime() && t < hasta.getTime();
+  });
+}
+
+window.moverMesDash = function(delta) {
+  const base = _dashMes || mesEnCurso();
+  const total = (base.anio * 12 + base.mes - 1) + delta;
+  _dashMes = { mes: (total % 12) + 1, anio: Math.floor(total / 12) };
+  renderDashTransf();
+};
+
+function renderDashTransf() {
+  const cont = $('#tb-dash');
+  if (!cont) return;
+
+  // Cargadas: todo lo que hay hoy en el sistema, de todas las empresas.
+  const todas = state.transfBanco || [];
+  const pend = todas.filter(t => !t.realizada);
+  const rep = todas.filter(t => t.realizada);
+
+  const verMes = _dashMes || mesEnCurso();
+  const fin = finalizadasDe(verMes.mes, verMes.anio);
+  const totalFin = fin.reduce((a, f) => a + Number(f.importe || 0), 0);
+  const { desde, hasta } = periodoDe(verMes.mes, verMes.anio);
+  const cierre = new Date(hasta.getTime() - 864e5);
+  const abierto = Date.now() < hasta.getTime() && Date.now() >= desde.getTime();
+  const rango = `${MESES[verMes.mes - 1]} completo`;
+
+  const tarjeta = (titulo, valor, sub, color) => `
+    <div style="flex:1;min-width:150px;background:var(--surface);border:1px solid var(--line);
+                border-left:3px solid ${color};border-radius:var(--radius);padding:10px 12px">
+      <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3)">${titulo}</div>
+      <div style="font-size:1.35rem;font-weight:700;color:var(--ink);line-height:1.25">${valor}</div>
+      <div style="font-size:.74rem;color:var(--ink-3)">${sub}</div>
+    </div>`;
+
+  cont.innerHTML =
+    tarjeta('Cargadas en el sistema', todas.length,
+            `${pend.length} pendientes · ${rep.length} en repositorio`, 'var(--accent-2)') +
+    tarjeta('Pendientes', pend.length,
+            `$${fmt(pend.reduce((a, t) => a + Number(t.importe || 0), 0))}`, 'var(--warn)') +
+    `<div style="flex:1.4;min-width:210px;background:var(--surface);border:1px solid var(--line);
+                 border-left:3px solid var(--ok);border-radius:var(--radius);padding:10px 12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+        <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3)">Finalizadas</div>
+        <div style="display:flex;gap:2px;align-items:center">
+          <button class="btn ghost sm" style="padding:0 5px;font-size:.75rem" onclick="moverMesDash(-1)" title="Mes anterior">‹</button>
+          <span style="font-size:.72rem;font-weight:600">${MESES[verMes.mes - 1]} ${verMes.anio}</span>
+          <button class="btn ghost sm" style="padding:0 5px;font-size:.75rem" onclick="moverMesDash(1)" title="Mes siguiente">›</button>
+        </div>
+      </div>
+      <div style="font-size:1.35rem;font-weight:700;color:var(--ink);line-height:1.25">${fin.length}${abierto ? ' <span style="font-size:.65rem;font-weight:400;color:var(--ok)">en curso</span>' : ''}</div>
+      <div style="font-size:.74rem;color:var(--ink-3)">$${fmt(totalFin)} · ${rango}</div>
+    </div>`;
+}
+
+// =================================================================
 // REPORTE FORMATO UVIs · un archivo por emprendimiento
 // =================================================================
 // Las transferencias se agrupan por el emprendimiento que cancela, que sale
@@ -7107,6 +7363,331 @@ $('#ident-bulk-btn')?.addEventListener('click', async () => {
 });
 
 // =================================================================
+// CALCULO DE DEUDA (solapa dentro de Actualización ICC · solo finanzas)
+// =================================================================
+// Se muestran las dos variantes lado a lado —simple y compuesto— para
+// poder comparar antes de decidir cuál se manda. Base 365 días.
+const DEUDA_BASE_DIAS = 365;
+const BADLAR_SPREAD = 8;          // los 8 puntos que se suman a la BADLAR
+
+let _ddCuotas = [];               // [{fecha, monto}]
+let _ddUltimo = null;             // último cálculo hecho, para PDF y guardado
+
+async function loadBadlar() {
+  const { data, error } = await sb.from('badlar_valores')
+    .select('fecha,valor,fuente').order('fecha', { ascending: false }).limit(30);
+  if (error) console.warn('badlar_valores:', error.message);
+  state.badlar = data || [];
+}
+async function loadDeudaCalculos() {
+  state.deudaCalculos = await fetchPaged('deuda_calculos', q => q.order('created_at', { ascending: false }));
+}
+
+function puedeVerDeuda() {
+  const p = state.profile;
+  return !!p && (p.rol === 'admin' || p.area === 'finanzas');
+}
+
+// Días corridos entre dos fechas ISO. Sólo cuentan los días ya vencidos:
+// una cuota que vence hoy o más adelante no devenga interés.
+function diasVencidos(fechaCuota, fechaCalculo) {
+  const a = new Date(fechaCuota + 'T00:00:00').getTime();
+  const b = new Date(fechaCalculo + 'T00:00:00').getTime();
+  return Math.max(0, Math.round((b - a) / 864e5));
+}
+
+function calcularDeuda(cuotas, tasaAnual, fechaCalculo) {
+  const diaria = (Number(tasaAnual) / 100) / DEUDA_BASE_DIAS;
+  const filas = cuotas.map(c => {
+    const capital = Number(c.monto) || 0;
+    const dias = diasVencidos(c.fecha, fechaCalculo);
+    const intSimple = capital * diaria * dias;
+    // Compuesto: capitaliza todos los días -> capital × (1 + diaria)^días
+    const totalComp = capital * Math.pow(1 + diaria, dias);
+    return {
+      fecha: c.fecha, capital, dias,
+      intSimple, totalSimple: capital + intSimple,
+      intComp: totalComp - capital, totalComp,
+    };
+  }).sort((a, b) => a.fecha < b.fecha ? -1 : 1);
+
+  const sum = f => filas.reduce((a, x) => a + x[f], 0);
+  return {
+    filas,
+    totalCapital: sum('capital'),
+    totalIntSimple: sum('intSimple'),
+    totalSimple: sum('totalSimple'),
+    totalIntComp: sum('intComp'),
+    totalComp: sum('totalComp'),
+    tasaAnual: Number(tasaAnual),
+    tasaDiaria: diaria,
+    fechaCalculo,
+  };
+}
+
+// ---------- Cuotas ----------
+function renderCuotasDeuda() {
+  const tb = $('#dd-cuotas tbody');
+  if (!tb) return;
+  if (!_ddCuotas.length) {
+    tb.innerHTML = '<tr><td colspan="3" class="empty">Agregá al menos una cuota</td></tr>';
+    return;
+  }
+  tb.innerHTML = _ddCuotas.map((c, i) => `<tr>
+    <td><input type="date" value="${c.fecha || ''}" onchange="ddSetCuota(${i},'fecha',this.value)" style="padding:5px 7px;font-size:.85rem"></td>
+    <td class="num"><input type="number" step="0.01" value="${c.monto ?? ''}" onchange="ddSetCuota(${i},'monto',this.value)" style="padding:5px 7px;font-size:.85rem;text-align:right"></td>
+    <td class="actions"><button class="btn ghost sm" style="color:var(--err)" onclick="ddBorrarCuota(${i})">×</button></td>
+  </tr>`).join('');
+}
+
+window.ddSetCuota = function(i, campo, valor) {
+  if (!_ddCuotas[i]) return;
+  _ddCuotas[i][campo] = campo === 'monto' ? (valor === '' ? null : Number(valor)) : valor;
+};
+window.ddBorrarCuota = function(i) { _ddCuotas.splice(i, 1); renderCuotasDeuda(); };
+
+// Replica la primera cuota mes a mes: es el caso habitual, mismo monto y
+// mismo día de cada mes. Después se puede editar cualquiera a mano.
+function replicarCuotas() {
+  const base = _ddCuotas.find(c => c.fecha && c.monto != null);
+  if (!base) { toast('Cargá primero una cuota con fecha y monto', 'warn'); return; }
+  const n = parseInt(prompt('¿Cuántas cuotas en total? (incluida la primera)', '6'), 10);
+  if (!n || n < 1 || n > 120) return;
+  const [a, m, d] = base.fecha.split('-').map(Number);
+  _ddCuotas = [];
+  for (let i = 0; i < n; i++) {
+    const total = (a * 12 + (m - 1)) + i;
+    const anio = Math.floor(total / 12), mes = (total % 12) + 1;
+    const ultimo = new Date(anio, mes, 0).getDate();
+    const dia = Math.min(d, ultimo);   // 31 en un mes de 30 cae al último día
+    _ddCuotas.push({ fecha: `${anio}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`, monto: base.monto });
+  }
+  renderCuotasDeuda();
+  toast(`${n} cuotas generadas`, 'ok');
+}
+
+// ---------- BADLAR ----------
+function renderBadlarInfo() {
+  const el = $('#dd-badlar-info');
+  if (!el) return;
+  const b = (state.badlar || [])[0];
+  if (!b) {
+    el.innerHTML = '<span style="color:var(--warn)">Sin BADLAR cargada. Cargá la tasa a mano.</span>';
+    return;
+  }
+  const dias = Math.round((Date.now() - new Date(b.fecha + 'T00:00:00').getTime()) / 864e5);
+  el.innerHTML = `BADLAR ${fmt(b.valor)}% al ${fmtFecha(b.fecha)}` +
+    (dias > 5 ? ` <span class="badge warn" style="font-size:.65rem">hace ${dias} días</span>` : '') +
+    ` → con +${BADLAR_SPREAD}% da <b>${fmt(Number(b.valor) + BADLAR_SPREAD)}%</b>`;
+}
+
+// ---------- Cálculo y render ----------
+function ejecutarCalculoDeuda() {
+  const tasa = parseFloat($('#dd-tasa').value);
+  const fecha = $('#dd-fecha').value || todayISO();
+  const cuotas = _ddCuotas.filter(c => c.fecha && c.monto != null && Number(c.monto) > 0);
+
+  if (!cuotas.length) { toast('Cargá al menos una cuota con fecha y monto', 'warn'); return; }
+  if (!tasa || tasa <= 0) { toast('Falta la tasa anual', 'warn'); $('#dd-tasa').focus(); return; }
+  const futuras = cuotas.filter(c => c.fecha > fecha);
+  if (futuras.length) {
+    toast(`${futuras.length} cuota${futuras.length===1?'':'s'} vence${futuras.length===1?'':'n'} después de la fecha de cálculo: van sin interés`, 'warn');
+  }
+
+  const r = calcularDeuda(cuotas, tasa, fecha);
+  r.nombre = $('#dd-nombre').value.trim();
+  r.cliente = $('#dd-cliente').value.trim();
+  r.emprendimiento = $('#dd-empr').value ? nombreEmpr($('#dd-empr').value) : null;
+  const b = (state.badlar || [])[0];
+  r.tasaOrigen = (b && Math.abs(Number(b.valor) + BADLAR_SPREAD - tasa) < 0.001)
+    ? `BADLAR ${fmt(b.valor)}% al ${fmtFecha(b.fecha)} + ${BADLAR_SPREAD}%`
+    : 'carga manual';
+  _ddUltimo = r;
+
+  $('#dd-resultado-card').style.display = 'block';
+  const dif = r.totalComp - r.totalSimple;
+  const tarjeta = (t, v, s, col) => `<div style="flex:1;min-width:160px;background:var(--surface);border:1px solid var(--line);
+      border-left:3px solid ${col};border-radius:var(--radius);padding:10px 12px">
+      <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3)">${t}</div>
+      <div style="font-size:1.3rem;font-weight:700;line-height:1.25">${v}</div>
+      <div style="font-size:.73rem;color:var(--ink-3)">${s}</div></div>`;
+  $('#dd-resumen').innerHTML =
+    tarjeta('Capital', '$' + fmt(r.totalCapital), `${r.filas.length} cuota${r.filas.length===1?'':'s'}`, 'var(--ink-3)') +
+    tarjeta('Total simple', '$' + fmt(r.totalSimple), `interés $${fmt(r.totalIntSimple)}`, 'var(--accent-2)') +
+    tarjeta('Total compuesto', '$' + fmt(r.totalComp), `interés $${fmt(r.totalIntComp)}`, 'var(--accent)') +
+    tarjeta('Diferencia', '$' + fmt(dif), 'compuesto sobre simple', 'var(--warn)');
+
+  $('#dd-tabla tbody').innerHTML = r.filas.map(f => `<tr>
+    <td>${fmtFecha(f.fecha)}</td>
+    <td class="num">$${fmt(f.capital)}</td>
+    <td class="num">${f.dias}</td>
+    <td class="num">$${fmt(f.intSimple)}</td>
+    <td class="num"><b>$${fmt(f.totalSimple)}</b></td>
+    <td class="num">$${fmt(f.intComp)}</td>
+    <td class="num"><b>$${fmt(f.totalComp)}</b></td>
+  </tr>`).join('') + `<tr style="background:var(--surface-2);font-weight:700">
+    <td>TOTAL</td><td class="num">$${fmt(r.totalCapital)}</td><td></td>
+    <td class="num">$${fmt(r.totalIntSimple)}</td><td class="num">$${fmt(r.totalSimple)}</td>
+    <td class="num">$${fmt(r.totalIntComp)}</td><td class="num">$${fmt(r.totalComp)}</td></tr>`;
+}
+
+// ---------- PDF ----------
+function pdfDeuda(modo) {
+  const r = _ddUltimo;
+  if (!r) { toast('Calculá primero', 'warn'); return; }
+  const esComp = modo === 'compuesto';
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(15); doc.text('Detalle de deuda · Grupo Edisur', 14, 16);
+  doc.setFontSize(9); doc.setTextColor(110);
+  const enc = [
+    r.nombre || '—',
+    r.cliente ? `Cliente ${r.cliente}` : '',
+    r.emprendimiento || '',
+  ].filter(Boolean).join(' · ');
+  doc.text(enc, 14, 22);
+  // El PDF va al cliente: no lleva el origen de la tasa ("carga manual",
+  // "BADLAR + 8%") ni el método de cálculo, que son datos internos.
+  doc.text(`Deuda calculada al ${fmtFecha(r.fechaCalculo)} · Tasa nominal anual ${fmt(r.tasaAnual)}% · base ${DEUDA_BASE_DIAS} días`, 14, 27);
+  doc.setTextColor(0);
+  doc.autoTable({
+    startY: 33,
+    head: [['Vencimiento', 'Capital', 'Días', 'Interés', 'Total']],
+    body: r.filas.map(f => [
+      fmtFecha(f.fecha), '$' + fmt(f.capital), String(f.dias),
+      '$' + fmt(esComp ? f.intComp : f.intSimple),
+      '$' + fmt(esComp ? f.totalComp : f.totalSimple),
+    ]),
+    foot: [['TOTAL', '$' + fmt(r.totalCapital), '',
+            '$' + fmt(esComp ? r.totalIntComp : r.totalIntSimple),
+            '$' + fmt(esComp ? r.totalComp : r.totalSimple)]],
+    styles: { font: 'helvetica', fontSize: 9 },
+    headStyles: { fillColor: [26, 35, 50] },
+    footStyles: { fillColor: [241, 240, 236], textColor: 20, fontStyle: 'bold' },
+  });
+  // El nombre del archivo también lo ve el cliente, así que tampoco dice
+  // cuál de las dos variantes es.
+  const nom = (r.nombre || 'deuda').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+  doc.save(`Detalle-de-deuda-${nom}-${r.fechaCalculo}.pdf`);
+}
+
+// ---------- Guardar y consultar ----------
+async function guardarCalculoDeuda() {
+  const r = _ddUltimo;
+  if (!r) { toast('Calculá primero', 'warn'); return; }
+  if (!r.nombre) { toast('Poné el nombre de la persona', 'warn'); $('#dd-nombre').focus(); return; }
+  if (r.cliente && !/^\d{7}$/.test(r.cliente)) { toast('El cliente debe tener 7 dígitos', 'warn'); return; }
+  const { error } = await sb.from('deuda_calculos').insert({
+    cliente: r.cliente || null,
+    nombre: r.nombre,
+    emprendimiento: r.emprendimiento,
+    tasa_anual: r.tasaAnual,
+    tasa_origen: r.tasaOrigen,
+    fecha_calculo: r.fechaCalculo,
+    cuotas: r.filas.map(f => ({ fecha: f.fecha, monto: f.capital })),
+    total_capital: Math.round(r.totalCapital * 100) / 100,
+    total_simple: Math.round(r.totalSimple * 100) / 100,
+    total_compuesto: Math.round(r.totalComp * 100) / 100,
+    created_by: state.user.id,
+  });
+  if (error) { toast(error.message, 'err'); return; }
+  toast('Cálculo guardado', 'ok');
+  await loadDeudaCalculos(); renderDeudaGuardados();
+}
+
+function renderDeudaGuardados() {
+  const tb = $('#dd-guardados tbody');
+  if (!tb) return;
+  const q = ($('#dd-buscar')?.value || '').toLowerCase().trim();
+  const filas = (state.deudaCalculos || []).filter(c =>
+    !q || `${c.nombre} ${c.cliente || ''}`.toLowerCase().includes(q));
+  if (!filas.length) {
+    tb.innerHTML = `<tr><td colspan="8" class="empty">${q ? 'Sin resultados' : 'Sin cálculos guardados'}</td></tr>`;
+    return;
+  }
+  tb.innerHTML = filas.slice(0, 50).map(c => `<tr>
+    <td>${fmtFecha(c.fecha_calculo)}</td>
+    <td class="mono">${esc(c.cliente || '—')}</td>
+    <td>${esc(c.nombre)}${c.emprendimiento ? `<div class="muted" style="font-size:.76rem">${esc(c.emprendimiento)}</div>` : ''}</td>
+    <td class="num">${fmt(c.tasa_anual)}%</td>
+    <td class="num">$${fmt(c.total_capital)}</td>
+    <td class="num">$${fmt(c.total_simple)}</td>
+    <td class="num">$${fmt(c.total_compuesto)}</td>
+    <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
+      <button class="btn ghost sm" onclick="ddRecuperar('${c.id}')" title="Traer al formulario">↥</button>
+      <button class="btn ghost sm" style="color:var(--err)" onclick="ddBorrarCalculo('${c.id}')">🗑</button>
+    </td></tr>`).join('');
+}
+
+// Trae un cálculo guardado al formulario. Recalcula al día de hoy, así se
+// ve cuánto creció desde que se hizo; la fecha original queda a un clic.
+window.ddRecuperar = function(id) {
+  const c = (state.deudaCalculos || []).find(x => x.id === id);
+  if (!c) return;
+  $('#dd-cliente').value = c.cliente || '';
+  $('#dd-nombre').value = c.nombre || '';
+  $('#dd-tasa').value = c.tasa_anual;
+  $('#dd-fecha').value = c.fecha_calculo;
+  const e = (state.identEmpr || []).find(x => x.nombre === c.emprendimiento);
+  if (e) $('#dd-empr').value = e.id;
+  _ddCuotas = (c.cuotas || []).map(x => ({ fecha: x.fecha, monto: Number(x.monto) }));
+  renderCuotasDeuda();
+  ejecutarCalculoDeuda();
+  $('#dd-nombre').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+window.ddBorrarCalculo = async function(id) {
+  const c = (state.deudaCalculos || []).find(x => x.id === id);
+  if (!await confirmAction(`¿Eliminar el cálculo de ${c?.nombre}?`)) return;
+  const { error } = await sb.from('deuda_calculos').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  toast('Cálculo eliminado', 'ok');
+  await loadDeudaCalculos(); renderDeudaGuardados();
+};
+
+function renderDeuda() {
+  if (!$('#dd-cuotas')) return;
+  $('#tab-btn-deuda').style.display = puedeVerDeuda() ? '' : 'none';
+  if (!puedeVerDeuda()) return;
+  if (!$('#dd-fecha').value) $('#dd-fecha').value = todayISO();
+  if (!_ddCuotas.length) _ddCuotas = [{ fecha: '', monto: null }];
+  const sel = $('#dd-empr');
+  if (sel && !sel.options.length) {
+    sel.innerHTML = '<option value="">—</option>' +
+      (state.identEmpr || []).filter(e => e.activo).map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
+  }
+  renderCuotasDeuda(); renderBadlarInfo(); renderDeudaGuardados();
+}
+
+if ($('#dd-add')) {
+  $('#dd-add').addEventListener('click', () => { _ddCuotas.push({ fecha: '', monto: null }); renderCuotasDeuda(); });
+  $('#dd-replicar').addEventListener('click', replicarCuotas);
+  $('#dd-calcular').addEventListener('click', ejecutarCalculoDeuda);
+  $('#dd-guardar').addEventListener('click', guardarCalculoDeuda);
+  $('#dd-pdf-simple').addEventListener('click', () => pdfDeuda('simple'));
+  $('#dd-pdf-comp').addEventListener('click', () => pdfDeuda('compuesto'));
+  $('#dd-buscar').addEventListener('input', renderDeudaGuardados);
+  $('#dd-badlar').addEventListener('click', () => {
+    const b = (state.badlar || [])[0];
+    if (!b) {
+      const v = prompt('No hay BADLAR cargada. Escribí la TNA de hoy (%):');
+      const n = parseFloat(String(v).replace(',', '.'));
+      if (!n || n <= 0) return;
+      sb.from('badlar_valores').upsert({ fecha: todayISO(), valor: n, fuente: 'carga manual' }, { onConflict: 'fecha' })
+        .then(async ({ error }) => {
+          if (error) { toast(error.message, 'err'); return; }
+          await loadBadlar(); renderBadlarInfo();
+          $('#dd-tasa').value = (n + BADLAR_SPREAD).toFixed(2);
+          toast('BADLAR cargada', 'ok');
+        });
+      return;
+    }
+    $('#dd-tasa').value = (Number(b.valor) + BADLAR_SPREAD).toFixed(2);
+    toast(`TNA ${fmt(Number(b.valor) + BADLAR_SPREAD)}% (BADLAR ${fmt(b.valor)}% + ${BADLAR_SPREAD})`, 'ok');
+  });
+}
+
+// =================================================================
 // MODULO: TRANSFERENCIAS POR BANCO (importación masiva de extractos)
 // =================================================================
 const MONEDAS = { ARS: '$', USD: 'US$', UVI: 'UVI' };
@@ -7181,6 +7762,7 @@ function diasParaBorrado(t) {
 
 function renderTransfBanco() {
   if (!$('#tb-tabla')) return;
+  renderDashTransf();
   const cta = cuentaTBActual();
   const filt = transfBancoFiltradas();
   const vista = $('#tb-vista').value;
@@ -7253,7 +7835,7 @@ window.toggleRealizada = async function(id) {
   if (!t) return;
   const { error } = await sb.from('transferencias_banco').update({ realizada: !t.realizada }).eq('id', id);
   if (error) { toast(error.message, 'err'); return; }
-  await loadTransferenciasBanco(); renderTransfBanco();
+  await loadTransferenciasBanco(); await loadFinalizadas(); renderTransfBanco();
 };
 
 async function marcarSeleccionadas(valor) {
@@ -7263,7 +7845,7 @@ async function marcarSeleccionadas(valor) {
   if (error) { toast(error.message, 'err'); return; }
   _tbSel.clear();
   toast(valor ? `${ids.length} marcada${ids.length === 1 ? '' : 's'} como realizada${ids.length === 1 ? '' : 's'}` : 'Vueltas a pendientes', 'ok');
-  await loadTransferenciasBanco(); renderTransfBanco();
+  await loadTransferenciasBanco(); await loadFinalizadas(); renderTransfBanco();
 }
 
 // ---------- Importación del Excel ----------
@@ -7584,6 +8166,44 @@ async function loadCotizacionesBna() {
   state.cotizacionesBna = data || [];
 }
 
+// Tres valores de un vistazo: UVI de hoy, última de Tesorería y última del BNA.
+function renderResumenCotiz() {
+  const cont = $('#cot-resumen');
+  if (!cont) return;
+  const hoy = todayISO();
+
+  const uvi = (state.uvi || []).find(u => u.fecha === hoy)
+           || [...(state.uvi || [])].sort((a, b) => b.fecha < a.fecha ? -1 : 1)[0];
+  const tes = (state.cotizaciones || []).filter(c => c.fuente === 'tesoreria')
+           .sort((a, b) => b.fecha < a.fecha ? -1 : 1)[0];
+  const bna = [...(state.cotizacionesBna || [])].sort((a, b) => b.fecha < a.fecha ? -1 : 1)[0];
+
+  // Días de atraso respecto de hoy: si el dato es viejo hay que verlo.
+  const atraso = f => f ? Math.round((new Date(hoy + 'T00:00:00') - new Date(f + 'T00:00:00')) / 864e5) : null;
+  const sello = d => d === null ? '' : d <= 0 ? '<span class="badge ok" style="font-size:.62rem">hoy</span>'
+    : d === 1 ? '<span class="badge muted" style="font-size:.62rem">ayer</span>'
+    : `<span class="badge ${d > 3 ? 'warn' : 'muted'}" style="font-size:.62rem">hace ${d} días</span>`;
+
+  const tarjeta = (titulo, valor, detalle, fecha, color) => `
+    <div style="flex:1;min-width:170px;background:var(--surface);border:1px solid var(--line);
+                border-left:3px solid ${color};border-radius:var(--radius);padding:10px 12px">
+      <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3)">${titulo}</div>
+      <div style="font-size:1.3rem;font-weight:700;color:var(--ink);line-height:1.25">${valor}</div>
+      <div style="font-size:.73rem;color:var(--ink-3);display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+        ${detalle}${fecha ? ` ${sello(atraso(fecha))}` : ''}</div>
+    </div>`;
+
+  cont.innerHTML =
+    tarjeta('Dólar BNA', bna ? '$' + fmt(bna.promedio) : '—',
+            bna ? `compra ${fmt(bna.compra)} · venta ${fmt(bna.venta)}` : 'sin datos',
+            bna?.fecha, 'var(--accent-2)') +
+    tarjeta('Dólar Tesorería', tes ? '$' + fmt(tes.promedio) : '—',
+            tes ? `compra ${fmt(tes.compra)} · venta ${fmt(tes.venta)}` : 'sin cargar',
+            tes?.fecha, 'var(--accent)') +
+    tarjeta('UVI', uvi ? fmt(uvi.valor) : '—',
+            uvi ? fmtFecha(uvi.fecha) : 'sin cargar', uvi?.fecha, 'var(--ok)');
+}
+
 function renderCotizDia() {
   if (!$('#cd-tabla')) return;
   const esBna = _cdModo === 'bna';
@@ -7596,7 +8216,7 @@ function renderCotizDia() {
   if (!filas.length) {
     tb.innerHTML = `<tr><td colspan="5" class="empty">Sin cotizaciones cargadas</td></tr>`; return;
   }
-  tb.innerHTML = filas.slice(0, 200).map(c => {
+  tb.innerHTML = filas.slice(0, 20).map(c => {
     const manual = (c.fuente || '').toLowerCase().includes('manual');
     const fuente = `<span class="badge ${manual ? 'warn' : 'muted'}" style="font-size:.68rem">${esc(c.fuente || '—')}</span>`;
     return esBna
@@ -7622,12 +8242,17 @@ window.editarCotizDia = function(fecha, modo) {
 
 function cambiarModoCd(modo) {
   _cdModo = modo;
-  const esBna = modo === 'bna';
-  $('#cd-tab-bna').classList.toggle('active', esBna);
-  $('#cd-tab-uvi').classList.toggle('active', !esBna);
-  $('#cd-wrap-compra').style.display = esBna ? '' : 'none';
-  $('#cd-wrap-venta').style.display  = esBna ? '' : 'none';
-  $('#cd-wrap-uvi').style.display    = esBna ? 'none' : '';
+  const parDeValores = modo === 'bna' || modo === 'tesoreria';   // compra + venta
+  $('#cd-tab-bna').classList.toggle('active', modo === 'bna');
+  $('#cd-tab-uvi').classList.toggle('active', modo === 'uvi');
+  $('#cd-tab-tes').classList.toggle('active', modo === 'tesoreria');
+  $('#cd-wrap-compra').style.display = parDeValores ? '' : 'none';
+  $('#cd-wrap-venta').style.display  = parDeValores ? '' : 'none';
+  $('#cd-wrap-uvi').style.display    = parDeValores ? 'none' : '';
+  // Tesorería la cargan sólo finanzas y administración
+  const bloqueado = modo === 'tesoreria' && !puedeEditarTesoreria();
+  $('#tes-no-permiso').style.display = bloqueado ? 'block' : 'none';
+  $('#cd-guardar').disabled = bloqueado;
   renderCotizDia();
 }
 
@@ -7702,19 +8327,30 @@ if ($('#cd-tabla')) {
   });
   $('#cd-tab-bna').addEventListener('click', () => cambiarModoCd('bna'));
   $('#cd-tab-uvi').addEventListener('click', () => cambiarModoCd('uvi'));
+  $('#cd-tab-tes').addEventListener('click', () => cambiarModoCd('tesoreria'));
   $('#cd-guardar').addEventListener('click', async () => {
     const fecha = $('#cd-fecha').value;
     if (!fecha) { toast('Falta la fecha', 'warn'); return; }
-    if (_cdModo === 'bna') {
+    if (_cdModo === 'bna' || _cdModo === 'tesoreria') {
       const compra = Number($('#cd-compra').value), venta = Number($('#cd-venta').value);
       if (!compra || !venta) { toast('Cargá compra y venta', 'warn'); return; }
       if (venta < compra) { toast('La venta no puede ser menor que la compra', 'warn'); return; }
-      // promedio es columna generada: no se manda
-      const { error } = await sb.from('cotizaciones_bna')
-        .upsert({ fecha, compra, venta, fuente: 'carga manual', scrapeado_en: new Date().toISOString() },
-                { onConflict: 'fecha' });
-      if (error) { toast(error.message, 'err'); return; }
-      await loadCotizacionesBna();
+      if (_cdModo === 'tesoreria') {
+        if (!puedeEditarTesoreria()) { toast('Solo Finanzas o Administración pueden cargar Tesorería', 'err'); return; }
+        const { error } = await sb.from('cotizaciones').upsert({
+          fecha, fuente: 'tesoreria', compra, venta, promedio: (compra + venta) / 2,
+          created_by: state.user.id
+        }, { onConflict: 'fecha,fuente' });
+        if (error) { toast(error.message, 'err'); return; }
+        await loadCotizaciones(); renderCotizaciones();
+      } else {
+        // promedio es columna generada: no se manda
+        const { error } = await sb.from('cotizaciones_bna')
+          .upsert({ fecha, compra, venta, fuente: 'carga manual', scrapeado_en: new Date().toISOString() },
+                  { onConflict: 'fecha' });
+        if (error) { toast(error.message, 'err'); return; }
+        await loadCotizacionesBna();
+      }
     } else {
       const valor = Number($('#cd-uvi').value);
       if (!valor || valor <= 0) { toast('Cargá el valor UVI', 'warn'); return; }
@@ -9020,9 +9656,12 @@ $('#ali-save').addEventListener('click', async () => {
 });
 function renderAlicuotas() {
   const tb = $('#ali-tabla tbody');
-  if (!state.alicuotas.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">Sin alícuotas cargadas</td></tr>'; return; }
-  tb.innerHTML = state.alicuotas.map(a => `<tr>
-    <td>${MESES[a.mes-1]}</td><td>${a.anio}</td><td class="num">${a.alicuota}%</td><td>${a.jurisdiccion}</td>
+  if (!state.alicuotas.length) { tb.innerHTML = '<tr><td colspan="4" class="empty">Sin alícuotas cargadas</td></tr>'; return; }
+  // La vigente hoy se resalta: es la que se está aplicando
+  const hoyVig = alicuotaVigente(todayISO());
+  tb.innerHTML = state.alicuotas.map(a => `<tr${hoyVig && hoyVig.id === a.id ? ' style="background:var(--accent-soft)"' : ''}>
+    <td>${MESES[(a.mes||1)-1]} ${a.anio}${hoyVig && hoyVig.id === a.id ? ' <span class="badge ok" style="font-size:.65rem">vigente hoy</span>' : ''}</td>
+    <td class="num"><b>${a.alicuota}%</b></td><td>${esc(a.jurisdiccion||'')}</td>
     <td class="actions">${state.profile?.rol==='admin'?`<button class="btn ghost sm" onclick="deleteAli('${a.id}')">×</button>`:''}</td>
   </tr>`).join('');
 }
@@ -9093,7 +9732,9 @@ function exportarExcel(rows, nombre) {
   if (!rows.length) { toast('Nada para exportar', 'warn'); return; }
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, nombre);
+  // Excel no acepta nombres de hoja de más de 31 caracteres ni : \ / ? * [ ]
+  const hoja = String(nombre).replace(/[:\\/?*\[\]]/g, '-').slice(0, 31);
+  XLSX.utils.book_append_sheet(wb, ws, hoja);
   XLSX.writeFile(wb, `${nombre}-${todayISO()}.xlsx`);
 }
 
@@ -9135,7 +9776,6 @@ function renderAll() {
   $('#sello-fecha').value = todayISO();
   $('#pos-fecha').value = todayISO();
   $('#ces-fecha').value = todayISO();
-  $('#tes-fecha').value = todayISO();
   updateAlicuotaForFecha();
 }
 
@@ -9146,7 +9786,7 @@ let realtimeActivo = false;
 function subscribeChanges() {
   if (realtimeActivo) return;   // evita canales duplicados
   realtimeActivo = true;
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -9170,6 +9810,8 @@ function subscribeChanges() {
         if (tabla==='bancos_cuentas') { await loadBancosCuentas(); llenarSelectoresTB(); renderBancosCuentas(); }
         if (tabla==='cotizaciones_uvi') { await loadCotizacionesUvi(); renderCotizDia(); }
         if (tabla==='identif_emprendimientos') { await loadIdentEmpr(); renderIdentEmpr(); llenarSelectsEmpr(); }
+        if (tabla==='deuda_calculos') { await loadDeudaCalculos(); renderDeudaGuardados(); }
+        if (tabla==='badlar_valores') { await loadBadlar(); renderBadlarInfo(); }
         if (tabla==='retiros_personas') { await loadRetirosPersonas(); renderPersonasRetiros(); }
       })
       .subscribe();
