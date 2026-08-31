@@ -107,6 +107,7 @@ aside.sidebar{
 .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius);color:#c8c2b0;cursor:pointer;border:none;background:transparent;text-align:left;width:100%;font-weight:500;transition:background .12s,color .12s}
 .nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
 .nav-item.active{background:rgba(184,92,46,.18);color:#fff;border-left:3px solid var(--accent-2);padding-left:9px}
+.chk-cobro{width:20px;height:20px;margin:0;cursor:pointer;accent-color:var(--ok);vertical-align:middle}
 .nav-section{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#7a7464;margin:18px 6px 4px}
 /* ===== Campanita de tareas por vencer ===== */
 .nav-campana{position:relative;margin-bottom:6px}
@@ -677,6 +678,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
     <button class="nav-item" data-tab="instructivos">📚 Instructivos</button>
     <button class="nav-item" data-tab="transferencias">💸 Transferencias</button>
     <button class="nav-item" data-tab="retiros">📤 Retiro de documentación</button>
+    <button class="nav-item" data-tab="papeles">📑 Papeles de trabajo</button>
     <button class="nav-item" data-tab="cocheras">🅿️ Cocheras</button>
     <div class="nav-section" id="admin-section" style="display:none">Admin</div>
     <button class="nav-item" data-tab="ajustes" id="ajustes-nav" style="display:none">⚙️ Ajustes</button>
@@ -1619,6 +1621,49 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         </table></div>
       </div>
     </section>
+    <section class="tab-content" id="tab-papeles" style="display:none">
+      <div class="page-head">
+        <div><h1>Papeles de trabajo</h1><p>Aportes mensuales actualizados por ICC</p></div>
+        <button class="btn accent" id="pt-add">+ Nuevo cliente</button>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="field-row" style="align-items:end">
+          <div class="field" style="max-width:160px"><label>Mes a liquidar</label><select id="pt-mes"></select></div>
+          <div class="field" style="max-width:120px"><label>Año</label><input type="number" id="pt-anio"></div>
+          <div class="field"><label>Buscar</label><input type="text" id="pt-buscar" placeholder="Cliente, propietario o inmueble"></div>
+          <div class="field" style="max-width:150px"><label>Estado</label><select id="pt-estado">
+            <option value="activos">Activos</option>
+            <option value="">Todos</option>
+            <option value="inactivos">Inactivos</option>
+          </select></div>
+          <div class="field" style="max-width:150px"><label>Cobro del mes</label><select id="pt-cobro">
+            <option value="">Todos</option>
+            <option value="impagos">Sin cobrar</option>
+            <option value="pagados">Cobrados</option>
+          </select></div>
+        </div>
+        <div class="hint" id="pt-icc-info" style="margin-top:4px"></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+          <span id="pt-resumen" class="hint"></span>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn ghost sm" id="pt-excel">↓ Excel</button>
+          </div>
+        </div>
+        <div class="tbl-wrap"><table class="tbl" id="pt-tabla">
+          <thead><tr>
+            <th>Cliente</th><th>Propietario</th><th>Inmueble</th>
+            <th class="num">Monto base</th><th>Base</th><th class="num">Actualizado</th>
+            <th class="num">Cuotas</th><th>Cuenta</th><th style="text-align:center">Cobrado</th><th class="actions"></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+    </section>
+
     <section class="tab-content" id="tab-cocheras" style="display:none">
       <div class="page-head">
         <div><h1>Cocheras</h1><p>Alquiler de cocheras · Pilares y Casonas</p></div>
@@ -1949,6 +1994,8 @@ const state = {
   finalizadas: [],
   badlar: [],
   deudaCalculos: [],
+  papeles: [],
+  papelesPagos: [],
   uvi: [],
   cotizacionesBna: [],
   retirosPersonas: [],
@@ -2047,8 +2094,8 @@ async function initAuth() {
 // MATRIZ DE ACCESOS POR ÁREA
 // =================================================================
 const ACCESOS = {
-  admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','gastos-boleto','tareas','instructivos','transferencias','retiros','cocheras','ajustes','audit'],
-  finanzas: ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias','retiros','cocheras'],
+  admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','gastos-boleto','tareas','instructivos','transferencias','retiros','cocheras','papeles','ajustes','audit'],
+  finanzas: ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias','retiros','cocheras','papeles'],
   legales:  ['icc','sellos','cesiones','cuentas','cotizacion','gastos','retiros','cocheras'],
   ventas:   ['icc','cuentas','cotizacion','gastos','gastos-boleto'],
   sac:      ['icc','cuentas','gastos'],
@@ -2128,7 +2175,7 @@ async function afterLogin() {
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
     loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadCocheras(),
-    loadBancosCuentas(), loadTransferenciasBanco(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(),
+    loadBancosCuentas(), loadTransferenciasBanco(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -2345,6 +2392,7 @@ function switchTab(tab) {
   if (tab === 'transferencias') { llenarSelectoresTB(); renderTransfBanco(); renderDashTransf(); }
   if (tab === 'cotizacion') renderCotizDia();
   if (tab === 'icc') renderDeuda();
+  if (tab === 'papeles') renderPapeles();
   if (tab === 'ajustes') { renderBancosCuentas(); renderIdentEmpr(); }
   if (tab === 'transferencias') llenarSelectsEmpr();
 }
@@ -7688,6 +7736,406 @@ if ($('#dd-add')) {
 }
 
 // =================================================================
+// PAPELES DE TRABAJO · aportes mensuales actualizados por ICC
+// =================================================================
+// Separa una lista de mails escrita de cualquier forma: Outlook los pega
+// con punto y coma, otros con coma, y a veces vienen con saltos de línea.
+function parseMails(txt) {
+  return String(txt || '').split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+}
+
+async function loadPapeles() {
+  state.papeles = await fetchPaged('papeles_trabajo', q => q.order('propietario'));
+}
+async function loadPapelesPagos() {
+  state.papelesPagos = await fetchPaged('papeles_pagos', q => q.order('anio', { ascending: false }).order('mes', { ascending: false }));
+}
+
+// ¿Está cobrado el mes que se está mirando?
+function pagoDe(papelId, mes, anio) {
+  return (state.papelesPagos || []).find(p => p.papel_id === papelId && p.mes === mes && p.anio === anio) || null;
+}
+
+function ptMesDestino() {
+  return { mes: Number($('#pt-mes')?.value) || (new Date().getMonth() + 1),
+           anio: Number($('#pt-anio')?.value) || new Date().getFullYear() };
+}
+
+// Monto vigente = base × ICC(mes a liquidar) / ICC(mes base).
+// Devuelve null si falta alguno de los dos índices, para no inventar un número.
+function montoActualizado(p, mes, anio) {
+  const base = iccValor(p.mes_base, p.anio_base);
+  const dest = iccValor(mes, anio);
+  if (base == null || dest == null || !base) return null;
+  return Number(p.monto_base) * (dest / base);
+}
+
+function papelesFiltrados() {
+  const q = ($('#pt-buscar')?.value || '').toLowerCase().trim();
+  const est = $('#pt-estado')?.value ?? 'activos';
+  const cobro = $('#pt-cobro')?.value || '';
+  const { mes, anio } = ptMesDestino();
+  return (state.papeles || []).filter(p => {
+    if (est === 'activos' && !p.activo) return false;
+    if (est === 'inactivos' && p.activo) return false;
+    if (cobro === 'pagados' && !pagoDe(p.id, mes, anio)) return false;
+    if (cobro === 'impagos' && pagoDe(p.id, mes, anio)) return false;
+    if (q && !`${p.cliente} ${p.propietario} ${p.inmueble}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function renderPapeles() {
+  if (!$('#pt-tabla')) return;
+  const selM = $('#pt-mes');
+  if (!selM.options.length) {
+    selM.innerHTML = MESES.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+    // Por defecto, el último mes con ICC cargado: es el que se puede liquidar.
+    const ult = [...(state.icc || [])].sort((a, b) => (b.anio * 12 + b.mes) - (a.anio * 12 + a.mes))[0];
+    const hoy = new Date();
+    selM.value = ult ? ult.mes : hoy.getMonth() + 1;
+    $('#pt-anio').value = ult ? ult.anio : hoy.getFullYear();
+  }
+  const { mes, anio } = ptMesDestino();
+  const iccDest = iccValor(mes, anio);
+  $('#pt-icc-info').innerHTML = iccDest != null
+    ? `ICC de ${MESES[mes - 1]} ${anio}: <b>${fmt(iccDest)}</b>`
+    : `<span style="color:var(--warn)">⚠ No hay ICC cargado para ${MESES[mes - 1]} ${anio}. Cargalo en Actualización ICC.</span>`;
+
+  const filt = papelesFiltrados();
+  const totales = filt.reduce((a, p) => {
+    const m = montoActualizado(p, mes, anio);
+    const cobrado = !!pagoDe(p.id, mes, anio);
+    return {
+      n: a.n + 1,
+      total: a.total + (m || 0),
+      sinIcc: a.sinIcc + (m == null ? 1 : 0),
+      nCob: a.nCob + (cobrado ? 1 : 0),
+      cobrado: a.cobrado + (cobrado ? (m || 0) : 0),
+    };
+  }, { n: 0, total: 0, sinIcc: 0, nCob: 0, cobrado: 0 });
+  const pendiente = totales.total - totales.cobrado;
+  $('#pt-resumen').innerHTML =
+    `<b>${totales.n}</b> clientes · total <b>$${fmt(totales.total)}</b> · ` +
+    `<span style="color:var(--ok)">cobrado ${totales.nCob} · $${fmt(totales.cobrado)}</span>` +
+    // "Todo cobrado" sólo si realmente hay algo que cobrar: sin ICC el total
+    // da cero y decirlo sería engañoso.
+    (pendiente > 0.005
+      ? ` · <b style="color:var(--warn)">pendiente $${fmt(pendiente)}</b>`
+      : (totales.total > 0.005 ? ' · <b style="color:var(--ok)">todo cobrado</b>' : '')) +
+    (totales.sinIcc ? ` · <span style="color:var(--warn)">${totales.sinIcc} sin ICC base</span>` : '');
+
+  const tb = $('#pt-tabla tbody');
+  if (!filt.length) { tb.innerHTML = '<tr><td colspan="10" class="empty">Sin clientes cargados</td></tr>'; return; }
+
+  tb.innerHTML = filt.map(p => {
+    const m = montoActualizado(p, mes, anio);
+    const cta = (state.cuentas || []).find(c => c.id === p.cuenta_id);
+    const mails = parseMails(p.emails);
+    const pocas = p.cuotas_restantes != null && p.cuotas_restantes <= 3;
+    const pago = pagoDe(p.id, mes, anio);
+    // El cobrado se pinta suave para poder recorrer la lista y ver qué falta
+    const fondo = pago ? 'background:#f0fdf4;' : '';
+    return `<tr style="${fondo}${p.activo ? '' : 'opacity:.55'}">
+      <td class="mono">${esc(p.cliente)}</td>
+      <td>${esc(p.propietario)}
+        <div class="muted" style="font-size:.75rem">${mails.length ? esc(mails.join(', ')) : '<span style="color:var(--warn)">sin mail</span>'}</div></td>
+      <td>${esc(p.inmueble)}</td>
+      <td class="num">$${fmt(p.monto_base)}</td>
+      <td class="muted" style="font-size:.78rem">${MESES[p.mes_base - 1].slice(0,3)} ${p.anio_base}</td>
+      <td class="num">${m != null ? `<b>$${fmt(m)}</b>` : '<span style="color:var(--warn)">sin ICC</span>'}</td>
+      <td class="num">${p.cuotas_restantes != null
+        ? `<span class="badge ${p.cuotas_restantes === 0 ? 'err' : pocas ? 'warn' : 'muted'}">${p.cuotas_restantes}</span>`
+        : '<span class="muted">—</span>'}</td>
+      <td style="font-size:.8rem">${cta ? `${esc(cta.banco)}${cta.comprobante_path ? '' : ' <span class="badge warn" style="font-size:.62rem">sin PDF</span>'}` : '<span style="color:var(--warn)">sin cuenta</span>'}</td>
+      <td style="text-align:center">
+        <input type="checkbox" class="chk-cobro" ${pago ? 'checked' : ''}
+               onchange="ptTogglePago('${p.id}')"
+               title="${pago ? `Cobrado el ${fmtFechaHora(pago.pagado_at)}` : `Marcar ${MESES[mes-1]} ${anio} como cobrado`}"></td>
+      <td class="actions" style="display:flex;gap:5px;justify-content:flex-end">
+        <button class="btn accent sm" onclick="ptMail('${p.id}')" title="Preparar el mail del mes"${mails.length && m != null ? '' : ' disabled'}>✉</button>
+        <button class="btn ghost sm" onclick="ptEditar('${p.id}')">Editar</button>
+      </td></tr>`;
+  }).join('');
+}
+
+// Marcar el cobro descuenta una cuota; desmarcarlo la devuelve. Como el
+// cobro se guarda por mes, no hay forma de descontar dos veces el mismo.
+window.ptTogglePago = async function(id) {
+  const p = (state.papeles || []).find(x => x.id === id);
+  if (!p) return;
+  const { mes, anio } = ptMesDestino();
+  const ya = pagoDe(id, mes, anio);
+  const tieneCuotas = p.cuotas_restantes != null;
+
+  if (ya) {
+    const { error } = await sb.from('papeles_pagos').delete().eq('id', ya.id);
+    if (error) { toast(error.message, 'err'); renderPapeles(); return; }
+    if (tieneCuotas) {
+      await sb.from('papeles_trabajo')
+        .update({ cuotas_restantes: p.cuotas_restantes + 1 }).eq('id', id);
+    }
+    toast(`${p.propietario}: ${MESES[mes - 1]} vuelve a impago` +
+          (tieneCuotas ? ` · ${p.cuotas_restantes + 1} cuotas` : ''), 'ok');
+  } else {
+    const monto = montoActualizado(p, mes, anio);
+    const { error } = await sb.from('papeles_pagos').insert({
+      papel_id: id, mes, anio,
+      monto: monto != null ? Math.round(monto * 100) / 100 : null,
+      pagado_por: state.user.id,
+    });
+    if (error) { toast(error.message, 'err'); renderPapeles(); return; }
+    let restan = p.cuotas_restantes;
+    if (tieneCuotas && p.cuotas_restantes > 0) {
+      restan = p.cuotas_restantes - 1;
+      await sb.from('papeles_trabajo').update({ cuotas_restantes: restan }).eq('id', id);
+    }
+    toast(`${p.propietario}: ${MESES[mes - 1]} ${anio} cobrado` +
+          (tieneCuotas ? (restan === 0 ? ' · era la última cuota' : ` · quedan ${restan}`) : ''),
+          restan === 0 && tieneCuotas ? 'warn' : 'ok');
+  }
+  await loadPapeles(); await loadPapelesPagos(); renderPapeles();
+};
+
+// ---------- Alta y edición ----------
+window.ptEditar = function(id) {
+  const p = id ? (state.papeles || []).find(x => x.id === id) || {} : {};
+  const nuevo = !id;
+  const hoy = new Date();
+  const cuentas = (state.cuentas || []).map(c => {
+    const emp = (state.empresas || []).find(e => e.id === c.empresa_id);
+    return `<option value="${c.id}" ${p.cuenta_id === c.id ? 'selected' : ''}>${esc(emp?.nombre || '')} · ${esc(c.banco)} (${c.moneda})</option>`;
+  }).join('');
+
+  showModal(`<div class="modal-head"><h3>${nuevo ? 'Nuevo cliente' : esc(p.propietario)}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field" style="max-width:150px"><label>N° cliente (7 dígitos)</label>
+          <input type="text" id="pt-cliente" maxlength="7" inputmode="numeric" value="${esc(p.cliente || '')}"></div>
+        <div class="field"><label>Propietario</label><input type="text" id="pt-prop" value="${esc(p.propietario || '')}"></div>
+      </div>
+      <div class="field"><label>Inmueble</label><input type="text" id="pt-inm" value="${esc(p.inmueble || '')}" placeholder="Ej: Lote 12 Mz 4 · Las Tipas"></div>
+      <div class="field-row">
+        <div class="field"><label>Monto base</label><input type="number" id="pt-monto" step="0.01" value="${p.monto_base ?? ''}"></div>
+        <div class="field" style="max-width:150px"><label>Mes base</label><select id="pt-mesb">
+          ${MESES.map((m, i) => `<option value="${i + 1}" ${(p.mes_base || hoy.getMonth() + 1) === i + 1 ? 'selected' : ''}>${m}</option>`).join('')}
+        </select></div>
+        <div class="field" style="max-width:110px"><label>Año base</label>
+          <input type="number" id="pt-aniob" value="${p.anio_base || hoy.getFullYear()}"></div>
+      </div>
+      <div class="field"><label>Mails del propietario</label>
+        <input type="text" id="pt-mails" value="${esc(p.emails || '')}" placeholder="uno@mail.com; otro@mail.com">
+        <div class="hint">Si son varios, separalos con coma o punto y coma.</div></div>
+      <div class="field-row">
+        <div class="field"><label>Cuenta a adjuntar</label><select id="pt-cuenta">
+          <option value="">— sin cuenta —</option>${cuentas}</select></div>
+        <div class="field" style="max-width:150px"><label>Cuotas restantes</label>
+          <input type="number" id="pt-cuotas" min="0" value="${p.cuotas_restantes ?? ''}"></div>
+      </div>
+      <div class="field"><label>Observaciones</label><input type="text" id="pt-obs" value="${esc(p.observaciones || '')}"></div>
+      ${nuevo ? '' : `<div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400">
+        <input type="checkbox" id="pt-activo" style="width:auto;margin:0" ${p.activo !== false ? 'checked' : ''}><span>Activo</span></label></div>`}
+    </div>
+    <div class="modal-foot">
+      ${nuevo ? '' : `<button class="btn ghost" onclick="ptBorrar('${id}')" style="color:var(--err);margin-right:auto">Eliminar</button>`}
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" id="pt-save" onclick="ptGuardar(${nuevo ? 'null' : `'${id}'`})">Guardar</button>
+    </div>`);
+};
+
+window.ptGuardar = async function(id) {
+  const cliente = $('#pt-cliente').value.trim();
+  if (!/^\d{7}$/.test(cliente)) { toast('El cliente debe tener 7 dígitos', 'warn'); return; }
+  const propietario = $('#pt-prop').value.trim();
+  const inmueble = $('#pt-inm').value.trim();
+  const monto = Number($('#pt-monto').value);
+  if (!propietario || !inmueble) { toast('Falta propietario o inmueble', 'warn'); return; }
+  if (!monto || monto <= 0) { toast('Falta el monto base', 'warn'); return; }
+
+  const mesBase = Number($('#pt-mesb').value), anioBase = Number($('#pt-aniob').value);
+  if (iccValor(mesBase, anioBase) == null) {
+    toast(`No hay ICC cargado para ${MESES[mesBase - 1]} ${anioBase}: el monto no se va a poder actualizar`, 'warn');
+  }
+  const mails = parseMails($('#pt-mails').value);
+  const malos = mails.filter(m => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m));
+  if (malos.length) { toast(`Mail inválido: ${malos[0]}`, 'warn'); return; }
+
+  const payload = {
+    cliente, propietario, inmueble,
+    monto_base: monto, mes_base: mesBase, anio_base: anioBase,
+    emails: mails.join(', ') || null,
+    cuenta_id: $('#pt-cuenta').value || null,
+    cuotas_restantes: $('#pt-cuotas').value !== '' ? Number($('#pt-cuotas').value) : null,
+    observaciones: $('#pt-obs').value.trim() || null,
+  };
+  if (id) payload.activo = $('#pt-activo').checked;
+
+  const btn = $('#pt-save');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  let error;
+  if (id) ({ error } = await sb.from('papeles_trabajo').update(payload).eq('id', id));
+  else    ({ error } = await sb.from('papeles_trabajo').insert({ ...payload, created_by: state.user.id }));
+  if (error) {
+    toast(error.message.includes('papeles_cliente_inmueble_key')
+      ? 'Ya existe ese cliente con ese inmueble' : error.message, 'err');
+    btn.disabled = false; btn.textContent = 'Guardar'; return;
+  }
+  closeModal();
+  toast(id ? 'Cliente actualizado' : 'Cliente agregado', 'ok');
+  await loadPapeles(); renderPapeles();
+};
+
+window.ptBorrar = async function(id) {
+  const p = (state.papeles || []).find(x => x.id === id);
+  if (!await confirmAction(`¿Eliminar a ${p?.propietario}? Esta acción no se puede deshacer.`)) return;
+  const { error } = await sb.from('papeles_trabajo').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  closeModal();
+  toast('Cliente eliminado', 'ok');
+  await loadPapeles(); renderPapeles();
+};
+
+// ---------- Mail del mes ----------
+// Se arma un archivo .eml con el PDF de la cuenta adentro. Al abrirlo,
+// Outlook lo muestra como mensaje listo para enviar (por la cabecera
+// X-Unsent) con el adjunto ya puesto. Un mailto: no puede llevar adjuntos.
+function textoMailPapel(p, mes, anio, monto) {
+  return `ESTIMADO:
+${p.propietario}
+
+Nos dirigimos a Ud. en su calidad de cliente de Grupo Edisur, con la finalidad de informarle el monto del aporte mensual correspondiente al mes de ${MESES[mes - 1]} ${anio} es de:
+
+Cuota $ ${fmt(monto)}
+Total a Pagar $ ${fmt(monto)}
+Inmueble: ${p.inmueble}
+
+Le adjunto la cuenta para realizar el pago si lo realiza mediante transferencia.
+
+Saludos cordiales,
+Grupo Edisur`;
+}
+
+function b64Chunks(b64) {
+  return (b64.match(/.{1,76}/g) || []).join('\r\n');
+}
+
+async function armarEml(p, mes, anio, monto, cuenta) {
+  // El encabezado To: de un mail separa con coma, sea cual sea el separador
+  // con el que se hayan cargado.
+  const para = parseMails(p.emails).join(', ');
+  const asunto = `Aporte mensual ${MESES[mes - 1]} ${anio} · ${p.inmueble}`;
+  const cuerpo = textoMailPapel(p, mes, anio, monto);
+  const lim = '----=_EdiGral_' + Date.now();
+
+  let adjunto = null;
+  if (cuenta?.comprobante_path) {
+    const { data, error } = await sb.storage.from('cuentas-comprobantes').download(cuenta.comprobante_path);
+    if (error) { toast('No se pudo bajar el PDF de la cuenta: ' + error.message, 'warn'); }
+    else {
+      const buf = new Uint8Array(await data.arrayBuffer());
+      let bin = '';
+      for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+      adjunto = { nombre: `Cuenta-${cuenta.banco.replace(/\s+/g, '-')}.pdf`, b64: btoa(bin) };
+    }
+  }
+
+  // Asunto y nombres en UTF-8 codificados en base64 (RFC 2047), si no los
+  // acentos llegan rotos.
+  const enc = t => '=?UTF-8?B?' + btoa(unescape(encodeURIComponent(t))) + '?=';
+  const partes = [
+    'MIME-Version: 1.0',
+    `To: ${para}`,
+    `Subject: ${enc(asunto)}`,
+    'X-Unsent: 1',                       // Outlook lo abre como mensaje a enviar
+    `Content-Type: multipart/mixed; boundary="${lim}"`,
+    '',
+    `--${lim}`,
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    b64Chunks(btoa(unescape(encodeURIComponent(cuerpo)))),
+  ];
+  if (adjunto) {
+    partes.push(
+      `--${lim}`,
+      `Content-Type: application/pdf; name="${adjunto.nombre}"`,
+      'Content-Transfer-Encoding: base64',
+      `Content-Disposition: attachment; filename="${adjunto.nombre}"`,
+      '',
+      b64Chunks(adjunto.b64),
+    );
+  }
+  partes.push(`--${lim}--`, '');
+  return { eml: partes.join('\r\n'), asunto, cuerpo, para, conAdjunto: !!adjunto };
+}
+
+window.ptMail = async function(id) {
+  const p = (state.papeles || []).find(x => x.id === id);
+  if (!p) return;
+  const { mes, anio } = ptMesDestino();
+  const monto = montoActualizado(p, mes, anio);
+  if (monto == null) { toast('Falta el ICC del mes base o del mes a liquidar', 'warn'); return; }
+  const cuenta = (state.cuentas || []).find(c => c.id === p.cuenta_id);
+
+  const r = await armarEml(p, mes, anio, monto, cuenta);
+  showModal(`<div class="modal-head"><h3>✉ Mail de ${MESES[mes - 1]} ${anio}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="hint" style="margin-bottom:8px"><b>Para:</b> ${esc(r.para)}<br><b>Asunto:</b> ${esc(r.asunto)}</div>
+      ${r.conAdjunto
+        ? `<div class="badge ok" style="margin-bottom:8px">📎 ${esc(cuenta.banco)} · PDF adjunto</div>`
+        : `<div class="badge warn" style="margin-bottom:8px">Sin PDF: ${cuenta ? 'esa cuenta no tiene comprobante cargado' : 'no hay cuenta asignada'}</div>`}
+      <textarea id="pt-cuerpo" rows="14" style="width:100%;font-family:inherit;font-size:.86rem">${esc(r.cuerpo)}</textarea>
+      <div class="hint" style="margin-top:6px">Podés editar el texto antes de generar el mail.</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn ghost" id="pt-copiar">⎘ Copiar texto</button>
+      <button class="btn accent" id="pt-abrir">Abrir en Outlook</button>
+    </div>`);
+
+  $('#pt-copiar').addEventListener('click', () => {
+    copyToClipboard($('#pt-cuerpo').value);
+  });
+  $('#pt-abrir').addEventListener('click', async () => {
+    // Se rearma con el texto editado
+    const editado = $('#pt-cuerpo').value;
+    const r2 = await armarEml({ ...p }, mes, anio, monto, cuenta);
+    const eml = r2.eml.replace(
+      b64Chunks(btoa(unescape(encodeURIComponent(r2.cuerpo)))),
+      b64Chunks(btoa(unescape(encodeURIComponent(editado))))
+    );
+    const blob = new Blob([eml], { type: 'message/rfc822' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Aporte-${MESES[mes - 1]}-${anio}-${p.propietario.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-')}.eml`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    closeModal();
+    toast('Archivo generado: abrilo y Outlook lo muestra listo para enviar', 'ok');
+  });
+};
+
+if ($('#pt-tabla')) {
+  $('#pt-add').addEventListener('click', () => ptEditar(null));
+  ['#pt-mes', '#pt-anio', '#pt-estado', '#pt-cobro'].forEach(s => $(s).addEventListener('change', renderPapeles));
+  $('#pt-buscar').addEventListener('input', renderPapeles);
+  $('#pt-excel').addEventListener('click', () => {
+    const { mes, anio } = ptMesDestino();
+    const filas = papelesFiltrados().map(p => ({
+      Cliente: p.cliente, Propietario: p.propietario, Inmueble: p.inmueble,
+      'Monto base': Number(p.monto_base),
+      'Mes base': `${MESES[p.mes_base - 1]} ${p.anio_base}`,
+      Actualizado: montoActualizado(p, mes, anio) ?? '',
+      'Cuotas restantes': p.cuotas_restantes ?? '',
+      Cobrado: pagoDe(p.id, mes, anio) ? 'SI' : '',
+      Mails: p.emails || '',
+    }));
+    exportarExcel(filas, `Papeles ${MESES[mes - 1]} ${anio}`);
+  });
+}
+
+// =================================================================
 // MODULO: TRANSFERENCIAS POR BANCO (importación masiva de extractos)
 // =================================================================
 const MONEDAS = { ARS: '$', USD: 'US$', UVI: 'UVI' };
@@ -9786,7 +10234,7 @@ let realtimeActivo = false;
 function subscribeChanges() {
   if (realtimeActivo) return;   // evita canales duplicados
   realtimeActivo = true;
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -9812,6 +10260,8 @@ function subscribeChanges() {
         if (tabla==='identif_emprendimientos') { await loadIdentEmpr(); renderIdentEmpr(); llenarSelectsEmpr(); }
         if (tabla==='deuda_calculos') { await loadDeudaCalculos(); renderDeudaGuardados(); }
         if (tabla==='badlar_valores') { await loadBadlar(); renderBadlarInfo(); }
+        if (tabla==='papeles_trabajo') { await loadPapeles(); renderPapeles(); }
+        if (tabla==='papeles_pagos') { await loadPapelesPagos(); renderPapeles(); }
         if (tabla==='retiros_personas') { await loadRetirosPersonas(); renderPersonasRetiros(); }
       })
       .subscribe();
