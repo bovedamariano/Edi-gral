@@ -738,7 +738,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           </div>
           <div id="icc-resultado" style="display:none;margin-top:18px"></div>
         </div>
-        <div class="card" style="margin-top:16px">
+        <div class="card" id="icc-env-card" style="margin-top:16px;display:none">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
             <h3 style="margin:0">Cotizaciones enviadas</h3>
             <div style="display:flex;gap:6px;align-items:center">
@@ -2031,6 +2031,18 @@ const fmtInt = n => new Intl.NumberFormat('es-AR').format(Number(n||0));
 const fmtFecha = d => d ? new Date(d+'T00:00:00').toLocaleDateString('es-AR') : '—';
 const fmtFechaHora = d => d ? new Date(d).toLocaleString('es-AR') : '—';
 
+// Traduce los errores de permisos de Postgres a algo entendible: al usuario
+// no le sirve "new row violates row-level security policy for table X".
+function mensajeError(error) {
+  const m = String(error?.message || error || '');
+  if (/row-level security|violates row-level/i.test(m)) {
+    return 'No tenés permiso para hacer esto. Consultá con Administración.';
+  }
+  if (/permission denied/i.test(m)) return 'No tenés permiso para esta operación.';
+  if (/JWT|not authenticated|invalid token/i.test(m)) return 'Se venció la sesión. Volvé a entrar.';
+  return m;
+}
+
 function toast(msg, type='info') {
   const el = document.createElement('div');
   el.className = 'toast ' + (type === 'ok' ? 'ok' : type === 'err' ? 'err' : type === 'warn' ? 'warn' : '');
@@ -2781,7 +2793,8 @@ $('#icc-calcular').addEventListener('click', () => {
     <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Concepto</th><th class="num">Original</th><th class="num">Actualizado</th></tr></thead><tbody>`;
   rows.forEach(([n,o,a]) => html += `<tr><td>${n}</td><td class="num">$${fmt(o)}</td><td class="num"><b>$${fmt(a)}</b></td></tr>`);
   html += `</tbody><tfoot><tr><th>Total</th><th class="num">$${fmt(rows.reduce((s,r)=>s+r[1],0))}</th><th class="num">$${fmt(total)}</th></tr></tfoot></table></div>
-    <div class="btn-row" style="margin-top:12px"><button class="btn ghost sm" onclick="iccDescargarPDF()">↓ PDF</button></div>
+    <div class="btn-row" style="margin-top:12px"><button class="btn ghost sm" onclick="iccDescargarPDF()">↓ PDF</button></div>`;
+  if (puedeCotizar()) html += `
     <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
       <h4 style="margin-bottom:8px">Cotización enviada al cliente</h4>
       <div class="field-row" style="align-items:end">
@@ -2797,10 +2810,12 @@ $('#icc-calcular').addEventListener('click', () => {
   const envAnt = { n: $('#icc-env-nombre')?.value || '', l: $('#icc-env-lote')?.value || '' };
   $('#icc-resultado').innerHTML = html;
   $('#icc-resultado').style.display = 'block';
-  $('#icc-env-nombre').value = envAnt.n;
-  $('#icc-env-lote').value = envAnt.l;
   state._iccLast = { fechaOrig, mO, yO, mD, yD, vO, vD, coef, rows, total };
-  $('#icc-env-btn').addEventListener('click', registrarEnvioIcc);
+  if ($('#icc-env-btn')) {
+    $('#icc-env-nombre').value = envAnt.n;
+    $('#icc-env-lote').value = envAnt.l;
+    $('#icc-env-btn').addEventListener('click', registrarEnvioIcc);
+  }
 });
 
 window.iccDescargarPDF = function() {
@@ -7488,7 +7503,7 @@ async function registrarEnvioIcc() {
     enviada_por: state.user.id,
   });
   btn.disabled = false; btn.textContent = 'Registrar envío';
-  if (error) { toast(error.message, 'err'); return; }
+  if (error) { toast(mensajeError(error), 'err'); return; }
 
   $('#icc-env-nombre').value = ''; $('#icc-env-lote').value = '';
   toast(`Envío registrado: ${nombre} · $${fmt(d.total)}`, 'ok');
@@ -7498,6 +7513,9 @@ async function registrarEnvioIcc() {
 function renderIccEnviadas() {
   const tb = $('#icc-env-tabla tbody');
   if (!tb) return;
+  const card = $('#icc-env-card');
+  if (card) card.style.display = puedeCotizar() ? 'block' : 'none';
+  if (!puedeCotizar()) return;
   const q = ($('#icc-env-buscar')?.value || '').toLowerCase().trim();
   const filas = (state.iccEnviadas || []).filter(c =>
     !q || `${c.nombre} ${c.lote}`.toLowerCase().includes(q));
@@ -7584,9 +7602,21 @@ async function loadDeudaCalculos() {
   state.deudaCalculos = await fetchPaged('deuda_calculos', q => q.order('created_at', { ascending: false }));
 }
 
-function puedeVerDeuda() {
+// Mismo criterio que la función es_finanzas() de la base. Se usa para
+// ocultar en pantalla lo que el servidor va a rechazar igual: si el botón
+// no está, nadie se lleva un error crudo de Postgres.
+function puedeFinanzas() {
   const p = state.profile;
   return !!p && (p.rol === 'admin' || p.area === 'finanzas');
+}
+
+// Quién registra cotizaciones enviadas. Es más amplio que puedeFinanzas():
+// SAC y Legales también atienden al cliente y las cargan. Tiene que coincidir
+// con la función puede_cotizar() de la base, o la pantalla ofrece algo que el
+// servidor después rechaza.
+function puedeCotizar() {
+  const p = state.profile;
+  return !!p && (p.rol === 'admin' || ['finanzas', 'sac', 'legales'].includes(p.area));
 }
 
 // Días corridos entre dos fechas ISO. Sólo cuentan los días ya vencidos:
@@ -7848,8 +7878,8 @@ window.ddBorrarCalculo = async function(id) {
 
 function renderDeuda() {
   if (!$('#dd-cuotas')) return;
-  $('#tab-btn-deuda').style.display = puedeVerDeuda() ? '' : 'none';
-  if (!puedeVerDeuda()) return;
+  $('#tab-btn-deuda').style.display = puedeFinanzas() ? '' : 'none';
+  if (!puedeFinanzas()) return;
   if (!$('#dd-fecha').value) $('#dd-fecha').value = todayISO();
   if (!_ddCuotas.length) _ddCuotas = [{ fecha: '', monto: null }];
   const sel = $('#dd-empr');
