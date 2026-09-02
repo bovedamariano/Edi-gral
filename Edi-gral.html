@@ -738,6 +738,19 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           </div>
           <div id="icc-resultado" style="display:none;margin-top:18px"></div>
         </div>
+        <div class="card" style="margin-top:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+            <h3 style="margin:0">Cotizaciones enviadas</h3>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="text" id="icc-env-buscar" placeholder="Buscar por nombre o lote" style="width:auto;min-width:190px;padding:5px 8px;font-size:.82rem">
+              <button class="btn ghost sm" id="icc-env-excel">↓ Excel</button>
+            </div>
+          </div>
+          <div class="tbl-wrap"><table class="tbl" id="icc-env-tabla">
+            <thead><tr><th>Enviada</th><th>Nombre</th><th>Lote</th><th>Actualización</th><th class="num">Monto informado</th><th class="actions"></th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
       </div>
 
       <div class="subtab-content" id="icc-historico" style="display:none">
@@ -1996,6 +2009,7 @@ const state = {
   deudaCalculos: [],
   papeles: [],
   papelesPagos: [],
+  iccEnviadas: [],
   uvi: [],
   cotizacionesBna: [],
   retirosPersonas: [],
@@ -2043,6 +2057,16 @@ async function copyToClipboard(txt) {
 // Enter para submit en formularios simples
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !e.shiftKey) {
+    // Un input puede declarar a qué botón va su Enter con data-enter="id".
+    // Sin esto se dispara el primer botón de la card, que no siempre es el
+    // que corresponde: en Actualización ICC era "Calcular", que redibuja el
+    // resultado y borra lo que se estaba escribiendo abajo.
+    const destino = e.target.dataset.enter;
+    if (destino) {
+      const b = document.getElementById(destino);
+      if (b) { e.preventDefault(); b.click(); }
+      return;
+    }
     const card = e.target.closest('.card');
     if (card) {
       const btn = card.querySelector('.btn.accent, .btn:not(.ghost):not(.danger)');
@@ -2175,7 +2199,7 @@ async function afterLogin() {
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
     loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadCocheras(),
-    loadBancosCuentas(), loadTransferenciasBanco(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(),
+    loadBancosCuentas(), loadTransferenciasBanco(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -2391,7 +2415,7 @@ function switchTab(tab) {
   if (tab === 'cocheras') renderCocheras();
   if (tab === 'transferencias') { llenarSelectoresTB(); renderTransfBanco(); renderDashTransf(); }
   if (tab === 'cotizacion') renderCotizDia();
-  if (tab === 'icc') renderDeuda();
+  if (tab === 'icc') { renderDeuda(); renderIccEnviadas(); }
   if (tab === 'papeles') renderPapeles();
   if (tab === 'ajustes') { renderBancosCuentas(); renderIdentEmpr(); }
   if (tab === 'transferencias') llenarSelectsEmpr();
@@ -2757,10 +2781,26 @@ $('#icc-calcular').addEventListener('click', () => {
     <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Concepto</th><th class="num">Original</th><th class="num">Actualizado</th></tr></thead><tbody>`;
   rows.forEach(([n,o,a]) => html += `<tr><td>${n}</td><td class="num">$${fmt(o)}</td><td class="num"><b>$${fmt(a)}</b></td></tr>`);
   html += `</tbody><tfoot><tr><th>Total</th><th class="num">$${fmt(rows.reduce((s,r)=>s+r[1],0))}</th><th class="num">$${fmt(total)}</th></tr></tfoot></table></div>
-    <div class="btn-row" style="margin-top:12px"><button class="btn ghost sm" onclick="iccDescargarPDF()">↓ PDF</button></div>`;
+    <div class="btn-row" style="margin-top:12px"><button class="btn ghost sm" onclick="iccDescargarPDF()">↓ PDF</button></div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">
+      <h4 style="margin-bottom:8px">Cotización enviada al cliente</h4>
+      <div class="field-row" style="align-items:end">
+        <div class="field"><label>Nombre</label><input type="text" id="icc-env-nombre" data-enter="icc-env-btn" placeholder="Apellido y nombre"></div>
+        <div class="field"><label>Lote</label><input type="text" id="icc-env-lote" data-enter="icc-env-btn" placeholder="Ej: Mz 4 Lote 12 · Las Tipas"></div>
+        <div class="field" style="max-width:170px"><label>&nbsp;</label>
+          <button class="btn accent" id="icc-env-btn" style="width:100%">Registrar envío</button></div>
+      </div>
+      <div class="hint">Se guarda el nombre, el lote y el monto actualizado de <b>$${fmt(total)}</b>.</div>
+    </div>`;
+  // Recalcular redibuja este bloque: se conserva lo que ya estaba escrito
+  // para no perderlo si el usuario ajusta un monto y vuelve a calcular.
+  const envAnt = { n: $('#icc-env-nombre')?.value || '', l: $('#icc-env-lote')?.value || '' };
   $('#icc-resultado').innerHTML = html;
   $('#icc-resultado').style.display = 'block';
+  $('#icc-env-nombre').value = envAnt.n;
+  $('#icc-env-lote').value = envAnt.l;
   state._iccLast = { fechaOrig, mO, yO, mD, yD, vO, vD, coef, rows, total };
+  $('#icc-env-btn').addEventListener('click', registrarEnvioIcc);
 });
 
 window.iccDescargarPDF = function() {
@@ -7411,6 +7451,119 @@ $('#ident-bulk-btn')?.addEventListener('click', async () => {
 });
 
 // =================================================================
+// COTIZACIONES ICC ENVIADAS AL CLIENTE
+// =================================================================
+async function loadIccEnviadas() {
+  state.iccEnviadas = await fetchPaged('icc_cotizaciones_enviadas',
+    q => q.order('enviada_at', { ascending: false }));
+}
+
+async function registrarEnvioIcc() {
+  const d = state._iccLast;
+  if (!d) { toast('Calculá primero', 'warn'); return; }
+  const nombre = $('#icc-env-nombre').value.trim();
+  const lote = $('#icc-env-lote').value.trim();
+  if (!nombre) { toast('Falta el nombre', 'warn'); $('#icc-env-nombre').focus(); return; }
+  if (!lote) { toast('Falta el lote', 'warn'); $('#icc-env-lote').focus(); return; }
+
+  // Aviso si ya se le mandó lo mismo hoy: pasa cuando se toca dos veces
+  // el botón sin darse cuenta.
+  const hoy = todayISO();
+  const repetida = (state.iccEnviadas || []).find(x =>
+    x.nombre.toLowerCase() === nombre.toLowerCase() &&
+    x.lote.toLowerCase() === lote.toLowerCase() &&
+    String(x.enviada_at).slice(0, 10) === hoy);
+  if (repetida && !await confirmAction(`Ya registraste un envío a ${nombre} · ${lote} hoy por $${fmt(repetida.total_actualizado)}. ¿Registrar otro?`)) return;
+
+  const btn = $('#icc-env-btn');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  const { error } = await sb.from('icc_cotizaciones_enviadas').insert({
+    nombre, lote,
+    fecha_origen: d.fechaOrig,
+    mes_destino: d.mD, anio_destino: d.yD,
+    coeficiente: Number(d.coef.toFixed(6)),
+    conceptos: d.rows.map(([n, o, a]) => ({ nombre: n, original: o, actualizado: Math.round(a * 100) / 100 })),
+    total_original: Math.round(d.rows.reduce((s, r) => s + r[1], 0) * 100) / 100,
+    total_actualizado: Math.round(d.total * 100) / 100,
+    enviada_por: state.user.id,
+  });
+  btn.disabled = false; btn.textContent = 'Registrar envío';
+  if (error) { toast(error.message, 'err'); return; }
+
+  $('#icc-env-nombre').value = ''; $('#icc-env-lote').value = '';
+  toast(`Envío registrado: ${nombre} · $${fmt(d.total)}`, 'ok');
+  await loadIccEnviadas(); renderIccEnviadas();
+}
+
+function renderIccEnviadas() {
+  const tb = $('#icc-env-tabla tbody');
+  if (!tb) return;
+  const q = ($('#icc-env-buscar')?.value || '').toLowerCase().trim();
+  const filas = (state.iccEnviadas || []).filter(c =>
+    !q || `${c.nombre} ${c.lote}`.toLowerCase().includes(q));
+  if (!filas.length) {
+    tb.innerHTML = `<tr><td colspan="6" class="empty">${q ? 'Sin resultados' : 'Todavía no registraste ningún envío'}</td></tr>`;
+    return;
+  }
+  tb.innerHTML = filas.slice(0, 100).map(c => `<tr>
+    <td>${fmtFechaHora(c.enviada_at)}</td>
+    <td><b>${esc(c.nombre)}</b></td>
+    <td>${esc(c.lote)}</td>
+    <td class="muted" style="font-size:.8rem">${c.fecha_origen ? fmtFecha(c.fecha_origen) : '—'} → ${c.mes_destino ? `${MESES[c.mes_destino - 1]} ${c.anio_destino}` : '—'}${c.coeficiente ? `<br>coef ${Number(c.coeficiente).toFixed(6)}` : ''}</td>
+    <td class="num"><b>$${fmt(c.total_actualizado)}</b></td>
+    <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
+      <button class="btn ghost sm" onclick="iccEnvVer('${c.id}')" title="Ver el detalle">👁</button>
+      <button class="btn ghost sm" style="color:var(--err)" onclick="iccEnvBorrar('${c.id}')">🗑</button>
+    </td></tr>`).join('');
+}
+
+window.iccEnvVer = function(id) {
+  const c = (state.iccEnviadas || []).find(x => x.id === id);
+  if (!c) return;
+  const cps = c.conceptos || [];
+  showModal(`<div class="modal-head"><h3>Cotización enviada</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="hint" style="margin-bottom:10px">
+        <b>${esc(c.nombre)}</b> · ${esc(c.lote)}<br>
+        Enviada el ${fmtFechaHora(c.enviada_at)}<br>
+        ${c.fecha_origen ? `Boleto ${fmtFecha(c.fecha_origen)} → ${MESES[c.mes_destino - 1]} ${c.anio_destino} · coef ${Number(c.coeficiente).toFixed(6)}` : ''}
+      </div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Concepto</th><th class="num">Original</th><th class="num">Actualizado</th></tr></thead>
+        <tbody>${cps.map(x => `<tr><td>${esc(x.nombre)}</td><td class="num">$${fmt(x.original)}</td><td class="num"><b>$${fmt(x.actualizado)}</b></td></tr>`).join('')}
+          <tr style="background:var(--surface-2);font-weight:700">
+            <td>TOTAL</td><td class="num">$${fmt(c.total_original)}</td><td class="num">$${fmt(c.total_actualizado)}</td></tr>
+        </tbody></table></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Cerrar</button></div>`);
+};
+
+window.iccEnvBorrar = async function(id) {
+  const c = (state.iccEnviadas || []).find(x => x.id === id);
+  if (!await confirmAction(`¿Borrar el registro de envío a ${c?.nombre} · ${c?.lote}?`)) return;
+  const { error } = await sb.from('icc_cotizaciones_enviadas').delete().eq('id', id);
+  if (error) { toast(error.message, 'err'); return; }
+  toast('Registro borrado', 'ok');
+  await loadIccEnviadas(); renderIccEnviadas();
+};
+
+if ($('#icc-env-tabla')) {
+  $('#icc-env-buscar').addEventListener('input', renderIccEnviadas);
+  $('#icc-env-excel').addEventListener('click', () => {
+    const filas = (state.iccEnviadas || []).map(c => ({
+      Enviada: fmtFechaHora(c.enviada_at),
+      Nombre: c.nombre, Lote: c.lote,
+      'Boleto': c.fecha_origen ? fmtFecha(c.fecha_origen) : '',
+      'Actualizado a': c.mes_destino ? `${MESES[c.mes_destino - 1]} ${c.anio_destino}` : '',
+      Coeficiente: c.coeficiente ? Number(c.coeficiente) : '',
+      Original: c.total_original ?? '',
+      'Monto informado': Number(c.total_actualizado),
+    }));
+    exportarExcel(filas, 'Cotizaciones enviadas');
+  });
+}
+
+// =================================================================
 // CALCULO DE DEUDA (solapa dentro de Actualización ICC · solo finanzas)
 // =================================================================
 // Se muestran las dos variantes lado a lado —simple y compuesto— para
@@ -8165,6 +8318,20 @@ function cuentasDeEmpresa(empId) {
   return (state.bancosCuentas || []).filter(c => c.empresa_id === empId && c.activo);
 }
 
+// Pendientes de una cuenta y de una empresa entera
+function pendientesDeCuenta(ctaId) {
+  return (state.transfBanco || []).filter(t => t.cuenta_id === ctaId && !t.realizada).length;
+}
+function pendientesDeEmpresa(empId) {
+  const ids = cuentasDeEmpresa(empId).map(c => c.id);
+  return (state.transfBanco || []).filter(t => ids.includes(t.cuenta_id) && !t.realizada).length;
+}
+
+// Verde claro = no queda nada por cargar ahí. Se pinta el fondo de la opción
+// y además se muestra el número de pendientes, porque el color solo no dice
+// cuántos son y en algunas pantallas se distingue poco.
+const VERDE_OK = 'background-color:#dcfce7';
+
 function llenarSelectoresTB() {
   const selE = $('#tb-empresa'), selC = $('#tb-cuenta');
   if (!selE) return;
@@ -8172,16 +8339,27 @@ function llenarSelectoresTB() {
   const empresasConCuenta = (state.empresas || [])
     .filter(e => cuentasDeEmpresa(e.id).length);
   selE.innerHTML = empresasConCuenta.length
-    ? empresasConCuenta.map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('')
+    ? empresasConCuenta.map(e => {
+        const n = pendientesDeEmpresa(e.id);
+        return `<option value="${e.id}" style="${n ? '' : VERDE_OK}">${esc(e.nombre)}${n ? ` · ${n}` : ' ✓'}</option>`;
+      }).join('')
     : '<option value="">— sin cuentas cargadas —</option>';
   if (empActual && empresasConCuenta.some(e => e.id === empActual)) selE.value = empActual;
 
   const ctaActual = selC.value;
   const ctas = cuentasDeEmpresa(selE.value);
   selC.innerHTML = ctas.length
-    ? ctas.map(c => `<option value="${c.id}">${esc(c.banco)} · ${esc(c.nombre)} (${c.moneda})</option>`).join('')
+    ? ctas.map(c => {
+        const n = pendientesDeCuenta(c.id);
+        return `<option value="${c.id}" style="${n ? '' : VERDE_OK}">${esc(c.banco)} · ${esc(c.nombre)} (${c.moneda})${n ? ` · ${n}` : ' ✓'}</option>`;
+      }).join('')
     : '<option value="">—</option>';
   if (ctaActual && ctas.some(c => c.id === ctaActual)) selC.value = ctaActual;
+
+  // El propio desplegable se tiñe si lo elegido no tiene pendientes, para
+  // verlo sin abrirlo.
+  selE.style.cssText = pendientesDeEmpresa(selE.value) ? '' : VERDE_OK;
+  selC.style.cssText = pendientesDeCuenta(selC.value) ? '' : VERDE_OK;
 }
 
 function cuentaTBActual() {
@@ -8211,6 +8389,7 @@ function diasParaBorrado(t) {
 function renderTransfBanco() {
   if (!$('#tb-tabla')) return;
   renderDashTransf();
+  llenarSelectoresTB();
   const cta = cuentaTBActual();
   const filt = transfBancoFiltradas();
   const vista = $('#tb-vista').value;
@@ -10234,7 +10413,7 @@ let realtimeActivo = false;
 function subscribeChanges() {
   if (realtimeActivo) return;   // evita canales duplicados
   realtimeActivo = true;
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -10262,6 +10441,7 @@ function subscribeChanges() {
         if (tabla==='badlar_valores') { await loadBadlar(); renderBadlarInfo(); }
         if (tabla==='papeles_trabajo') { await loadPapeles(); renderPapeles(); }
         if (tabla==='papeles_pagos') { await loadPapelesPagos(); renderPapeles(); }
+        if (tabla==='icc_cotizaciones_enviadas') { await loadIccEnviadas(); renderIccEnviadas(); }
         if (tabla==='retiros_personas') { await loadRetirosPersonas(); renderPersonasRetiros(); }
       })
       .subscribe();
