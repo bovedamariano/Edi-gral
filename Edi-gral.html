@@ -115,26 +115,6 @@ aside.sidebar{
 #btn-speeches:hover{transform:scale(1.08)}
 #btn-speeches.arrastrando{cursor:grabbing;transform:scale(1.12);opacity:.9}
 #btn-speeches.abierto{background:var(--ink)}
-/* Panel dentro de la app: aparece pegado al botón */
-#sp-panel{position:fixed;width:290px;max-height:min(440px,70vh);background:var(--surface);
-  border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.18);
-  z-index:899;display:none;flex-direction:column;padding:8px;box-sizing:border-box}
-#sp-panel.on{display:flex}
-#sp-panel .sp-head{display:flex;align-items:center;gap:4px;margin-bottom:6px}
-#sp-panel .sp-head-tit{flex:1;font-size:.8rem;font-weight:700;color:var(--ink)}
-#sp-panel .sp-ico{width:24px;height:24px;border:1px solid var(--line);background:var(--bg);
-  border-radius:5px;cursor:pointer;font-size:.78rem;line-height:1;padding:0;color:var(--ink-2)}
-#sp-panel .sp-ico:hover{background:var(--accent-soft);border-color:var(--accent-2);color:var(--accent)}
-#sp-panel .sp-buscar{width:100%;padding:6px 8px;font-size:.82rem;border:1px solid var(--line);
-  border-radius:var(--radius);background:var(--bg);color:var(--ink);margin-bottom:6px;box-sizing:border-box}
-#sp-panel .sp-lista{flex:1;overflow-y:auto;min-height:0}
-#sp-panel .sp-item{display:block;width:100%;text-align:left;border:1px solid var(--line);
-  border-radius:var(--radius);background:var(--bg);color:var(--ink);padding:7px 9px;
-  margin-bottom:4px;cursor:pointer;font-size:.83rem;font-family:inherit;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#sp-panel .sp-item:hover{background:var(--accent-soft);border-color:var(--accent-2)}
-#sp-panel .sp-item.listo{background:var(--ok);color:#fff;border-color:var(--ok)}
-#sp-panel .sp-vacio{text-align:center;padding:22px 10px;color:var(--ink-3);font-size:.82rem}
 #btn-speeches.on{display:flex}
 @media print{#btn-speeches{display:none !important}}
 .chk-cobro{width:20px;height:20px;margin:0;cursor:pointer;accent-color:var(--ok);vertical-align:middle}
@@ -618,15 +598,6 @@ details[open] .ident-toggle{transform:rotate(180deg)}
 <body>
 <!-- Botón chico siempre a mano para las respuestas rápidas -->
 <button id="btn-speeches" title="Respuestas rápidas · arrastralo para moverlo, doble clic para volverlo a la esquina">💬</button>
-<div id="sp-panel">
-  <div class="sp-head">
-    <span class="sp-head-tit">💬 Respuestas rápidas</span>
-    <button class="sp-ico" id="sp-popout" title="Sacar de la app: queda sobre cualquier programa">🪟</button>
-    <button class="sp-ico" id="sp-min" title="Minimizar">−</button>
-  </div>
-  <input type="text" class="sp-buscar" id="sp-q-app" placeholder="Buscar...">
-  <div class="sp-lista" id="sp-lista-app"></div>
-</div>
 
 <!-- ===================== LOGIN ===================== -->
 <div id="login-screen">
@@ -719,6 +690,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
     <button class="nav-item" data-tab="instructivos">📚 Instructivos</button>
     <button class="nav-item" data-tab="transferencias">💸 Transferencias</button>
     <button class="nav-item" data-tab="retiros">📤 Retiro de documentación</button>
+    <button class="nav-item" data-tab="mails">📬 Mails</button>
     <button class="nav-item" data-tab="papeles">📑 Papeles de trabajo</button>
     <button class="nav-item" data-tab="cocheras">🅿️ Cocheras</button>
     <div class="nav-section" id="admin-section" style="display:none">Admin</div>
@@ -1675,6 +1647,42 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         </table></div>
       </div>
     </section>
+    <section class="tab-content" id="tab-mails" style="display:none">
+      <div class="page-head">
+        <div><h1>Mails</h1><p>Tu bandeja de Outlook, agrupada por tipo</p></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn ghost" id="ml-reglas">⚙ Reglas</button>
+          <button class="btn accent" id="ml-cargar">↻ Traer mails</button>
+        </div>
+      </div>
+
+      <div class="card" id="ml-aviso" style="margin-bottom:14px">
+        <p class="sub" style="margin:0" id="ml-aviso-txt">Tocá <b>Traer mails</b> para leer tu bandeja de la última semana. Los mensajes no se guardan en ningún lado: se leen en el momento y se agrupan acá.</p>
+      </div>
+
+      <div id="ml-cats" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+          <span id="ml-resumen" class="hint"></span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="ml-dias" style="width:auto;padding:5px 8px;font-size:.82rem">
+              <option value="7" selected>Última semana</option>
+              <option value="15">Últimos 15 días</option>
+              <option value="30">Últimos 30 días</option>
+              <option value="90">Últimos 90 días</option>
+            </select>
+            <input type="text" id="ml-buscar" placeholder="Buscar" style="width:auto;min-width:170px;padding:5px 8px;font-size:.82rem">
+            <button class="btn ghost sm" id="ml-excel">↓ Excel</button>
+          </div>
+        </div>
+        <div class="tbl-wrap"><table class="tbl" id="ml-tabla">
+          <thead><tr><th>Fecha</th><th>De</th><th>Asunto</th><th>Categoría</th><th class="actions"></th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+    </section>
+
     <section class="tab-content" id="tab-papeles" style="display:none">
       <div class="page-head">
         <div><h1>Papeles de trabajo</h1><p>Aportes mensuales actualizados por ICC</p></div>
@@ -1967,7 +1975,10 @@ details[open] .ident-toggle{transform:rotate(180deg)}
               <h3 style="margin:0">Respuestas rápidas</h3>
               <p class="sub" style="margin:2px 0 0">Textos para copiar al contestar. Los ve todo el equipo; cada uno edita los suyos.</p>
             </div>
-            <button class="btn accent" id="sp-add">+ Nueva</button>
+            <div style="display:flex;gap:6px">
+              <button class="btn ghost" id="sp-export" title="Copia la lista para pegarla en el botón flotante de WhatsApp y Outlook">📋 Copiar para el botón flotante</button>
+              <button class="btn accent" id="sp-add">+ Nueva</button>
+            </div>
           </div>
           <div class="tbl-wrap"><table class="tbl" id="sp-tabla">
             <thead><tr><th>Título</th><th>Categoría</th><th>Texto</th><th class="num">Usos</th><th>Estado</th><th class="actions"></th></tr></thead>
@@ -2068,6 +2079,8 @@ const state = {
   papelesPagos: [],
   iccEnviadas: [],
   speeches: [],
+  mailReglas: [],
+  mails: [],
   uvi: [],
   cotizacionesBna: [],
   retirosPersonas: [],
@@ -2188,8 +2201,8 @@ async function initAuth() {
 // MATRIZ DE ACCESOS POR ÁREA
 // =================================================================
 const ACCESOS = {
-  admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','gastos-boleto','tareas','instructivos','transferencias','retiros','cocheras','papeles','ajustes','audit'],
-  finanzas: ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias','retiros','cocheras','papeles'],
+  admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','gastos-boleto','tareas','instructivos','transferencias','retiros','cocheras','papeles','mails','ajustes','audit'],
+  finanzas: ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias','retiros','cocheras','papeles','mails'],
   legales:  ['icc','sellos','cesiones','cuentas','cotizacion','gastos','retiros','cocheras'],
   ventas:   ['icc','cuentas','cotizacion','gastos','gastos-boleto'],
   sac:      ['icc','cuentas','gastos'],
@@ -2269,7 +2282,7 @@ async function afterLogin() {
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
     loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadCocheras(),
-    loadBancosCuentas(), loadTransferenciasBanco(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(),
+    loadBancosCuentas(), loadTransferenciasBanco(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(), loadMailReglas(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -2488,6 +2501,7 @@ function switchTab(tab) {
   if (tab === 'cotizacion') renderCotizDia();
   if (tab === 'icc') { renderDeuda(); renderIccEnviadas(); }
   if (tab === 'papeles') renderPapeles();
+  if (tab === 'mails') renderMails();
   if (tab === 'ajustes') { renderBancosCuentas(); renderIdentEmpr(); renderSpeeches(); }
   if (tab === 'transferencias') llenarSelectsEmpr();
 }
@@ -7219,9 +7233,23 @@ function outlookConfigurado() {
   return !!OUTLOOK_CLIENT_ID && typeof msal !== 'undefined';
 }
 
+// Microsoft sólo acepta direcciones https. Si el archivo se abrió con doble
+// clic, la dirección es file:///C:/... y el login falla con AADSTS500111,
+// un error que no dice nada. Se avisa antes de mandar al usuario al login.
+function outlookDireccionValida() {
+  return location.protocol === 'https:' ||
+         location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+}
+
+function avisoDireccionOutlook() {
+  toast('Abriste el archivo desde tu PC. Outlook sólo funciona entrando por ' +
+        'bovedamariano.github.io/Edi-gral/Edi-gral.html', 'err');
+}
+
 async function outlookInit() {
   if (_msalListo) return _msal;
   if (!outlookConfigurado()) throw new Error('Outlook no está configurado');
+  if (!outlookDireccionValida()) throw new Error('DIRECCION');
   _msal = new msal.PublicClientApplication({
     auth: {
       clientId: OUTLOOK_CLIENT_ID,
@@ -7336,6 +7364,12 @@ window.buscarMailsTransf = async function(id) {
   try {
     res = await buscarMailsDeTransferencia(t);
   } catch (e) {
+    if (e.message === 'DIRECCION') {
+      const c = $('#om-cuerpo');
+      if (c) c.innerHTML = '<div style="color:var(--err);padding:16px">Abriste el archivo desde tu PC.' +
+        ' Outlook sólo funciona entrando por <b>bovedamariano.github.io/Edi-gral/Edi-gral.html</b></div>';
+      return;
+    }
     const msg = e.message === 'PERMISO'
       ? 'Tu cuenta no tiene permiso Mail.Read. Hay que aprobarlo desde el panel de Microsoft 365.'
       : e.message === 'SESION'
@@ -7649,6 +7683,29 @@ async function loadSpeeches() {
 
 // ---------- Ventana flotante ----------
 let _pipSp = null;
+const SP_GRANDE = { w: 300, h: 400 };
+// Chrome achica o ignora los tamaños que considera "poco usables", así que
+// pedir 1x1 equivale a pedir el mínimo posible: él lo lleva a su piso.
+const SP_CHICO = { w: 1, h: 1 };
+
+// Achica la ventana flotante a un círculo, o la vuelve a abrir. Es la única
+// forma de tener "el circulito" sobre otras aplicaciones: una página web no
+// puede dibujar nada fuera de su propia ventana.
+function modoBurbuja(chico) {
+  if (!_pipSp || _pipSp.closed) return;
+  _pipSp.document.body.classList.toggle('chico', chico);
+  const t = chico ? SP_CHICO : SP_GRANDE;
+  try {
+    _pipSp.resizeTo(t.w, t.h);
+  } catch (e) {
+    // Si el navegador no deja redimensionar, igual se ve sólo el círculo
+    console.warn('No se pudo redimensionar la ventana flotante:', e.message);
+  }
+  if (!chico) {
+    pintarSpeeches();
+    _pipSp.document.getElementById('sp-q')?.focus();
+  }
+}
 
 async function abrirSpeeches() {
   if (!pipDisponible()) {
@@ -7659,51 +7716,71 @@ async function abrirSpeeches() {
   }
   if (_pipSp && !_pipSp.closed) { _pipSp.focus(); pintarSpeeches(); return; }
   try {
-    _pipSp = await documentPictureInPicture.requestWindow({ width: 300, height: 400 });
+    _pipSp = await documentPictureInPicture.requestWindow({ width: SP_GRANDE.w, height: SP_GRANDE.h });
   } catch (e) { toast('No se pudo abrir la ventana: ' + e.message, 'err'); return; }
 
   const est = document.querySelector('style');
   if (est) { const c = _pipSp.document.createElement('style'); c.textContent = est.textContent; _pipSp.document.head.appendChild(c); }
   const p = _pipSp.document.createElement('style');
   p.textContent = `
-    body{margin:0;padding:8px;background:var(--bg);font-family:var(--font);
+    body{margin:0;padding:8px;background:var(--surface);font-family:var(--font);
          display:flex;flex-direction:column;height:100vh;box-sizing:border-box}
+    body.chico{padding:0;margin:0;background:var(--accent);overflow:hidden}
+    body.chico .sp-abierto{display:none}
+    .sp-head{display:flex;align-items:center;gap:4px;margin-bottom:6px}
+    .sp-head-tit{flex:1;font-size:.8rem;font-weight:700;color:var(--ink)}
+    .sp-ico{width:24px;height:24px;border:1px solid var(--line);background:var(--bg);
+      border-radius:5px;cursor:pointer;font-size:.78rem;line-height:1;padding:0;color:var(--ink-2)}
+    .sp-ico:hover{background:var(--accent-soft);border-color:var(--accent-2);color:var(--accent)}
     .sp-buscar{width:100%;padding:6px 8px;font-size:.82rem;border:1px solid var(--line);
-               border-radius:var(--radius);background:var(--surface);color:var(--ink);
-               margin-bottom:6px;box-sizing:border-box}
-    .sp-lista{flex:1;overflow-y:auto}
+      border-radius:var(--radius);background:var(--bg);color:var(--ink);margin-bottom:6px;box-sizing:border-box}
+    .sp-lista{flex:1;overflow-y:auto;min-height:0}
     .sp-item{display:block;width:100%;text-align:left;border:1px solid var(--line);
-             border-radius:var(--radius);background:var(--surface);color:var(--ink);
-             padding:7px 9px;margin-bottom:4px;cursor:pointer;font-size:.84rem;
-             font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      border-radius:var(--radius);background:var(--bg);color:var(--ink);padding:7px 9px;
+      margin-bottom:4px;cursor:pointer;font-size:.83rem;font-family:inherit;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .sp-item:hover{background:var(--accent-soft);border-color:var(--accent-2)}
     .sp-item.listo{background:var(--ok);color:#fff;border-color:var(--ok)}
-    .sp-vacio{text-align:center;padding:24px 10px;color:var(--ink-3);font-size:.82rem}`;
+    .sp-vacio{text-align:center;padding:22px 10px;color:var(--ink-3);font-size:.82rem}
+    /* Achicada: el botón ocupa TODA la ventana, sin marco ni espacio muerto,
+       así se ve lo más chico que Chrome permite */
+    #sp-burbuja{display:none;width:100%;height:100%;border:none;padding:0;margin:0;
+      background:var(--accent);color:#fff;cursor:pointer;line-height:1;
+      font-size:min(7vw,7vh,26px);align-items:center;justify-content:center}
+    body.chico #sp-burbuja{display:flex}
+    html,body{overflow:hidden}`;
   _pipSp.document.head.appendChild(p);
 
   _pipSp.document.body.innerHTML = `
-    <input type="text" class="sp-buscar" id="sp-q" placeholder="Buscar...">
-    <div class="sp-lista" id="sp-lista"></div>`;
+    <div class="sp-head sp-abierto">
+      <span class="sp-head-tit">💬 Respuestas rápidas</span>
+      <button class="sp-ico" id="sp-achicar" title="Achicar al círculo">−</button>
+    </div>
+    <input type="text" class="sp-buscar sp-abierto" id="sp-q" placeholder="Buscar...">
+    <div class="sp-lista sp-abierto" id="sp-lista"></div>
+    <button id="sp-burbuja" title="Abrir respuestas rápidas">💬</button>`;
 
+  _pipSp.document.getElementById('sp-achicar').addEventListener('click', () => modoBurbuja(true));
+  _pipSp.document.getElementById('sp-burbuja').addEventListener('click', () => modoBurbuja(false));
   _pipSp.document.getElementById('sp-q').addEventListener('input', pintarSpeeches);
   _pipSp.addEventListener('pagehide', () => { _pipSp = null; });
   pintarSpeeches();
   _pipSp.document.getElementById('sp-q').focus();
 }
 
-// Saca el panel de la app y lo abre como ventana flotante sobre todo
-async function sacarSpeechesAfuera() {
-  const q = $('#sp-q-app')?.value || '';
-  togglePanelSpeeches(false);
-  await abrirSpeeches();
-  if (_pipSp && !_pipSp.closed) {
-    const inp = _pipSp.document.getElementById('sp-q');
-    if (inp && q) { inp.value = q; pintarSpeeches(); }   // se mantiene lo buscado
-  }
-}
-
 // Filtro por categoría: sin uso hoy, se deja disponible.
 let _spCat = '';
+
+// Activas, filtradas por texto, y ordenadas por cuántas veces se copiaron:
+// las de todos los días quedan arriba solas.
+function speechesFiltrados(q) {
+  const t = (q || '').toLowerCase().trim();
+  return (state.speeches || [])
+    .filter(s => s.activo)
+    .filter(s => !_spCat || (s.categoria || '') === _spCat)
+    .filter(s => !t || `${s.titulo} ${s.texto} ${s.categoria || ''}`.toLowerCase().includes(t))
+    .sort((a, b) => (b.usos - a.usos) || (a.orden - b.orden) || a.titulo.localeCompare(b.titulo));
+}
 
 // Copia el texto de un speech. Sirve igual en el panel de la app y en la
 // ventana flotante: se le pasa el documento donde está el botón.
@@ -7744,58 +7821,10 @@ function pintarListaSpeeches(cont, inputBuscar, win) {
   }));
 }
 
-// ---------- Panel dentro de la app ----------
-function panelSpeechesAbierto() {
-  return $('#sp-panel')?.classList.contains('on');
-}
-
-function ubicarPanelSpeeches() {
-  const panel = $('#sp-panel'), b = $('#btn-speeches');
-  if (!panel || !b) return;
-  const r = b.getBoundingClientRect();
-  const w = panel.offsetWidth || 290, h = panel.offsetHeight || 400, m = 8;
-  // Arriba del botón si entra, si no abajo; y siempre dentro de la pantalla
-  let top = r.top - h - m;
-  if (top < m) top = Math.min(r.bottom + m, innerHeight - h - m);
-  let left = r.left + r.width / 2 - w / 2;
-  left = Math.min(Math.max(m, left), innerWidth - w - m);
-  panel.style.top = Math.max(m, top) + 'px';
-  panel.style.left = left + 'px';
-}
-
-function togglePanelSpeeches(forzar) {
-  const panel = $('#sp-panel'), b = $('#btn-speeches');
-  if (!panel) return;
-  const abrir = forzar !== undefined ? forzar : !panelSpeechesAbierto();
-  panel.classList.toggle('on', abrir);
-  b?.classList.toggle('abierto', abrir);
-  if (abrir) {
-    ubicarPanelSpeeches();
-    pintarListaSpeeches($('#sp-lista-app'), $('#sp-q-app'), window);
-    $('#sp-q-app').focus();
-  }
-}
-
-function speechesFiltrados(q) {
-  const t = (q || '').toLowerCase().trim();
-  return (state.speeches || [])
-    .filter(s => s.activo)
-    .filter(s => !_spCat || (s.categoria || '') === _spCat)
-    .filter(s => !t || `${s.titulo} ${s.texto} ${s.categoria || ''}`.toLowerCase().includes(t))
-    // Las más usadas primero: con el tiempo las de siempre quedan arriba
-    .sort((a, b) => (b.usos - a.usos) || (a.orden - b.orden) || a.titulo.localeCompare(b.titulo));
-}
-
 function pintarSpeeches() {
-  // Repinta donde corresponda: la ventana flotante si está abierta, y el
-  // panel de la app si está visible.
-  if (_pipSp && !_pipSp.closed) {
-    const pd = _pipSp.document;
-    pintarListaSpeeches(pd.getElementById('sp-lista'), pd.getElementById('sp-q'), _pipSp);
-  }
-  if (panelSpeechesAbierto()) {
-    pintarListaSpeeches($('#sp-lista-app'), $('#sp-q-app'), window);
-  }
+  if (!_pipSp || _pipSp.closed) return;
+  const pd = _pipSp.document;
+  pintarListaSpeeches(pd.getElementById('sp-lista'), pd.getElementById('sp-q'), _pipSp);
 }
 
 // Respaldo en modal cuando el navegador no soporta ventana flotante
@@ -7943,8 +7972,8 @@ window.borrarSpeech = async function(id) {
     arrastrando = false;
     b.classList.remove('arrastrando');
     const r = b.getBoundingClientRect();
-    if (movio) { guardar(r.left, r.top); if (panelSpeechesAbierto()) ubicarPanelSpeeches(); }
-    else togglePanelSpeeches();     // clic simple: abre el panel de la app
+    if (movio) guardar(r.left, r.top);
+    else abrirSpeeches();           // clic simple: abre la ventana flotante
   });
 
   b.addEventListener('dblclick', () => {
@@ -7959,20 +7988,278 @@ window.borrarSpeech = async function(id) {
   });
 })();
 $('#sp-add')?.addEventListener('click', () => editSpeech(null));
-$('#sp-popout')?.addEventListener('click', sacarSpeechesAfuera);
-$('#sp-min')?.addEventListener('click', () => togglePanelSpeeches(false));
-$('#sp-q-app')?.addEventListener('input', () => pintarListaSpeeches($('#sp-lista-app'), $('#sp-q-app'), window));
 
-// Se cierra al tocar fuera o con Escape, como cualquier panel desplegable
-document.addEventListener('pointerdown', e => {
-  if (!panelSpeechesAbierto()) return;
-  if (e.target.closest('#sp-panel') || e.target.closest('#btn-speeches')) return;
-  togglePanelSpeeches(false);
+// Exporta las respuestas activas para el userscript de WhatsApp y Outlook.
+// Va por copiar y pegar a propósito: leerlas desde ahí obligaría a abrir la
+// tabla a lectura pública, y las respuestas pueden tener datos de cuentas.
+$('#sp-export')?.addEventListener('click', () => {
+  const lista = (state.speeches || [])
+    .filter(s => s.activo)
+    .sort((a, b) => (b.usos - a.usos) || (a.orden - b.orden))
+    .map(s => ({ titulo: s.titulo, texto: s.texto }));
+  if (!lista.length) { toast('No hay respuestas activas para exportar', 'warn'); return; }
+  copyToClipboard(JSON.stringify(lista));
+  toast(`${lista.length} respuestas copiadas. Pegalas en el ⚙ del botón flotante.`, 'ok');
 });
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && panelSpeechesAbierto()) togglePanelSpeeches(false);
-});
-addEventListener('resize', () => { if (panelSpeechesAbierto()) ubicarPanelSpeeches(); });
+
+
+// =================================================================
+// MAILS · lee la bandeja de Outlook y la agrupa por reglas
+// =================================================================
+// Los mensajes NO se guardan: se piden a Graph, se clasifican en el
+// navegador y se muestran. Lo único que vive en la base son las reglas.
+let _mlCat = '';
+
+async function loadMailReglas() {
+  state.mailReglas = await fetchPaged('mail_reglas', q => q.order('prioridad').order('categoria'));
+}
+
+function partirLista(txt) {
+  return String(txt || '').split(/[,;\n]+/).map(x => x.trim().toLowerCase()).filter(Boolean);
+}
+
+// Devuelve la primera regla que coincide, según prioridad.
+function clasificarMail(m) {
+  const asunto = (m.subject || '').toLowerCase();
+  const cuerpo = (m.bodyPreview || '').toLowerCase();
+  const dir = (m.from?.emailAddress?.address || '').toLowerCase();
+  const nom = (m.from?.emailAddress?.name || '').toLowerCase();
+  const texto = normalizarNombre(`${asunto} ${cuerpo}`).toLowerCase();
+
+  for (const r of (state.mailReglas || []).filter(x => x.activo)) {
+    const rem = partirLista(r.remitentes);
+    if (rem.length && rem.some(x => dir.includes(x) || nom.includes(x))) return r;
+    const pal = partirLista(r.palabras);
+    // Se compara sin acentos para que "cesión" encuentre "cesion" y al revés
+    if (pal.length && pal.some(p => texto.includes(normalizarNombre(p).toLowerCase()))) return r;
+  }
+  return null;
+}
+
+async function traerMails() {
+  if (!outlookConfigurado()) {
+    toast('Falta configurar el ID de la app de Outlook', 'warn'); return;
+  }
+  const btn = $('#ml-cargar');
+  btn.disabled = true; btn.textContent = 'Leyendo...';
+  try {
+    const token = await outlookToken();
+    const dias = Number($('#ml-dias').value) || 7;
+    const desde = new Date(Date.now() - dias * 864e5).toISOString();
+    // Se trae de a 100 y se pagina; $filter sí se puede usar acá porque
+    // no hay $search de por medio.
+    let url = 'https://graph.microsoft.com/v1.0/me/messages'
+      + `?$filter=receivedDateTime ge ${desde}`
+      + '&$select=id,subject,from,receivedDateTime,bodyPreview,webLink,isRead,hasAttachments'
+      + '&$orderby=receivedDateTime desc&$top=100';
+    const todos = [];
+    for (let i = 0; i < 5 && url; i++) {          // hasta 500 mails
+      const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+      if (r.status === 401) throw new Error('SESION');
+      if (r.status === 403) throw new Error('PERMISO');
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      todos.push(...(j.value || []));
+      url = j['@odata.nextLink'] || null;
+    }
+    state.mails = todos;
+    $('#ml-aviso').style.display = 'none';
+    renderMails();
+    toast(`${todos.length} mails leídos`, 'ok');
+  } catch (e) {
+    if (e.message === 'DIRECCION') { avisoDireccionOutlook(); return; }
+    const msg = e.message === 'PERMISO'
+      ? 'Tu cuenta no tiene permiso para leer el correo.'
+      : e.message === 'SESION'
+      ? 'Se venció la sesión de Microsoft. Reintentá.'
+      : 'No se pudo leer la bandeja: ' + e.message;
+    toast(msg, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = '↻ Traer mails';
+  }
+}
+
+function mailsFiltrados() {
+  const q = ($('#ml-buscar')?.value || '').toLowerCase().trim();
+  return (state.mails || []).filter(m => {
+    const cat = clasificarMail(m);
+    const nombreCat = cat ? cat.categoria : '';
+    if (_mlCat === '__sin__' && cat) return false;
+    if (_mlCat && _mlCat !== '__sin__' && nombreCat !== _mlCat) return false;
+    if (q && !`${m.subject || ''} ${m.from?.emailAddress?.name || ''} ${m.from?.emailAddress?.address || ''} ${m.bodyPreview || ''}`
+      .toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function renderMails() {
+  if (!$('#ml-tabla')) return;
+  if (!outlookDireccionValida()) {
+    $('#ml-aviso-txt').innerHTML = '<span style="color:var(--err)">Estás abriendo el archivo desde tu PC.' +
+      ' Outlook sólo funciona entrando por <b>bovedamariano.github.io/Edi-gral/Edi-gral.html</b></span>';
+    $('#ml-cargar').disabled = true;
+  }
+  const mails = state.mails || [];
+
+  // Conteo por categoría
+  const cuenta = {}; let sin = 0;
+  mails.forEach(m => {
+    const c = clasificarMail(m);
+    if (c) cuenta[c.categoria] = (cuenta[c.categoria] || 0) + 1; else sin++;
+  });
+
+  const chip = (txt, n, valor, color) => `
+    <span class="badge ${color}" style="cursor:pointer;padding:5px 11px;font-size:.78rem;${_mlCat === valor ? 'outline:2px solid var(--ink);outline-offset:1px' : ''}"
+          onclick="filtrarMailCat('${valor.replace(/'/g, "\\'")}')">${esc(txt)} <b>${n}</b></span>`;
+
+  $('#ml-cats').innerHTML = mails.length
+    ? chip('Todos', mails.length, '', 'muted') +
+      (state.mailReglas || []).filter(r => r.activo && cuenta[r.categoria])
+        .map(r => chip(r.categoria, cuenta[r.categoria], r.categoria, r.color || 'muted')).join('') +
+      (sin ? chip('Sin clasificar', sin, '__sin__', 'warn') : '')
+    : '';
+
+  const filt = mailsFiltrados();
+  const noLeidos = filt.filter(m => !m.isRead).length;
+  $('#ml-resumen').innerHTML = mails.length
+    ? `<b>${filt.length}</b> de ${mails.length} mails` +
+      (noLeidos ? ` · <b style="color:var(--warn)">${noLeidos} sin leer</b>` : '') +
+      (sin ? ` · ${sin} sin clasificar` : '')
+    : '';
+
+  const tb = $('#ml-tabla tbody');
+  if (!filt.length) {
+    tb.innerHTML = `<tr><td colspan="5" class="empty">${mails.length ? 'Sin resultados' : 'Todavía no trajiste mails'}</td></tr>`;
+    return;
+  }
+  tb.innerHTML = filt.slice(0, 300).map(m => {
+    const c = clasificarMail(m);
+    const de = m.from?.emailAddress || {};
+    return `<tr style="${m.isRead ? '' : 'font-weight:600'}">
+      <td style="white-space:nowrap">${fmtFecha(m.receivedDateTime.slice(0, 10))}
+        <div class="muted" style="font-size:.72rem;font-weight:400">${m.receivedDateTime.slice(11, 16)}</div></td>
+      <td>${esc(de.name || de.address || '—')}
+        <div class="muted" style="font-size:.73rem;font-weight:400">${esc(de.address || '')}</div></td>
+      <td style="max-width:420px">${esc(m.subject || '(sin asunto)')}${m.hasAttachments ? ' 📎' : ''}
+        <div class="muted" style="font-size:.75rem;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc((m.bodyPreview || '').slice(0, 110))}</div></td>
+      <td>${c ? `<span class="badge ${c.color || 'muted'}">${esc(c.categoria)}</span>` : '<span class="badge warn">sin clasificar</span>'}</td>
+      <td class="actions"><a href="${esc(m.webLink)}" target="_blank" rel="noopener" class="btn ghost sm">Abrir ↗</a></td>
+    </tr>`;
+  }).join('') + (filt.length > 300 ? `<tr><td colspan="5" class="empty">Mostrando 300 de ${filt.length}</td></tr>` : '');
+}
+
+window.filtrarMailCat = function(v) { _mlCat = (_mlCat === v) ? '' : v; renderMails(); };
+
+// ---------- Reglas ----------
+window.editMailRegla = function(id) {
+  const r = id ? (state.mailReglas || []).find(x => x.id === id) || {} : {};
+  const colores = [['muted', 'Gris'], ['accent', 'Naranja'], ['ok', 'Verde'], ['warn', 'Ámbar'], ['err', 'Rojo']];
+  showModal(`<div class="modal-head"><h3>${id ? 'Editar regla' : 'Nueva regla'}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field"><label>Categoría</label><input type="text" id="mr-cat" value="${esc(r.categoria || '')}" placeholder="Ej: Comprobantes"></div>
+        <div class="field" style="max-width:130px"><label>Color</label><select id="mr-color">
+          ${colores.map(([v, t]) => `<option value="${v}" ${r.color === v ? 'selected' : ''}>${t}</option>`).join('')}
+        </select></div>
+        <div class="field" style="max-width:110px"><label>Prioridad</label>
+          <input type="number" id="mr-prio" value="${r.prioridad ?? 100}"></div>
+      </div>
+      <div class="field"><label>Palabras clave</label>
+        <textarea id="mr-pal" rows="3">${esc(r.palabras || '')}</textarea>
+        <div class="hint">Separadas por coma. Busca en el asunto y en las primeras líneas. No distingue mayúsculas ni acentos.</div></div>
+      <div class="field"><label>Remitentes</label>
+        <textarea id="mr-rem" rows="2">${esc(r.remitentes || '')}</textarea>
+        <div class="hint">Direcciones o dominios, separados por coma. Ej: <code>roela.com.ar, juan@cliente.com</code></div></div>
+      <div class="hint">Las reglas se evalúan de menor a mayor prioridad y gana la primera que coincide, así que poné arriba las más específicas.</div>
+      ${id ? `<div class="field" style="margin-top:8px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400">
+        <input type="checkbox" id="mr-activo" style="width:auto;margin:0" ${r.activo !== false ? 'checked' : ''}><span>Activa</span></label></div>` : ''}
+    </div>
+    <div class="modal-foot">
+      ${id ? `<button class="btn ghost" onclick="borrarMailRegla('${id}')" style="color:var(--err);margin-right:auto">Eliminar</button>` : ''}
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" id="mr-save" onclick="guardarMailRegla(${id ? `'${id}'` : 'null'})">Guardar</button>
+    </div>`);
+};
+
+window.guardarMailRegla = async function(id) {
+  const categoria = $('#mr-cat').value.trim();
+  if (!categoria) { toast('Falta la categoría', 'warn'); return; }
+  const palabras = $('#mr-pal').value.trim() || null;
+  const remitentes = $('#mr-rem').value.trim() || null;
+  if (!palabras && !remitentes) { toast('Cargá al menos una palabra clave o un remitente', 'warn'); return; }
+  const payload = { categoria, palabras, remitentes,
+    color: $('#mr-color').value, prioridad: Number($('#mr-prio').value) || 100 };
+  if (id) payload.activo = $('#mr-activo').checked;
+
+  const btn = $('#mr-save');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  let error;
+  if (id) ({ error } = await sb.from('mail_reglas').update(payload).eq('id', id));
+  else    ({ error } = await sb.from('mail_reglas').insert({ ...payload, created_by: state.user.id }));
+  if (error) {
+    toast(error.message.includes('mail_reglas_categoria_key')
+      ? 'Ya existe una regla con esa categoría' : mensajeError(error), 'err');
+    btn.disabled = false; btn.textContent = 'Guardar'; return;
+  }
+  closeModal();
+  toast(id ? 'Regla actualizada' : 'Regla creada', 'ok');
+  await loadMailReglas(); renderMails();
+};
+
+window.borrarMailRegla = async function(id) {
+  const r = (state.mailReglas || []).find(x => x.id === id);
+  if (!await confirmAction(`¿Eliminar la regla "${r?.categoria}"?`)) return;
+  const { error } = await sb.from('mail_reglas').delete().eq('id', id);
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  closeModal();
+  toast('Regla eliminada', 'ok');
+  await loadMailReglas(); renderMails();
+};
+
+window.verReglasMails = function() {
+  const lista = state.mailReglas || [];
+  const puede = puedeFinanzas();
+  showModal(`<div class="modal-head"><h3>⚙ Reglas de clasificación</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="hint" style="margin-bottom:10px">Se aplican de arriba hacia abajo y gana la primera que coincide.
+        ${puede ? '' : '<br>Sólo Finanzas y Administración pueden modificarlas.'}</p>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th class="num">Prio</th><th>Categoría</th><th>Palabras</th><th>Remitentes</th><th class="actions"></th></tr></thead>
+        <tbody>${lista.length ? lista.map(r => `<tr style="${r.activo ? '' : 'opacity:.5'}">
+          <td class="num">${r.prioridad}</td>
+          <td><span class="badge ${r.color || 'muted'}">${esc(r.categoria)}</span></td>
+          <td class="muted" style="font-size:.76rem;max-width:230px">${esc((r.palabras || '—').slice(0, 70))}</td>
+          <td class="muted" style="font-size:.76rem;max-width:170px">${esc((r.remitentes || '—').slice(0, 50))}</td>
+          <td class="actions">${puede ? `<button class="btn ghost sm" onclick="editMailRegla('${r.id}')">Editar</button>` : ''}</td>
+        </tr>`).join('') : '<tr><td colspan="5" class="empty">Sin reglas cargadas</td></tr>'}</tbody>
+      </table></div>
+    </div>
+    <div class="modal-foot">
+      ${puede ? '<button class="btn accent" onclick="editMailRegla(null)" style="margin-right:auto">+ Nueva regla</button>' : ''}
+      <button class="btn ghost" onclick="closeModal()">Cerrar</button>
+    </div>`);
+};
+
+if ($('#ml-tabla')) {
+  $('#ml-cargar').addEventListener('click', traerMails);
+  $('#ml-reglas').addEventListener('click', verReglasMails);
+  $('#ml-buscar').addEventListener('input', renderMails);
+  $('#ml-dias').addEventListener('change', () => { if ((state.mails || []).length) traerMails(); });
+  $('#ml-excel').addEventListener('click', () => {
+    const filas = mailsFiltrados().map(m => {
+      const c = clasificarMail(m);
+      const de = m.from?.emailAddress || {};
+      return {
+        Fecha: fmtFechaHora(m.receivedDateTime),
+        De: de.name || '', Direccion: de.address || '',
+        Asunto: m.subject || '', Categoria: c ? c.categoria : 'Sin clasificar',
+        Leido: m.isRead ? 'Sí' : 'No', Adjuntos: m.hasAttachments ? 'Sí' : '',
+      };
+    });
+    if (!filas.length) { toast('Nada para exportar', 'warn'); return; }
+    exportarExcel(filas, 'Mails clasificados');
+  });
+}
 
 // =================================================================
 // CALCULO DE DEUDA (solapa dentro de Actualización ICC · solo finanzas)
@@ -10836,7 +11123,7 @@ let realtimeActivo = false;
 function subscribeChanges() {
   if (realtimeActivo) return;   // evita canales duplicados
   realtimeActivo = true;
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches','mail_reglas'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -10866,6 +11153,7 @@ function subscribeChanges() {
         if (tabla==='papeles_pagos') { await loadPapelesPagos(); renderPapeles(); }
         if (tabla==='icc_cotizaciones_enviadas') { await loadIccEnviadas(); renderIccEnviadas(); }
         if (tabla==='speeches') { await loadSpeeches(); renderSpeeches(); pintarSpeeches(); }
+        if (tabla==='mail_reglas') { await loadMailReglas(); renderMails(); }
         if (tabla==='retiros_personas') { await loadRetirosPersonas(); renderPersonasRetiros(); }
       })
       .subscribe();
