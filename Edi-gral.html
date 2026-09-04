@@ -107,6 +107,36 @@ aside.sidebar{
 .nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius);color:#c8c2b0;cursor:pointer;border:none;background:transparent;text-align:left;width:100%;font-weight:500;transition:background .12s,color .12s}
 .nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
 .nav-item.active{background:rgba(184,92,46,.18);color:#fff;border-left:3px solid var(--accent-2);padding-left:9px}
+/* ~1 cm de lado, fijo abajo a la derecha y por encima de todo */
+#btn-speeches{position:fixed;right:18px;bottom:18px;width:38px;height:38px;border-radius:50%;
+  border:none;background:var(--accent);color:#fff;font-size:1.05rem;cursor:grab;z-index:900;
+  box-shadow:0 2px 10px rgba(0,0,0,.22);display:none;align-items:center;justify-content:center;
+  padding:0;touch-action:none;user-select:none}
+#btn-speeches:hover{transform:scale(1.08)}
+#btn-speeches.arrastrando{cursor:grabbing;transform:scale(1.12);opacity:.9}
+#btn-speeches.abierto{background:var(--ink)}
+/* Panel dentro de la app: aparece pegado al botón */
+#sp-panel{position:fixed;width:290px;max-height:min(440px,70vh);background:var(--surface);
+  border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.18);
+  z-index:899;display:none;flex-direction:column;padding:8px;box-sizing:border-box}
+#sp-panel.on{display:flex}
+#sp-panel .sp-head{display:flex;align-items:center;gap:4px;margin-bottom:6px}
+#sp-panel .sp-head-tit{flex:1;font-size:.8rem;font-weight:700;color:var(--ink)}
+#sp-panel .sp-ico{width:24px;height:24px;border:1px solid var(--line);background:var(--bg);
+  border-radius:5px;cursor:pointer;font-size:.78rem;line-height:1;padding:0;color:var(--ink-2)}
+#sp-panel .sp-ico:hover{background:var(--accent-soft);border-color:var(--accent-2);color:var(--accent)}
+#sp-panel .sp-buscar{width:100%;padding:6px 8px;font-size:.82rem;border:1px solid var(--line);
+  border-radius:var(--radius);background:var(--bg);color:var(--ink);margin-bottom:6px;box-sizing:border-box}
+#sp-panel .sp-lista{flex:1;overflow-y:auto;min-height:0}
+#sp-panel .sp-item{display:block;width:100%;text-align:left;border:1px solid var(--line);
+  border-radius:var(--radius);background:var(--bg);color:var(--ink);padding:7px 9px;
+  margin-bottom:4px;cursor:pointer;font-size:.83rem;font-family:inherit;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sp-panel .sp-item:hover{background:var(--accent-soft);border-color:var(--accent-2)}
+#sp-panel .sp-item.listo{background:var(--ok);color:#fff;border-color:var(--ok)}
+#sp-panel .sp-vacio{text-align:center;padding:22px 10px;color:var(--ink-3);font-size:.82rem}
+#btn-speeches.on{display:flex}
+@media print{#btn-speeches{display:none !important}}
 .chk-cobro{width:20px;height:20px;margin:0;cursor:pointer;accent-color:var(--ok);vertical-align:middle}
 .nav-section{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#7a7464;margin:18px 6px 4px}
 /* ===== Campanita de tareas por vencer ===== */
@@ -586,6 +616,17 @@ details[open] .ident-toggle{transform:rotate(180deg)}
 </style>
 </head>
 <body>
+<!-- Botón chico siempre a mano para las respuestas rápidas -->
+<button id="btn-speeches" title="Respuestas rápidas · arrastralo para moverlo, doble clic para volverlo a la esquina">💬</button>
+<div id="sp-panel">
+  <div class="sp-head">
+    <span class="sp-head-tit">💬 Respuestas rápidas</span>
+    <button class="sp-ico" id="sp-popout" title="Sacar de la app: queda sobre cualquier programa">🪟</button>
+    <button class="sp-ico" id="sp-min" title="Minimizar">−</button>
+  </div>
+  <input type="text" class="sp-buscar" id="sp-q-app" placeholder="Buscar...">
+  <div class="sp-lista" id="sp-lista-app"></div>
+</div>
 
 <!-- ===================== LOGIN ===================== -->
 <div id="login-screen">
@@ -1762,6 +1803,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <button class="tab" data-subtab="aj-cuentas-rentas">Cuentas Rentas</button>
         <button class="tab" data-subtab="aj-bancos">Cuentas bancarias</button>
         <button class="tab" data-subtab="aj-ident-empr">Qué cancela</button>
+        <button class="tab" data-subtab="aj-speeches">Respuestas rápidas</button>
         <button class="tab" data-subtab="aj-datos">Datos / Backup</button>
       </div>
       <div class="subtab-content" id="aj-usuarios">
@@ -1918,6 +1960,21 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           </table></div>
         </div>
       </div>
+      <div class="subtab-content" id="aj-speeches" style="display:none">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <div>
+              <h3 style="margin:0">Respuestas rápidas</h3>
+              <p class="sub" style="margin:2px 0 0">Textos para copiar al contestar. Los ve todo el equipo; cada uno edita los suyos.</p>
+            </div>
+            <button class="btn accent" id="sp-add">+ Nueva</button>
+          </div>
+          <div class="tbl-wrap"><table class="tbl" id="sp-tabla">
+            <thead><tr><th>Título</th><th>Categoría</th><th>Texto</th><th class="num">Usos</th><th>Estado</th><th class="actions"></th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+      </div>
       <div class="subtab-content" id="aj-datos" style="display:none">
         <div class="card">
           <h3>Exportar / Importar</h3>
@@ -2010,6 +2067,7 @@ const state = {
   papeles: [],
   papelesPagos: [],
   iccEnviadas: [],
+  speeches: [],
   uvi: [],
   cotizacionesBna: [],
   retirosPersonas: [],
@@ -2211,7 +2269,7 @@ async function afterLogin() {
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
     loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadCocheras(),
-    loadBancosCuentas(), loadTransferenciasBanco(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(),
+    loadBancosCuentas(), loadTransferenciasBanco(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -2226,6 +2284,7 @@ async function afterLogin() {
   subscribeChanges();
   llenarSelectoresTB();
   llenarSelectsEmpr();
+  $('#btn-speeches')?.classList.add('on');
   renderDeuda();
   purgarRealizadas();   // borra las realizadas hace más de 5 días
   renderCampanita();
@@ -2429,7 +2488,7 @@ function switchTab(tab) {
   if (tab === 'cotizacion') renderCotizDia();
   if (tab === 'icc') { renderDeuda(); renderIccEnviadas(); }
   if (tab === 'papeles') renderPapeles();
-  if (tab === 'ajustes') { renderBancosCuentas(); renderIdentEmpr(); }
+  if (tab === 'ajustes') { renderBancosCuentas(); renderIdentEmpr(); renderSpeeches(); }
   if (tab === 'transferencias') llenarSelectsEmpr();
 }
 
@@ -7582,6 +7641,340 @@ if ($('#icc-env-tabla')) {
 }
 
 // =================================================================
+// RESPUESTAS RÁPIDAS (speeches) · ventana flotante para copiar y pegar
+// =================================================================
+async function loadSpeeches() {
+  state.speeches = await fetchPaged('speeches', q => q.order('orden').order('titulo'));
+}
+
+// ---------- Ventana flotante ----------
+let _pipSp = null;
+
+async function abrirSpeeches() {
+  if (!pipDisponible()) {
+    // Sin soporte de ventana flotante se muestra en un modal común: sirve
+    // igual para copiar, sólo que no queda sobre las otras aplicaciones.
+    mostrarSpeechesModal();
+    return;
+  }
+  if (_pipSp && !_pipSp.closed) { _pipSp.focus(); pintarSpeeches(); return; }
+  try {
+    _pipSp = await documentPictureInPicture.requestWindow({ width: 300, height: 400 });
+  } catch (e) { toast('No se pudo abrir la ventana: ' + e.message, 'err'); return; }
+
+  const est = document.querySelector('style');
+  if (est) { const c = _pipSp.document.createElement('style'); c.textContent = est.textContent; _pipSp.document.head.appendChild(c); }
+  const p = _pipSp.document.createElement('style');
+  p.textContent = `
+    body{margin:0;padding:8px;background:var(--bg);font-family:var(--font);
+         display:flex;flex-direction:column;height:100vh;box-sizing:border-box}
+    .sp-buscar{width:100%;padding:6px 8px;font-size:.82rem;border:1px solid var(--line);
+               border-radius:var(--radius);background:var(--surface);color:var(--ink);
+               margin-bottom:6px;box-sizing:border-box}
+    .sp-lista{flex:1;overflow-y:auto}
+    .sp-item{display:block;width:100%;text-align:left;border:1px solid var(--line);
+             border-radius:var(--radius);background:var(--surface);color:var(--ink);
+             padding:7px 9px;margin-bottom:4px;cursor:pointer;font-size:.84rem;
+             font-family:inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .sp-item:hover{background:var(--accent-soft);border-color:var(--accent-2)}
+    .sp-item.listo{background:var(--ok);color:#fff;border-color:var(--ok)}
+    .sp-vacio{text-align:center;padding:24px 10px;color:var(--ink-3);font-size:.82rem}`;
+  _pipSp.document.head.appendChild(p);
+
+  _pipSp.document.body.innerHTML = `
+    <input type="text" class="sp-buscar" id="sp-q" placeholder="Buscar...">
+    <div class="sp-lista" id="sp-lista"></div>`;
+
+  _pipSp.document.getElementById('sp-q').addEventListener('input', pintarSpeeches);
+  _pipSp.addEventListener('pagehide', () => { _pipSp = null; });
+  pintarSpeeches();
+  _pipSp.document.getElementById('sp-q').focus();
+}
+
+// Saca el panel de la app y lo abre como ventana flotante sobre todo
+async function sacarSpeechesAfuera() {
+  const q = $('#sp-q-app')?.value || '';
+  togglePanelSpeeches(false);
+  await abrirSpeeches();
+  if (_pipSp && !_pipSp.closed) {
+    const inp = _pipSp.document.getElementById('sp-q');
+    if (inp && q) { inp.value = q; pintarSpeeches(); }   // se mantiene lo buscado
+  }
+}
+
+// Filtro por categoría: sin uso hoy, se deja disponible.
+let _spCat = '';
+
+// Copia el texto de un speech. Sirve igual en el panel de la app y en la
+// ventana flotante: se le pasa el documento donde está el botón.
+async function copiarTextoSpeech(sp, btn, win) {
+  const W = win || window;
+  try {
+    await W.navigator.clipboard.writeText(sp.texto);
+  } catch (e) {
+    // Algunos navegadores bloquean el portapapeles: se usa el método viejo
+    const ta = W.document.createElement('textarea');
+    ta.value = sp.texto; W.document.body.appendChild(ta);
+    ta.select(); W.document.execCommand('copy'); ta.remove();
+  }
+  if (btn) {
+    const antes = btn.textContent;
+    btn.textContent = '✓ Copiado';
+    btn.classList.add('listo');
+    setTimeout(() => { btn.textContent = antes; btn.classList.remove('listo'); }, 1100);
+  }
+  sb.rpc('speech_sumar_uso', { p_id: sp.id }).then(() => {});
+  sp.usos = (sp.usos || 0) + 1;
+}
+
+// Dibuja la lista de títulos en cualquier contenedor.
+function pintarListaSpeeches(cont, inputBuscar, win) {
+  if (!cont) return;
+  const lista = speechesFiltrados(inputBuscar ? inputBuscar.value : '');
+  if (!lista.length) {
+    cont.innerHTML = '<div class="sp-vacio">Sin resultados</div>';
+    return;
+  }
+  cont.innerHTML = lista.map(sp =>
+    `<button class="sp-item" data-id="${sp.id}" title="${esc(sp.texto.slice(0, 200))}">${esc(sp.titulo)}</button>`
+  ).join('');
+  cont.querySelectorAll('.sp-item').forEach(btn => btn.addEventListener('click', () => {
+    const sp = (state.speeches || []).find(x => x.id === btn.dataset.id);
+    if (sp) copiarTextoSpeech(sp, btn, win);
+  }));
+}
+
+// ---------- Panel dentro de la app ----------
+function panelSpeechesAbierto() {
+  return $('#sp-panel')?.classList.contains('on');
+}
+
+function ubicarPanelSpeeches() {
+  const panel = $('#sp-panel'), b = $('#btn-speeches');
+  if (!panel || !b) return;
+  const r = b.getBoundingClientRect();
+  const w = panel.offsetWidth || 290, h = panel.offsetHeight || 400, m = 8;
+  // Arriba del botón si entra, si no abajo; y siempre dentro de la pantalla
+  let top = r.top - h - m;
+  if (top < m) top = Math.min(r.bottom + m, innerHeight - h - m);
+  let left = r.left + r.width / 2 - w / 2;
+  left = Math.min(Math.max(m, left), innerWidth - w - m);
+  panel.style.top = Math.max(m, top) + 'px';
+  panel.style.left = left + 'px';
+}
+
+function togglePanelSpeeches(forzar) {
+  const panel = $('#sp-panel'), b = $('#btn-speeches');
+  if (!panel) return;
+  const abrir = forzar !== undefined ? forzar : !panelSpeechesAbierto();
+  panel.classList.toggle('on', abrir);
+  b?.classList.toggle('abierto', abrir);
+  if (abrir) {
+    ubicarPanelSpeeches();
+    pintarListaSpeeches($('#sp-lista-app'), $('#sp-q-app'), window);
+    $('#sp-q-app').focus();
+  }
+}
+
+function speechesFiltrados(q) {
+  const t = (q || '').toLowerCase().trim();
+  return (state.speeches || [])
+    .filter(s => s.activo)
+    .filter(s => !_spCat || (s.categoria || '') === _spCat)
+    .filter(s => !t || `${s.titulo} ${s.texto} ${s.categoria || ''}`.toLowerCase().includes(t))
+    // Las más usadas primero: con el tiempo las de siempre quedan arriba
+    .sort((a, b) => (b.usos - a.usos) || (a.orden - b.orden) || a.titulo.localeCompare(b.titulo));
+}
+
+function pintarSpeeches() {
+  // Repinta donde corresponda: la ventana flotante si está abierta, y el
+  // panel de la app si está visible.
+  if (_pipSp && !_pipSp.closed) {
+    const pd = _pipSp.document;
+    pintarListaSpeeches(pd.getElementById('sp-lista'), pd.getElementById('sp-q'), _pipSp);
+  }
+  if (panelSpeechesAbierto()) {
+    pintarListaSpeeches($('#sp-lista-app'), $('#sp-q-app'), window);
+  }
+}
+
+// Respaldo en modal cuando el navegador no soporta ventana flotante
+function mostrarSpeechesModal() {
+  const lista = speechesFiltrados('');
+  showModal(`<div class="modal-head"><h3>💬 Respuestas rápidas</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="hint" style="margin-bottom:10px">Tu navegador no soporta la ventana flotante. Usá Chrome o Edge para tenerla siempre visible.</div>
+      ${lista.length ? lista.map(s => `<div style="border:1px solid var(--line);border-radius:var(--radius);padding:9px 11px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b>${esc(s.titulo)}</b>
+          <button class="btn accent sm" onclick="copiarSpeech('${s.id}', this)">Copiar</button>
+        </div>
+        <div style="font-size:.8rem;color:var(--ink-2);white-space:pre-wrap;margin-top:5px">${esc(s.texto)}</div>
+      </div>`).join('') : '<div class="empty">No hay respuestas cargadas</div>'}
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Cerrar</button></div>`);
+}
+
+window.copiarSpeech = function(id, btn) {
+  const s = (state.speeches || []).find(x => x.id === id);
+  if (!s) return;
+  copyToClipboard(s.texto);
+  if (btn) { btn.textContent = '✓'; setTimeout(() => { btn.textContent = 'Copiar'; }, 1400); }
+  sb.rpc('speech_sumar_uso', { p_id: id }).then(() => {});
+  s.usos = (s.usos || 0) + 1;
+};
+
+// ---------- Administración ----------
+function renderSpeeches() {
+  const tb = $('#sp-tabla tbody');
+  if (!tb) return;
+  const lista = state.speeches || [];
+  if (!lista.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">Sin respuestas cargadas</td></tr>'; return; }
+  const esMio = s => s.created_by === state.user?.id || state.profile?.rol === 'admin';
+  tb.innerHTML = lista.map(s => `<tr style="${s.activo ? '' : 'opacity:.55'}">
+    <td><b>${esc(s.titulo)}</b></td>
+    <td>${s.categoria ? esc(s.categoria) : '<span class="muted">—</span>'}</td>
+    <td class="muted" style="font-size:.78rem;max-width:340px">${esc(s.texto.slice(0, 90))}${s.texto.length > 90 ? '…' : ''}</td>
+    <td class="num">${s.usos || 0}</td>
+    <td>${s.activo ? '<span class="badge ok">Activa</span>' : '<span class="badge muted">Inactiva</span>'}</td>
+    <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
+      <button class="btn ghost sm" onclick="copiarSpeech('${s.id}', this)">Copiar</button>
+      ${esMio(s) ? `<button class="btn ghost sm" onclick="editSpeech('${s.id}')">Editar</button>` : ''}
+    </td></tr>`).join('');
+}
+
+window.editSpeech = function(id) {
+  const s = id ? (state.speeches || []).find(x => x.id === id) || {} : {};
+  const cats = [...new Set((state.speeches || []).map(x => x.categoria).filter(Boolean))];
+  showModal(`<div class="modal-head"><h3>${id ? 'Editar respuesta' : 'Nueva respuesta'}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field"><label>Título</label><input type="text" id="sp-tit" value="${esc(s.titulo || '')}" placeholder="Ej: Datos para transferir"></div>
+        <div class="field" style="max-width:190px"><label>Categoría (opcional)</label>
+          <input type="text" id="sp-cat" list="sp-cats-list" value="${esc(s.categoria || '')}" placeholder="Cobranzas">
+          <datalist id="sp-cats-list">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
+      </div>
+      <div class="field"><label>Texto</label>
+        <textarea id="sp-txt" rows="10" style="width:100%;font-family:inherit;font-size:.88rem">${esc(s.texto || '')}</textarea>
+        <div class="hint">Se copia tal cual, con los saltos de línea.</div></div>
+      ${id ? `<div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400">
+        <input type="checkbox" id="sp-activo" style="width:auto;margin:0" ${s.activo !== false ? 'checked' : ''}><span>Activa</span></label></div>` : ''}
+    </div>
+    <div class="modal-foot">
+      ${id ? `<button class="btn ghost" onclick="borrarSpeech('${id}')" style="color:var(--err);margin-right:auto">Eliminar</button>` : ''}
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" id="sp-save" onclick="guardarSpeech(${id ? `'${id}'` : 'null'})">Guardar</button>
+    </div>`);
+};
+
+window.guardarSpeech = async function(id) {
+  const titulo = $('#sp-tit').value.trim();
+  const texto = $('#sp-txt').value.trim();
+  if (!titulo) { toast('Falta el título', 'warn'); $('#sp-tit').focus(); return; }
+  if (!texto) { toast('Falta el texto', 'warn'); $('#sp-txt').focus(); return; }
+  const payload = { titulo, texto, categoria: $('#sp-cat').value.trim() || null };
+  if (id) payload.activo = $('#sp-activo').checked;
+
+  const btn = $('#sp-save');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  let error;
+  if (id) ({ error } = await sb.from('speeches').update(payload).eq('id', id));
+  else {
+    const orden = ((state.speeches || []).reduce((a, x) => Math.max(a, x.orden || 0), 0)) + 1;
+    ({ error } = await sb.from('speeches').insert({ ...payload, orden, created_by: state.user.id }));
+  }
+  if (error) { toast(mensajeError(error), 'err'); btn.disabled = false; btn.textContent = 'Guardar'; return; }
+  closeModal();
+  toast(id ? 'Respuesta actualizada' : 'Respuesta creada', 'ok');
+  await loadSpeeches(); renderSpeeches(); pintarSpeeches();
+};
+
+window.borrarSpeech = async function(id) {
+  const s = (state.speeches || []).find(x => x.id === id);
+  if (!await confirmAction(`¿Eliminar "${s?.titulo}"?`)) return;
+  const { error } = await sb.from('speeches').delete().eq('id', id);
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  closeModal();
+  toast('Respuesta eliminada', 'ok');
+  await loadSpeeches(); renderSpeeches(); pintarSpeeches();
+};
+
+// El botón se puede arrastrar a donde no moleste y se acuerda del lugar.
+// Un clic sin movimiento abre las respuestas; doble clic lo devuelve a la esquina.
+(function botonArrastrable() {
+  const b = $('#btn-speeches');
+  if (!b) return;
+
+  const guardar = (x, y) => { try { localStorage.setItem('sp-btn-pos', JSON.stringify({ x, y })); } catch (e) {} };
+  const colocar = (x, y) => {
+    // Se mantiene dentro de la pantalla aunque cambie el tamaño de la ventana
+    const m = 6, w = b.offsetWidth || 38, h = b.offsetHeight || 38;
+    x = Math.min(Math.max(m, x), innerWidth - w - m);
+    y = Math.min(Math.max(m, y), innerHeight - h - m);
+    b.style.left = x + 'px'; b.style.top = y + 'px';
+    b.style.right = 'auto'; b.style.bottom = 'auto';
+    return { x, y };
+  };
+
+  try {
+    const p = JSON.parse(localStorage.getItem('sp-btn-pos') || 'null');
+    if (p) colocar(p.x, p.y);
+  } catch (e) {}
+
+  let arrastrando = false, movio = false, dx = 0, dy = 0;
+
+  b.addEventListener('pointerdown', e => {
+    arrastrando = true; movio = false;
+    const r = b.getBoundingClientRect();
+    dx = e.clientX - r.left; dy = e.clientY - r.top;
+    b.setPointerCapture(e.pointerId);
+    b.classList.add('arrastrando');
+  });
+
+  b.addEventListener('pointermove', e => {
+    if (!arrastrando) return;
+    // Menos de 4 px se considera un clic, no un arrastre
+    if (Math.abs(e.movementX) + Math.abs(e.movementY) > 0) movio = true;
+    colocar(e.clientX - dx, e.clientY - dy);
+  });
+
+  b.addEventListener('pointerup', e => {
+    if (!arrastrando) return;
+    arrastrando = false;
+    b.classList.remove('arrastrando');
+    const r = b.getBoundingClientRect();
+    if (movio) { guardar(r.left, r.top); if (panelSpeechesAbierto()) ubicarPanelSpeeches(); }
+    else togglePanelSpeeches();     // clic simple: abre el panel de la app
+  });
+
+  b.addEventListener('dblclick', () => {
+    b.style.left = ''; b.style.top = '';
+    b.style.right = '18px'; b.style.bottom = '18px';
+    try { localStorage.removeItem('sp-btn-pos'); } catch (e) {}
+    toast('Botón devuelto a la esquina', 'ok');
+  });
+
+  addEventListener('resize', () => {
+    if (b.style.left) colocar(parseFloat(b.style.left), parseFloat(b.style.top));
+  });
+})();
+$('#sp-add')?.addEventListener('click', () => editSpeech(null));
+$('#sp-popout')?.addEventListener('click', sacarSpeechesAfuera);
+$('#sp-min')?.addEventListener('click', () => togglePanelSpeeches(false));
+$('#sp-q-app')?.addEventListener('input', () => pintarListaSpeeches($('#sp-lista-app'), $('#sp-q-app'), window));
+
+// Se cierra al tocar fuera o con Escape, como cualquier panel desplegable
+document.addEventListener('pointerdown', e => {
+  if (!panelSpeechesAbierto()) return;
+  if (e.target.closest('#sp-panel') || e.target.closest('#btn-speeches')) return;
+  togglePanelSpeeches(false);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && panelSpeechesAbierto()) togglePanelSpeeches(false);
+});
+addEventListener('resize', () => { if (panelSpeechesAbierto()) ubicarPanelSpeeches(); });
+
+// =================================================================
 // CALCULO DE DEUDA (solapa dentro de Actualización ICC · solo finanzas)
 // =================================================================
 // Se muestran las dos variantes lado a lado —simple y compuesto— para
@@ -10443,7 +10836,7 @@ let realtimeActivo = false;
 function subscribeChanges() {
   if (realtimeActivo) return;   // evita canales duplicados
   realtimeActivo = true;
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -10472,6 +10865,7 @@ function subscribeChanges() {
         if (tabla==='papeles_trabajo') { await loadPapeles(); renderPapeles(); }
         if (tabla==='papeles_pagos') { await loadPapelesPagos(); renderPapeles(); }
         if (tabla==='icc_cotizaciones_enviadas') { await loadIccEnviadas(); renderIccEnviadas(); }
+        if (tabla==='speeches') { await loadSpeeches(); renderSpeeches(); pintarSpeeches(); }
         if (tabla==='retiros_personas') { await loadRetirosPersonas(); renderPersonasRetiros(); }
       })
       .subscribe();
