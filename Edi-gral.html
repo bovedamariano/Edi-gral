@@ -1573,9 +1573,11 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
           <button class="btn accent" id="tb-importar">📥 Importar Excel</button>
           <input type="file" id="tb-file" accept=".xlsx,.xls" style="display:none">
+          <button class="btn ghost sm" id="tb-modelo" title="Bajá la planilla vacía con el formato que espera la importación">↓ Modelo</button>
           <button class="btn ghost sm" id="tb-flotante">🪟 Ventana flotante</button>
           <button class="btn ghost sm" id="tb-excel">↓ Excel</button>
-          <button class="btn ghost sm" id="tb-uvis" title="Un archivo por emprendimiento con las transferencias identificadas">↓ Descargar por emprendimiento</button>
+          <button class="btn ghost sm" id="tb-uvis" title="Un archivo por emprendimiento con las transferencias identificadas">↓ UVIS</button>
+          <button class="btn ghost sm" id="tb-cocheras" title="Listado de acreditaciones de cocheras en el formato del sistema">↓ Cocheras</button>
           <button class="btn ghost sm" id="tb-borrar-pend" title="Borra todas las pendientes de esta cuenta (requiere admin)" style="color:var(--err)">🗑 Borrar pendientes</button>
           <span id="tb-resumen" class="hint" style="margin-left:auto"></span>
         </div>
@@ -6951,7 +6953,7 @@ function bajarUvisXlsx(filas, nombreArchivo) {
   for (let i = 0; i < filas.length; i++) {
     const r = i + 2;
     ['C', 'D'].forEach(col => { const c = ws[col + r]; if (c) c.z = contable; });
-    const e = ws['E' + r]; if (e) { e.t = 'n'; e.z = 'mm-dd-yy'; }
+    const e = ws['E' + r]; if (e) { e.t = 'n'; e.z = 'dd/mm/yyyy'; }
   }
   ws['!cols'] = [{ wch: 11 }, { wch: 10 }, { wch: 12 }, { wch: 24 }, { wch: 22 }];
   const wb = XLSX.utils.book_new();
@@ -6996,7 +6998,7 @@ function exportarUvis() {
         }).join('')}</div></details>`
     : '';
 
-  showModal(`<div class="modal-head"><h3>Descargar por emprendimiento</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+  showModal(`<div class="modal-head"><h3>UVIS · un archivo por emprendimiento</h3><button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       <p class="hint" style="margin-bottom:12px">Un archivo por emprendimiento, según lo que cancela cada identificador.
         Sobre ${base.length} transferencias de ${esc(cta.banco)} · ${esc(cta.nombre)}.</p>
@@ -7041,6 +7043,68 @@ function exportarUvis() {
     <div class="modal-foot">
       <button class="btn ghost" onclick="closeModal()">Cerrar</button>
     </div>`);
+}
+
+// =================================================================
+// REPORTE COCHERAS · formato "Listado Acreditaciones" del sistema
+// =================================================================
+// Respeta la planilla que usa el sistema: título en A1, encabezados desde
+// la columna B, y una fila por acreditación. Cuenta y SubTotal van vacías.
+function bajarReporteCocheras() {
+  const cta = cuentaTBActual();
+  if (!cta) { toast('Elegí una cuenta', 'warn'); return; }
+  const base = transfBancoFiltradas();
+  if (!base.length) { toast('No hay transferencias en la vista actual', 'warn'); return; }
+
+  // Entran las identificadas cuyo emprendimiento sea de cocheras.
+  const esCochera = t => {
+    const id = identificarTransferencia(t.descripcion);
+    return id && id.nc && id.empr && normalizarNombre(id.empr).includes('COCHERA');
+  };
+  const filas = base.filter(esCochera).map(t => {
+    const id = identificarTransferencia(t.descripcion);
+    return { cliente: id.nc, importe: Number(t.importe), fecha: t.fecha, titular: id.titular };
+  }).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0);
+
+  if (!filas.length) {
+    toast('Ninguna transferencia identificada con un emprendimiento de cocheras', 'warn');
+    return;
+  }
+
+  const aSerial = iso => {
+    const [a, m, d] = iso.split('-').map(Number);
+    return Math.round((Date.UTC(a, m - 1, d) - Date.UTC(1899, 11, 30)) / 864e5);
+  };
+  const dma = iso => { const [a, m, d] = iso.split('-').map(Number); return `${d}/${m}/${a}`; };
+
+  const desde = filas[0].fecha, hasta = filas[filas.length - 1].fecha;
+
+  const aoa = [
+    [`Listado Acreditaciones entre el ${dma(desde)} y el ${dma(hasta)}`],
+    ['', 'Cuenta', 'Cliente', 'Importe', 'Fecha de Proceso', 'Fecha de Pago', 'Fecha de Acred.', 'Canal', 'SubTotal'],
+  ];
+  filas.forEach(f => {
+    const s = aSerial(f.fecha);
+    // El cliente va como TEXTO de 9 dígitos con ceros adelante: como número,
+    // Excel se come los ceros y el sistema no lo reconoce.
+    aoa.push(['', '', String(f.cliente).padStart(9, '0'), f.importe, s, s, s, 'TI', '']);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  for (let i = 0; i < filas.length; i++) {
+    const r = i + 3;
+    const cli = ws['C' + r]; if (cli) { cli.t = 's'; cli.z = '@'; }
+    const imp = ws['D' + r]; if (imp) imp.z = '#,##0.00';
+    ['E', 'F', 'G'].forEach(col => { const c = ws[col + r]; if (c) { c.t = 'n'; c.z = 'm/d/yy'; } });
+    const can = ws['H' + r]; if (can) can.z = '@';
+  }
+  ws['!cols'] = [{ wch: 3 }, { wch: 12 }, { wch: 12 }, { wch: 13 }, { wch: 17 }, { wch: 15 }, { wch: 15 }, { wch: 8 }, { wch: 11 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet');
+  XLSX.writeFile(wb, `Listado_TI_Cochera_${todayISO()}.xlsx`);
+  const total = filas.reduce((a, f) => a + f.importe, 0);
+  toast(`${filas.length} acreditaciones exportadas · $${fmt(total)}`, 'ok');
 }
 
 // =================================================================
@@ -9191,12 +9255,26 @@ async function importarExcelTB(file) {
   const cta = cuentaTBActual();
   if (!cta) { toast('Elegí primero una cuenta', 'warn'); return; }
 
-  let filas;
+  let filas, hojaUsada = '';
   try {
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, { cellDates: true });
-    const hoja = wb.Sheets[wb.SheetNames[0]];
-    filas = XLSX.utils.sheet_to_json(hoja, { header: 1, raw: true, blankrows: false });
+
+    // Se busca la hoja que tenga los encabezados esperados en vez de tomar
+    // siempre la primera: el archivo del banco trae la hoja cruda adelante y
+    // la limpia atrás, así que leer la primera obligaba a separarlas a mano.
+    const sirve = f => f.length && f[0].length >= 3 &&
+      /fecha/i.test(String(f[0][0] || '')) &&
+      /descrip/i.test(String(f[0][1] || '')) &&
+      /importe|monto/i.test(String(f[0][2] || ''));
+
+    let elegida = null;
+    for (const nombre of wb.SheetNames) {
+      const f = XLSX.utils.sheet_to_json(wb.Sheets[nombre], { header: 1, raw: true, blankrows: false });
+      if (sirve(f)) { elegida = f; hojaUsada = nombre; break; }
+      if (!elegida && nombre === wb.SheetNames[0]) { elegida = f; hojaUsada = nombre; }
+    }
+    filas = elegida || [];
   } catch (e) {
     toast('No se pudo leer el archivo: ' + e.message, 'err'); return;
   }
@@ -9220,8 +9298,16 @@ async function importarExcelTB(file) {
     return isNaN(n) ? null : n;
   };
   const parseFecha = v => {
-    if (v instanceof Date && !isNaN(v)) {
+    // No se usa `instanceof Date`: si el objeto viene de otro contexto de
+    // ejecución la comprobación falla aunque sea una fecha perfectamente
+    // válida. Se detecta por comportamiento.
+    if (v && typeof v === 'object' && typeof v.getTime === 'function' && !isNaN(v.getTime())) {
       return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+    }
+    // Número de serie de Excel (cuando la lectura no convierte a fecha)
+    if (typeof v === 'number' && v > 20000 && v < 80000) {
+      const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 864e5);
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
     }
     const s = String(v ?? '').trim();
     let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -9293,6 +9379,7 @@ async function importarExcelTB(file) {
   const totalNuevo = aInsertar.reduce((a, n) => a + n.importe, 0);
   const detalle = [
     `<b>${aInsertar.length}</b> movimientos nuevos por <b>${MONEDAS[cta.moneda]} ${fmt(totalNuevo)}</b>`,
+    hojaUsada ? `leídos de la hoja <b>${esc(hojaUsada)}</b>` : '',
     dupBase.length ? `${dupBase.length} ya estaban cargados (se omiten)` : '',
     repetidasOk ? `<span style="color:var(--warn)">⚠ ${repetidasOk} movimiento${repetidasOk === 1 ? '' : 's'} idéntico${repetidasOk === 1 ? '' : 's'} a otro del mismo día: se importan igual (pueden ser transferencias repetidas reales). Revisalos abajo.</span>` : '',
     descartadas.length ? `${descartadas.length} filas sin fecha/descripción/importe válidos (se omiten)` : '',
@@ -9333,6 +9420,66 @@ async function importarExcelTB(file) {
     toast(`${ok} transferencias importadas`, 'ok');
     await loadTransferenciasBanco(); renderTransfBanco();
   });
+}
+
+// ---------- Modelo para importar ----------
+// Planilla vacía con el formato exacto que espera importarExcelTB(), para no
+// tener que adivinar el orden de las columnas.
+function bajarModeloImportacion() {
+  const cta = cuentaTBActual();
+  const hoy = new Date();
+  const serialHoy = Math.round((Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate())
+    - Date.UTC(1899, 11, 30)) / 864e5);
+
+  const aoa = [
+    ['Fecha', 'Descripción', 'Importe'],
+    [serialHoy, 'TRANSF.INTER.DISTINTO TIT.-20294245805-EJEMPLO BORRAR ESTA FILA', 95000],
+  ];
+  // Filas vacías con el formato ya puesto, para poder pegar encima
+  for (let i = 0; i < 40; i++) aoa.push([null, null, null]);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  for (let r = 2; r <= aoa.length; r++) {
+    const f = ws['A' + r]; if (f) { f.t = 'n'; f.z = 'dd/mm/yyyy'; }
+    else ws['A' + r] = { t: 'z', z: 'dd/mm/yyyy' };
+    const i = ws['C' + r]; if (i) i.z = '#,##0.00';
+  }
+  ws['!cols'] = [{ wch: 13 }, { wch: 68 }, { wch: 15 }];
+  ws['!ref'] = 'A1:C' + aoa.length;
+
+  const guia = XLSX.utils.aoa_to_sheet([
+    ['Cómo usar esta planilla'],
+    [''],
+    ['1', 'Pegá los movimientos desde la fila 2. Sólo estas tres columnas y en este orden.'],
+    ['2', 'Borrá la fila del ejemplo antes de importar.'],
+    ['3', 'En la app: Transferencias → elegí Empresa y Cuenta → Importar Excel.'],
+    [''],
+    ['Importante', ''],
+    ['', 'El banco y la empresa NO van en la planilla: se eligen en la app.'],
+    ['', 'Si el extracto trae varias cuentas, hacé un archivo por cuenta.'],
+    [''],
+    ['Las columnas', ''],
+    ['Fecha', 'Fecha del movimiento. Formato fecha o texto dd/mm/aaaa.'],
+    ['Descripción', 'Tal cual la manda el banco. No la recortes: de ahí sale el CUIT.'],
+    ['Importe', 'Sólo números, sin el signo $.'],
+    [''],
+    ['Qué NO incluir', ''],
+    ['', 'Comisiones, IVA, SIRCREB, impuesto ley 25413 ni filas de saldo.'],
+    ['', 'Importes negativos: son débitos, no transferencias recibidas.'],
+    [''],
+    ['Repetidos', ''],
+    ['', 'Si subís dos veces el mismo archivo, la app no duplica nada.'],
+    ['', 'Si alguien transfirió el mismo importe dos veces el mismo día, las dos entran:'],
+    ['', 'la app cuenta cuántas hay, no si ya existe una igual.'],
+  ]);
+  guia['!cols'] = [{ wch: 14 }, { wch: 78 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Transferencias');
+  XLSX.utils.book_append_sheet(wb, guia, 'Instrucciones');
+  const nom = cta ? `${cta.banco}-${cta.nombre}`.replace(/[^\w-]+/g, '-') : 'transferencias';
+  XLSX.writeFile(wb, `Modelo-${nom}.xlsx`);
+  toast('Modelo descargado. Pegá los movimientos desde la fila 2.', 'ok');
 }
 
 // ---------- Ventana flotante de lectura ----------
@@ -9465,12 +9612,14 @@ if ($('#tb-empresa')) {
     renderTransfBanco();
   });
   $('#tb-importar').addEventListener('click', () => $('#tb-file').click());
+  $('#tb-modelo').addEventListener('click', bajarModeloImportacion);
   $('#tb-file').addEventListener('change', e => {
     const f = e.target.files[0];
     if (f) importarExcelTB(f);
     e.target.value = '';
   });
   $('#tb-uvis').addEventListener('click', exportarUvis);
+  $('#tb-cocheras').addEventListener('click', bajarReporteCocheras);
   $('#tb-borrar-pend').addEventListener('click', borrarPendientesCuenta);
   $('#tb-marcar').addEventListener('click', () => marcarSeleccionadas(true));
   $('#tb-desmarcar').addEventListener('click', () => marcarSeleccionadas(false));
