@@ -1598,6 +1598,25 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <button class="btn ghost sm" id="tb-desmarcar" style="display:none">↩ Volver a pendientes</button>
         </div>
       </div>
+
+      <!-- ===== ARCHIVO MENSUAL ===== -->
+      <div class="card" style="margin-top:18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:8px">
+          <h3 style="margin:0">Archivo mensual</h3>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="ta-periodo" style="width:auto;min-width:150px;padding:5px 8px;font-size:.82rem"></select>
+            <select id="ta-cuenta" style="width:auto;min-width:150px;padding:5px 8px;font-size:.82rem"></select>
+            <input type="text" id="ta-buscar" placeholder="Buscar" style="width:auto;min-width:150px;padding:5px 8px;font-size:.82rem">
+            <button class="btn ghost sm" id="ta-excel">↓ Excel</button>
+          </div>
+        </div>
+        <p class="sub" style="margin-bottom:12px">Copia permanente de todo lo importado. No se borra a los 5 días.</p>
+        <div id="ta-resumen" class="hint" style="margin-bottom:10px"></div>
+        <div class="tbl-wrap" style="max-height:420px;overflow:auto"><table class="tbl" id="ta-tabla">
+          <thead><tr><th>Fecha</th><th>Descripción</th><th class="num">Importe</th><th>Cuenta</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
     </section>
 
     <!-- RETIROS DE DOCUMENTACION TAB -->
@@ -1612,6 +1631,17 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <h3 style="display:flex;align-items:center;gap:8px;color:var(--err)">⚠ Documentación sin devolver hace más de 5 días <span id="retiros-alerta-badge" style="background:var(--err);color:#fff;font-size:.7rem;padding:2px 8px;border-radius:12px">0</span></h3>
         <div class="tbl-wrap" style="margin-top:8px"><table class="tbl" id="retiros-alerta-tabla">
           <thead><tr><th>Inmueble</th><th>Retira</th><th>Fecha retiro</th><th>Días</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+
+      <!-- Pendientes de verificar por Legales -->
+      <div class="card" id="retiros-verif-card" style="display:none;border-left:3px solid var(--warn);background:#fffbeb;margin-bottom:14px">
+        <h3 style="display:flex;align-items:center;gap:8px;color:#92400e">⚖ Boletos pendientes de verificar
+          <span id="retiros-verif-badge" style="background:var(--warn);color:#fff;font-size:.7rem;padding:2px 8px;border-radius:12px">0</span></h3>
+        <p class="sub" style="margin:2px 0 8px">Se marcó que puede haber deudas para recuperar o una mediación sobre el inmueble.</p>
+        <div class="tbl-wrap"><table class="tbl" id="retiros-verif-tabla">
+          <thead><tr><th>Inmueble</th><th>Retira</th><th>Fecha retiro</th><th>Días</th><th class="actions"></th></tr></thead>
           <tbody></tbody>
         </table></div>
       </div>
@@ -2074,6 +2104,7 @@ const state = {
   cocheras: [],
   bancosCuentas: [],
   transfBanco: [],
+  transfArchivo: [],
   finalizadas: [],
   badlar: [],
   deudaCalculos: [],
@@ -2284,7 +2315,7 @@ async function afterLogin() {
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
     loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadCocheras(),
-    loadBancosCuentas(), loadTransferenciasBanco(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(), loadMailReglas(),
+    loadBancosCuentas(), loadTransferenciasBanco(), loadTransfArchivo(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(), loadMailReglas(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -2300,6 +2331,7 @@ async function afterLogin() {
   llenarSelectoresTB();
   llenarSelectsEmpr();
   $('#btn-speeches')?.classList.add('on');
+  renderBadgeRetiros();
   renderDeuda();
   purgarRealizadas();   // borra las realizadas hace más de 5 días
   renderCampanita();
@@ -2499,7 +2531,7 @@ function switchTab(tab) {
   if (tab === 'ajustes') loadUsers();
   if (tab === 'retiros') renderRetiros();
   if (tab === 'cocheras') renderCocheras();
-  if (tab === 'transferencias') { llenarSelectoresTB(); renderTransfBanco(); renderDashTransf(); }
+  if (tab === 'transferencias') { llenarSelectoresTB(); renderTransfBanco(); renderDashTransf(); renderArchivoTransf(); }
   if (tab === 'cotizacion') renderCotizDia();
   if (tab === 'icc') { renderDeuda(); renderIccEnviadas(); }
   if (tab === 'papeles') renderPapeles();
@@ -7046,6 +7078,102 @@ function exportarUvis() {
 }
 
 // =================================================================
+// ARCHIVO MENSUAL DE TRANSFERENCIAS
+// =================================================================
+// Copia permanente de todo lo importado. Sobrevive a la purga de los 5 días.
+// El mes sale de la FECHA DEL MOVIMIENTO, no de cuándo se importó: una
+// transferencia del 31/08 subida en septiembre queda en el archivo de agosto.
+async function loadTransfArchivo() {
+  const { data, error } = await sb.from('transferencias_archivo')
+    .select('id,cuenta_id,banco,cuenta,fecha,descripcion,importe,mes,anio')
+    .order('fecha', { ascending: false })
+    .limit(5000);
+  if (error) console.warn('transferencias_archivo:', error.message);
+  state.transfArchivo = data || [];
+}
+
+function llenarPeriodosArchivo() {
+  const selP = $('#ta-periodo'), selC = $('#ta-cuenta');
+  if (!selP) return;
+  const arr = state.transfArchivo || [];
+
+  const claves = [...new Set(arr.map(t => `${t.anio}-${String(t.mes).padStart(2, '0')}`))]
+    .sort().reverse();
+  const actualP = selP.value;
+  selP.innerHTML = claves.length
+    ? claves.map(k => {
+        const [a, m] = k.split('-').map(Number);
+        const n = arr.filter(t => t.anio === a && t.mes === m).length;
+        return `<option value="${k}">${MESES[m - 1]} ${a} (${n})</option>`;
+      }).join('')
+    : '<option value="">— sin datos —</option>';
+  if (actualP && claves.includes(actualP)) selP.value = actualP;
+
+  const cuentas = [...new Set(arr.map(t => `${t.banco || '?'} · ${t.cuenta || '?'}`))].sort();
+  const actualC = selC.value;
+  selC.innerHTML = '<option value="">Todas las cuentas</option>' +
+    cuentas.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if (actualC && cuentas.includes(actualC)) selC.value = actualC;
+}
+
+function archivoFiltrado() {
+  const k = $('#ta-periodo')?.value || '';
+  const cta = $('#ta-cuenta')?.value || '';
+  const q = ($('#ta-buscar')?.value || '').toLowerCase().trim();
+  const [anio, mes] = k ? k.split('-').map(Number) : [0, 0];
+  return (state.transfArchivo || []).filter(t => {
+    if (k && (t.anio !== anio || t.mes !== mes)) return false;
+    if (cta && `${t.banco || '?'} · ${t.cuenta || '?'}` !== cta) return false;
+    if (q && !`${t.descripcion} ${t.importe}`.toLowerCase().includes(q)) return false;
+    return true;
+  }).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0);
+}
+
+function renderArchivoTransf() {
+  if (!$('#ta-tabla')) return;
+  llenarPeriodosArchivo();
+  const filas = archivoFiltrado();
+  const total = filas.reduce((a, t) => a + Number(t.importe || 0), 0);
+
+  const k = $('#ta-periodo').value;
+  const etiqueta = k ? (() => { const [a, m] = k.split('-').map(Number); return `${MESES[m - 1]} ${a}`; })() : '';
+  $('#ta-resumen').innerHTML = filas.length
+    ? `<b>${filas.length}</b> movimientos${etiqueta ? ` en ${etiqueta}` : ''} · total <b>$${fmt(total)}</b>`
+    : '';
+
+  const tb = $('#ta-tabla tbody');
+  if (!filas.length) {
+    tb.innerHTML = `<tr><td colspan="4" class="empty">${(state.transfArchivo || []).length ? 'Sin resultados' : 'El archivo está vacío'}</td></tr>`;
+    return;
+  }
+  tb.innerHTML = filas.slice(0, 1000).map(t => `<tr>
+    <td style="white-space:nowrap">${fmtFecha(t.fecha)}</td>
+    <td style="max-width:460px">${esc(t.descripcion)}</td>
+    <td class="num"><b>$${fmt(t.importe)}</b></td>
+    <td style="font-size:.8rem" class="muted">${esc(t.banco || '?')} · ${esc(t.cuenta || '?')}</td>
+  </tr>`).join('') +
+  (filas.length > 1000 ? `<tr><td colspan="4" class="empty">Mostrando 1000 de ${filas.length}</td></tr>` : '');
+}
+
+if ($('#ta-tabla')) {
+  ['#ta-periodo', '#ta-cuenta'].forEach(s => $(s).addEventListener('change', renderArchivoTransf));
+  $('#ta-buscar').addEventListener('input', renderArchivoTransf);
+  $('#ta-excel').addEventListener('click', () => {
+    const filas = archivoFiltrado();
+    if (!filas.length) { toast('Nada para exportar', 'warn'); return; }
+    const k = $('#ta-periodo').value;
+    const [a, m] = k ? k.split('-').map(Number) : [0, 0];
+    exportarExcel(filas.map(t => ({
+      Fecha: fmtFecha(t.fecha),
+      Descripcion: t.descripcion,
+      Importe: Number(t.importe),
+      Banco: t.banco || '',
+      Cuenta: t.cuenta || '',
+    })), k ? `Archivo ${MESES[m - 1]} ${a}` : 'Archivo transferencias');
+  });
+}
+
+// =================================================================
 // REPORTE COCHERAS · formato "Listado Acreditaciones" del sistema
 // =================================================================
 // Respeta la planilla que usa el sistema: título en A1, encabezados desde
@@ -9418,7 +9546,8 @@ async function importarExcelTB(file) {
     }
     closeModal();
     toast(`${ok} transferencias importadas`, 'ok');
-    await loadTransferenciasBanco(); renderTransfBanco();
+    await loadTransferenciasBanco(); await loadTransfArchivo();
+    renderTransfBanco(); renderArchivoTransf();
   });
 }
 
@@ -10422,7 +10551,108 @@ function diasDesdeFecha(fechaISO) {
   return Math.floor((hoy - f) / (1000 * 60 * 60 * 24));
 }
 
+// =================================================================
+// VERIFICACIÓN DE DEUDAS Y MEDIACIONES (retiros)
+// =================================================================
+// Cuando al cargar un retiro se marca que hay que comprobar deudas o
+// mediaciones, queda pendiente hasta que Legales lo resuelve.
+function puedeVerificarRetiro() {
+  const p = state.profile;
+  return !!p && (p.rol === 'admin' || p.area === 'legales');
+}
+
+function retirosAVerificar() {
+  return (state.retiros || []).filter(r => r.requiere_verificacion && !r.verificado);
+}
+
+function renderVerifRetiros() {
+  const card = $('#retiros-verif-card');
+  if (!card) return;
+  const pend = retirosAVerificar();
+  card.style.display = pend.length ? 'block' : 'none';
+  $('#retiros-verif-badge').textContent = pend.length;
+  if (!pend.length) return;
+
+  const hoy = new Date(todayISO() + 'T00:00:00').getTime();
+  $('#retiros-verif-tabla tbody').innerHTML = pend.map(r => {
+    const dias = Math.round((hoy - new Date(r.fecha_retiro + 'T00:00:00').getTime()) / 864e5);
+    return `<tr>
+      <td><b>${esc(r.inmueble)}</b></td>
+      <td>${esc(r.persona_retira_nombre || '—')}</td>
+      <td>${fmtFecha(r.fecha_retiro)}</td>
+      <td><span class="badge ${dias > 5 ? 'err' : 'warn'}">${dias}</span></td>
+      <td class="actions">${puedeVerificarRetiro()
+        ? `<button class="btn accent sm" onclick="verificarRetiro('${r.id}')">Verificar</button>`
+        : '<span class="muted" style="font-size:.76rem">lo verifica Legales</span>'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Contador en el menú, para que Legales lo vea sin entrar a la pestaña
+function renderBadgeRetiros() {
+  const nav = document.querySelector('.nav-item[data-tab="retiros"]');
+  if (!nav) return;
+  nav.querySelector('.badge-verif')?.remove();
+  const n = retirosAVerificar().length;
+  if (!n) return;
+  const b = document.createElement('span');
+  b.className = 'badge-verif';
+  b.textContent = n;
+  b.style.cssText = 'background:var(--warn);color:#fff;font-size:.66rem;padding:1px 7px;' +
+                    'border-radius:10px;margin-left:auto;font-weight:700';
+  b.title = `${n} boleto${n === 1 ? '' : 's'} pendiente${n === 1 ? '' : 's'} de verificar`;
+  nav.appendChild(b);
+}
+
+window.verificarRetiro = function(id) {
+  const r = (state.retiros || []).find(x => x.id === id);
+  if (!r) return;
+  if (!puedeVerificarRetiro()) { toast('Sólo Legales puede verificar', 'warn'); return; }
+
+  showModal(`<div class="modal-head"><h3>⚖ Verificar ${esc(r.inmueble)}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="hint" style="margin-bottom:12px">
+        Retirado el ${fmtFecha(r.fecha_retiro)} por <b>${esc(r.persona_retira_nombre || '—')}</b>.<br>
+        Se marcó que puede haber deudas para recuperar o una mediación sobre el inmueble.
+        ${r.observaciones ? `<br><br><b>Observaciones del retiro:</b> ${esc(r.observaciones)}` : ''}
+      </div>
+      <div class="field"><label>Resultado</label><select id="rv-res">
+        <option value="Sin deudas ni mediaciones">Sin deudas ni mediaciones</option>
+        <option value="Con deuda a recuperar">Con deuda a recuperar</option>
+        <option value="En mediación">En mediación</option>
+        <option value="Con deuda y en mediación">Con deuda y en mediación</option>
+        <option value="Otro">Otro</option>
+      </select></div>
+      <div class="field"><label>Detalle</label>
+        <textarea id="rv-obs" rows="3" placeholder="Monto, expediente, con quién se está mediando..."></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" id="rv-save">Marcar como verificado</button>
+    </div>`);
+
+  $('#rv-save').addEventListener('click', async () => {
+    const res = $('#rv-res').value;
+    const obs = $('#rv-obs').value.trim();
+    // Si hay deuda o mediación, el detalle no puede quedar vacío: sin eso el
+    // registro no le sirve a nadie después.
+    if (res !== 'Sin deudas ni mediaciones' && !obs) {
+      toast('Cargá el detalle de lo que encontraste', 'warn'); $('#rv-obs').focus(); return;
+    }
+    const btn = $('#rv-save');
+    btn.disabled = true; btn.textContent = 'Guardando...';
+    const { error } = await sb.from('retiros_documentacion').update({
+      verificado: true, verificacion_resultado: res, verificacion_obs: obs || null,
+    }).eq('id', id);
+    if (error) { toast(mensajeError(error), 'err'); btn.disabled = false; btn.textContent = 'Marcar como verificado'; return; }
+    closeModal();
+    toast(`${r.inmueble} verificado · ${res}`, 'ok');
+    await loadRetiros(); renderRetiros();
+  });
+};
+
 function renderRetiros() {
+  renderVerifRetiros(); renderBadgeRetiros();
   const filtroEstado = $('#retiro-filtro-estado')?.value || '';
   const busq = ($('#retiro-filtro-busq')?.value || '').toLowerCase();
 
@@ -10500,7 +10730,8 @@ function abrirModalRetiro(id) {
   const r = editando ? state.retiros.find(x => x.id === id) : {
     inmueble: '', documentos_boletos: false, documentos_cesiones: false,
     documentos_acta_tenencia: false, documentos_otros: '',
-    persona_retira_id: '', fecha_retiro: todayISO(), observaciones: ''
+    persona_retira_id: '', fecha_retiro: todayISO(), observaciones: '',
+    requiere_verificacion: false
   };
   if (!r) return;
 
@@ -10536,6 +10767,16 @@ function abrirModalRetiro(id) {
           ${opciones}
         </select>
         ${!personas.length ? '<div class="muted" style="font-size:.78rem;margin-top:4px;color:var(--err)">No hay personas cargadas. Pedile al admin que agregue personas desde Ajustes → Personas retiros.</div>' : ''}
+      </div>
+      <div class="field">
+        <label>¿Requiere comprobación de deudas o mediaciones?</label>
+        <div style="display:flex;gap:18px;padding:6px 0">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:400">
+            <input type="radio" name="ret-verif" value="no" style="width:auto;margin:0" ${r.requiere_verificacion ? '' : 'checked'}><span>No</span></label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:400">
+            <input type="radio" name="ret-verif" value="si" style="width:auto;margin:0" ${r.requiere_verificacion ? 'checked' : ''}><span>Sí</span></label>
+        </div>
+        <div class="hint">Marcá Sí si hay deudas para recuperar o alguna mediación sobre el lote o departamento: le queda avisado a Legales.</div>
       </div>
       <div class="field">
         <label>Observaciones (opcional)</label>
@@ -10576,6 +10817,7 @@ window.guardarRetiro = async function(id) {
     persona_retira_id: personaId,
     persona_retira_nombre: persona?.nombre || null,
     observaciones: $('#ret-obs').value.trim() || null,
+    requiere_verificacion: document.querySelector('input[name="ret-verif"]:checked')?.value === 'si',
   };
 
   let error;
@@ -11272,7 +11514,7 @@ let realtimeActivo = false;
 function subscribeChanges() {
   if (realtimeActivo) return;   // evita canales duplicados
   realtimeActivo = true;
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches','mail_reglas'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','transferencias_archivo','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches','mail_reglas'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -11293,6 +11535,7 @@ function subscribeChanges() {
         if (tabla==='retiros_documentacion') { await loadRetiros(); renderRetiros(); }
         if (tabla==='cocheras') { await loadCocheras(); renderCocheras(); }
         if (tabla==='transferencias_banco') { await loadTransferenciasBanco(); renderTransfBanco(); }
+        if (tabla==='transferencias_archivo') { await loadTransfArchivo(); renderArchivoTransf(); }
         if (tabla==='bancos_cuentas') { await loadBancosCuentas(); llenarSelectoresTB(); renderBancosCuentas(); }
         if (tabla==='cotizaciones_uvi') { await loadCotizacionesUvi(); renderCotizDia(); }
         if (tabla==='identif_emprendimientos') { await loadIdentEmpr(); renderIdentEmpr(); llenarSelectsEmpr(); }
