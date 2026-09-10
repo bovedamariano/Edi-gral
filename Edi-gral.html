@@ -6693,9 +6693,12 @@ function normalizarNombre(txt) {
 
 const PALABRAS_VACIAS = new Set(['DE','DEL','LA','LAS','LOS','Y','DA','DI','SA','SAS','SRL','SH']);
 
+// Los números sueltos no son parte del nombre: el banco pega códigos de
+// comprobante o sucursal al final ("NORES, MAR A 777") y eso rompía la
+// comparación letra por letra.
 function tokensNombre(txt) {
   return new Set(normalizarNombre(txt).split(' ')
-    .filter(p => p.length > 1 && !PALABRAS_VACIAS.has(p)));
+    .filter(p => p.length > 1 && !/^\d+$/.test(p) && !PALABRAS_VACIAS.has(p)));
 }
 
 // Devuelve el nombre que el banco puso después del CUIT.
@@ -6722,7 +6725,9 @@ function esSubsecuencia(a, b) {
   return i === a.length;
 }
 
-function sinEspacios(t) { return normalizarNombre(t).replace(/ /g, ''); }
+function sinEspacios(t) {
+  return normalizarNombre(t).split(' ').filter(p => !/^\d+$/.test(p)).join('');
+}
 function primerToken(t) { return normalizarNombre(t).split(' ')[0] || ''; }
 
 // El apellido es la primera palabra con peso: los identificadores están
@@ -6730,7 +6735,7 @@ function primerToken(t) { return normalizarNombre(t).split(' ')[0] || ''; }
 // ESTEBAN" dé TORRE y no DE.
 function apellidoDe(t) {
   return normalizarNombre(t).split(' ')
-    .find(p => p.length > 1 && !PALABRAS_VACIAS.has(p)) || '';
+    .find(p => p.length > 1 && !/^\d+$/.test(p) && !PALABRAS_VACIAS.has(p)) || '';
 }
 
 function buscarPorNombre(crudo, lista, getNombre) {
@@ -6796,10 +6801,30 @@ function buscarPorNombre(crudo, lista, getNombre) {
       candidatos.push({ item, nt, ratio: sinEsp.length / b.length });
     }
   }
-  if (!candidatos.length) return null;
-  candidatos.sort((x, y) => y.ratio - x.ratio);
-  return { seguro: false, item: candidatos[0].item, coincide: candidatos[0].nt,
-           ambiguo: candidatos.length > 1 };
+  if (candidatos.length) {
+    candidatos.sort((x, y) => y.ratio - x.ratio);
+    return { seguro: false, item: candidatos[0].item, coincide: candidatos[0].nt,
+             ambiguo: candidatos.length > 1 };
+  }
+
+  // Último intento · apellido exacto y ÚNICO en la lista.
+  //   El banco escribe mal los nombres de pila ("NOCE/FABRICIO" contra
+  //   "NOCE FABRIZIO") y a veces arrastra basura de otra columna. Ahí no
+  //   sirve comparar letra por letra: la diferencia es ortográfica.
+  //   Se acepta sólo si hay UN solo identificador con ese apellido y algún
+  //   nombre de pila arranca igual. Si hay dos personas con el mismo
+  //   apellido no se propone nada: elegir sería adivinar.
+  if (apellido.length < 4) return null;
+  const mismoApellido = lista.filter(i => apellidoDe(getNombre(i) || '') === apellido);
+  if (mismoApellido.length !== 1) return null;
+
+  const nt = getNombre(mismoApellido[0]) || '';
+  const pilaBanco = [...tk].filter(p => p !== apellido && p.length >= 4);
+  const pilaCand  = [...tokensNombre(nt)].filter(p => p !== apellido && p.length >= 4);
+  const arrancaIgual = pilaBanco.some(a => pilaCand.some(b => a.slice(0, 4) === b.slice(0, 4)));
+  if (!arrancaIgual) return null;
+
+  return { seguro: false, item: mismoApellido[0], coincide: nt, porApellido: true };
 }
 
 function identificarTransferencia(desc) {
