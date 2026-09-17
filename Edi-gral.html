@@ -797,6 +797,18 @@ details[open] .ident-toggle{transform:rotate(180deg)}
               <input type="date" id="dd-fecha"></div>
           </div>
           <div class="field-row" style="align-items:end">
+            <div class="field" style="max-width:150px"><label>Cuotas del plan</label>
+              <input type="number" id="dd-total" min="1" max="360" placeholder="Ej: 60"></div>
+            <div class="field" style="max-width:250px"><label>Cómo sube la cuota nueva</label>
+              <select id="dd-modo">
+                <option value="fijo">Igual a la última</option>
+                <option value="icc">Actualizada por ICC</option>
+                <option value="dolar">Según dólar (la cargo a mano)</option>
+              </select></div>
+            <div class="field"><label>&nbsp;</label>
+              <div class="hint" style="padding:8px 0">El total del plan es el tope al agregar las cuotas que van venciendo.</div></div>
+          </div>
+          <div class="field-row" style="align-items:end">
             <div class="field" style="max-width:150px"><label>Tasa anual (TNA %)</label>
               <input type="number" id="dd-tasa" step="0.01" placeholder="38.50"></div>
             <div class="field" style="max-width:230px"><label>&nbsp;</label>
@@ -815,7 +827,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
             </div>
           </div>
           <div class="tbl-wrap"><table class="tbl" id="dd-cuotas">
-            <thead><tr><th style="width:170px">Vencimiento</th><th class="num" style="width:170px">Monto</th><th class="actions"></th></tr></thead>
+            <thead><tr><th class="num" style="width:60px">N°</th><th style="width:160px">Vencimiento</th><th class="num" style="width:160px">Monto</th><th class="actions"></th></tr></thead>
             <tbody></tbody>
           </table></div>
           <div style="margin-top:12px"><button class="btn accent" id="dd-calcular">Calcular deuda</button></div>
@@ -921,8 +933,8 @@ details[open] .ident-toggle{transform:rotate(180deg)}
                   <label>Tipo de contrato <span style="color:var(--err)">*</span></label>
                   <select id="ddjj-tipo-contrato">
                     <option value="">—</option>
-                    <option value="1045">1045</option>
-                    <option value="1161">1161</option>
+                    <option value="1045">Boleto</option>
+                    <option value="1161">Cesión</option>
                   </select>
                 </div>
                 <div class="field">
@@ -1635,6 +1647,17 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         </table></div>
       </div>
 
+      <!-- Lo que informó Legales, para Finanzas -->
+      <div class="card" id="retiros-devol-card" style="display:none;border-left:3px solid var(--accent);background:var(--accent-soft);margin-bottom:14px">
+        <h3 style="display:flex;align-items:center;gap:8px">⚖ Verificaciones de Legales
+          <span id="retiros-devol-badge" style="background:var(--accent);color:#fff;font-size:.7rem;padding:2px 8px;border-radius:12px">0</span></h3>
+        <p class="sub" style="margin:2px 0 8px">Resultados que Legales informó y todavía no leíste.</p>
+        <div class="tbl-wrap"><table class="tbl" id="retiros-devol-tabla">
+          <thead><tr><th>Inmueble</th><th>Resultado</th><th>Detalle</th><th>Verificado</th><th class="actions"></th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+
       <!-- Pendientes de verificar por Legales -->
       <div class="card" id="retiros-verif-card" style="display:none;border-left:3px solid var(--warn);background:#fffbeb;margin-bottom:14px">
         <h3 style="display:flex;align-items:center;gap:8px;color:#92400e">⚖ Boletos pendientes de verificar
@@ -2171,6 +2194,16 @@ async function copyToClipboard(txt) {
 }
 
 // Enter para submit en formularios simples
+// La rueda del mouse sobre un campo numérico enfocado le cambia el valor
+// sin que uno se dé cuenta: alcanza con scrollear la página con el cursor
+// encima. Se bloquea en toda la app, no sólo en montos y alícuotas.
+document.addEventListener('wheel', e => {
+  const el = e.target;
+  if (el?.tagName === 'INPUT' && el.type === 'number' && el === document.activeElement) {
+    el.blur();          // se saca el foco y el scroll de la página sigue normal
+  }
+}, { passive: true });
+
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !e.shiftKey) {
     // Un input puede declarar a qué botón va su Enter con data-enter="id".
@@ -3334,7 +3367,7 @@ async function calcSello() {
 // Valida que los datos del DDJJ estén completos.
 // Retorna null si todo OK, o un string con el motivo del error.
 function validarDDJJ(ddjj) {
-  if (!ddjj.tipo_contrato) return 'DDJJ: elegí el tipo de contrato (1045 o 1161)';
+  if (!ddjj.tipo_contrato) return 'DDJJ: elegí el tipo de contrato (Boleto o Cesión)';
   if (!ddjj.num_cuenta) return 'DDJJ: elegí el barrio o ingresá el N° de cuenta';
   if (ddjj.num_cuenta && !/^\d{12}$/.test(ddjj.num_cuenta)) return 'DDJJ: el N° de cuenta debe tener 12 dígitos';
   if (!ddjj.mail_responsable) return 'DDJJ: ingresá el mail del responsable';
@@ -3352,6 +3385,11 @@ function validarDDJJ(ddjj) {
       const cant = [tipo, num, sexo, nombre].filter(v => v && String(v).trim()).length;
       if (cant === 0) continue; // fila vacía, OK
       if (cant < 4) return `DDJJ: el ${label} #${i} tiene datos incompletos (Tipo Doc, N° Doc, Sexo y Nombre son obligatorios)`;
+      const soloNum = String(num).replace(/\D/g, '');
+      if (tipo === 'CUIT' && soloNum.length !== 11)
+        return `DDJJ: el CUIT del ${label} #${i} tiene ${soloNum.length} dígitos y necesita 11`;
+      if (tipo === 'DNI' && (soloNum.length < 6 || soloNum.length > 8))
+        return `DDJJ: el DNI del ${label} #${i} tiene ${soloNum.length} dígitos`;
       cantCompletos++;
     }
     if (cantCompletos === 0) return `DDJJ: cargá al menos 1 ${label} con todos los datos`;
@@ -3411,7 +3449,11 @@ function addParteRow(contenedorId, datos = {}) {
       </select>
     </div>
     <div class="field"><label>N° Documento</label>
-      <input type="text" class="parte-num" value="${datos.num_doc||''}" placeholder="26964727">
+      <input type="text" class="parte-num" inputmode="numeric"
+             value="${datos.num_doc||''}"
+             maxlength="${datos.tipo_doc === 'CUIT' ? 11 : 8}"
+             placeholder="${datos.tipo_doc === 'CUIT' ? '20269647271' : '26964727'}">
+      <div class="hint parte-doc-hint"></div>
     </div>
     <div class="field"><label>Sexo</label>
       <select class="parte-sexo">
@@ -3425,6 +3467,43 @@ function addParteRow(contenedorId, datos = {}) {
     </div>
     <button type="button" class="ddjj-parte-rm" title="Quitar">×</button>`;
   div.querySelector('.ddjj-parte-rm').addEventListener('click', () => div.remove());
+
+  // El CUIT lleva 11 dígitos y es de una persona jurídica: se propone la J.
+  // El DNI, 8. Sólo se escriben números en los dos casos.
+  const selTipo = div.querySelector('.parte-tipo');
+  const inpNum  = div.querySelector('.parte-num');
+  const selSexo = div.querySelector('.parte-sexo');
+  const hint    = div.querySelector('.parte-doc-hint');
+
+  const aplicarTipo = (cambioManual) => {
+    const esCuit = selTipo.value === 'CUIT';
+    inpNum.maxLength = esCuit ? 11 : 8;
+    inpNum.placeholder = esCuit ? '20269647271' : '26964727';
+    if (inpNum.value.length > inpNum.maxLength) inpNum.value = inpNum.value.slice(0, inpNum.maxLength);
+    // Sólo se fuerza la J al cambiar a CUIT a mano, para no pisar una
+    // elección previa al recargar una DDJJ guardada.
+    if (esCuit && cambioManual) selSexo.value = 'J';
+    revisarNum();
+  };
+
+  const revisarNum = () => {
+    const esCuit = selTipo.value === 'CUIT';
+    const n = inpNum.value.length;
+    if (!n) { hint.textContent = ''; inpNum.style.borderColor = ''; return; }
+    if (esCuit && n !== 11) {
+      hint.innerHTML = '<span style="color:var(--err)">El CUIT tiene que tener 11 dígitos</span>';
+      inpNum.style.borderColor = 'var(--err)';
+    } else {
+      hint.textContent = ''; inpNum.style.borderColor = '';
+    }
+  };
+
+  inpNum.addEventListener('input', () => {
+    inpNum.value = inpNum.value.replace(/\D/g, '').slice(0, inpNum.maxLength);
+    revisarNum();
+  });
+  selTipo.addEventListener('change', () => aplicarTipo(true));
+  aplicarTipo(false);
   cont.appendChild(div);
 }
 
@@ -8558,19 +8637,22 @@ function renderCuotasDeuda() {
   const tb = $('#dd-cuotas tbody');
   if (!tb) return;
   if (!_ddCuotas.length) {
-    tb.innerHTML = '<tr><td colspan="3" class="empty">Agregá al menos una cuota</td></tr>';
+    tb.innerHTML = '<tr><td colspan="4" class="empty">Agregá al menos una cuota</td></tr>';
     return;
   }
-  tb.innerHTML = _ddCuotas.map((c, i) => `<tr>
+  tb.innerHTML = _ddCuotas.map((c, i) => `<tr style="${c.pagada ? 'opacity:.5;background:#f0fdf4' : ''}">
+    <td class="num" style="width:60px"><input type="number" value="${c.nro ?? i + 1}" onchange="ddSetCuota(${i},'nro',this.value)" style="padding:5px 7px;font-size:.85rem;text-align:center"></td>
     <td><input type="date" value="${c.fecha || ''}" onchange="ddSetCuota(${i},'fecha',this.value)" style="padding:5px 7px;font-size:.85rem"></td>
     <td class="num"><input type="number" step="0.01" value="${c.monto ?? ''}" onchange="ddSetCuota(${i},'monto',this.value)" style="padding:5px 7px;font-size:.85rem;text-align:right"></td>
-    <td class="actions"><button class="btn ghost sm" style="color:var(--err)" onclick="ddBorrarCuota(${i})">×</button></td>
+    <td class="actions">${c.pagada ? '<span class="badge ok" style="font-size:.65rem">pagada</span>'
+      : `<button class="btn ghost sm" style="color:var(--err)" onclick="ddBorrarCuota(${i})">×</button>`}</td>
   </tr>`).join('');
 }
 
 window.ddSetCuota = function(i, campo, valor) {
   if (!_ddCuotas[i]) return;
-  _ddCuotas[i][campo] = campo === 'monto' ? (valor === '' ? null : Number(valor)) : valor;
+  if (campo === 'monto' || campo === 'nro') _ddCuotas[i][campo] = valor === '' ? null : Number(valor);
+  else _ddCuotas[i][campo] = valor;
 };
 window.ddBorrarCuota = function(i) { _ddCuotas.splice(i, 1); renderCuotasDeuda(); };
 
@@ -8582,13 +8664,16 @@ function replicarCuotas() {
   const n = parseInt(prompt('¿Cuántas cuotas en total? (incluida la primera)', '6'), 10);
   if (!n || n < 1 || n > 120) return;
   const [a, m, d] = base.fecha.split('-').map(Number);
+  const nroBase = base.nro || 1;
   _ddCuotas = [];
   for (let i = 0; i < n; i++) {
     const total = (a * 12 + (m - 1)) + i;
     const anio = Math.floor(total / 12), mes = (total % 12) + 1;
     const ultimo = new Date(anio, mes, 0).getDate();
     const dia = Math.min(d, ultimo);   // 31 en un mes de 30 cae al último día
-    _ddCuotas.push({ fecha: `${anio}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`, monto: base.monto });
+    _ddCuotas.push({ nro: nroBase + i,
+      fecha: `${anio}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`,
+      monto: base.monto });
   }
   renderCuotasDeuda();
   toast(`${n} cuotas generadas`, 'ok');
@@ -8613,7 +8698,8 @@ function renderBadlarInfo() {
 function ejecutarCalculoDeuda() {
   const tasa = parseFloat($('#dd-tasa').value);
   const fecha = $('#dd-fecha').value || todayISO();
-  const cuotas = _ddCuotas.filter(c => c.fecha && c.monto != null && Number(c.monto) > 0);
+  // Las pagadas no devengan interés: ya se cobraron
+  const cuotas = _ddCuotas.filter(c => c.fecha && c.monto != null && Number(c.monto) > 0 && !c.pagada);
 
   if (!cuotas.length) { toast('Cargá al menos una cuota con fecha y monto', 'warn'); return; }
   if (!tasa || tasa <= 0) { toast('Falta la tasa anual', 'warn'); $('#dd-tasa').focus(); return; }
@@ -8712,7 +8798,11 @@ async function guardarCalculoDeuda() {
     tasa_anual: r.tasaAnual,
     tasa_origen: r.tasaOrigen,
     fecha_calculo: r.fechaCalculo,
-    cuotas: r.filas.map(f => ({ fecha: f.fecha, monto: f.capital })),
+    cuotas: _ddCuotas.filter(c => c.fecha && c.monto != null)
+             .map((c, i) => ({ nro: c.nro ?? i + 1, fecha: c.fecha,
+                               monto: Number(c.monto), pagada: !!c.pagada })),
+    total_cuotas: Number($('#dd-total').value) || null,
+    modo_cuota: $('#dd-modo').value,
     total_capital: Math.round(r.totalCapital * 100) / 100,
     total_simple: Math.round(r.totalSimple * 100) / 100,
     total_compuesto: Math.round(r.totalComp * 100) / 100,
@@ -8722,6 +8812,142 @@ async function guardarCalculoDeuda() {
   toast('Cálculo guardado', 'ok');
   await loadDeudaCalculos(); renderDeudaGuardados();
 }
+
+// =================================================================
+// PLANES GUARDADOS · actualizar, abonar y agregar cuotas vencidas
+// =================================================================
+function cuotasDe(c) {
+  return (c.cuotas || []).map((x, i) => ({
+    nro: x.nro ?? i + 1, fecha: x.fecha, monto: Number(x.monto), pagada: !!x.pagada,
+  })).sort((a, b) => a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : 0);
+}
+
+function impagasDe(c) { return cuotasDe(c).filter(x => !x.pagada); }
+
+// Cuántas cuotas ya vencieron desde la última cargada, sin pasarse del plan.
+function cuotasPorAgregar(c) {
+  const todas = cuotasDe(c);
+  if (!todas.length) return 0;
+  const ultima = todas[todas.length - 1];
+  const [a, m] = ultima.fecha.split('-').map(Number);
+  const hoy = new Date();
+  const meses = (hoy.getFullYear() * 12 + hoy.getMonth()) - (a * 12 + (m - 1));
+  if (meses < 1) return 0;
+  const tope = c.total_cuotas ? c.total_cuotas - (ultima.nro || todas.length) : meses;
+  return Math.max(0, Math.min(meses, tope));
+}
+
+// Recalcula los totales de un plan al día de hoy y los guarda.
+window.ddActualizar = async function(id) {
+  const c = (state.deudaCalculos || []).find(x => x.id === id);
+  if (!c) return;
+  const impagas = impagasDe(c);
+  if (!impagas.length) { toast('No quedan cuotas impagas', 'warn'); return; }
+
+  const hoy = todayISO();
+  const r = calcularDeuda(impagas, c.tasa_anual, hoy);
+  const { error } = await sb.from('deuda_calculos').update({
+    fecha_calculo: hoy,
+    total_capital: Math.round(r.totalCapital * 100) / 100,
+    total_simple: Math.round(r.totalSimple * 100) / 100,
+    total_compuesto: Math.round(r.totalComp * 100) / 100,
+    actualizado_at: new Date().toISOString(),
+    actualizado_por: state.user.id,
+  }).eq('id', id);
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  const dif = r.totalSimple - Number(c.total_simple || 0);
+  toast(`${c.nombre} actualizado al ${fmtFecha(hoy)}` +
+        (dif > 0.5 ? ` · creció $${fmt(dif)}` : ''), 'ok');
+  await loadDeudaCalculos(); renderDeudaGuardados();
+};
+
+// Marca como pagada la más vieja impaga: es la que más interés acumuló.
+window.ddAbonar = async function(id) {
+  const c = (state.deudaCalculos || []).find(x => x.id === id);
+  if (!c) return;
+  const impagas = impagasDe(c);
+  if (!impagas.length) { toast('No quedan cuotas impagas', 'warn'); return; }
+  const v = impagas[0];
+
+  const dias = diasVencidos(v.fecha, todayISO());
+  if (!await confirmAction(
+      `Cuota ${v.nro} de ${c.nombre}\n` +
+      `Vencía el ${fmtFecha(v.fecha)} · $${fmt(v.monto)} · ${dias} días de atraso\n\n` +
+      `Es la más vieja impaga, la que más interés acumuló. ¿Marcarla como pagada?`)) return;
+
+  const nuevas = cuotasDe(c).map(x => x.nro === v.nro ? { ...x, pagada: true } : x);
+  const quedan = nuevas.filter(x => !x.pagada);
+  const hoy = todayISO();
+  const r = quedan.length ? calcularDeuda(quedan, c.tasa_anual, hoy) : null;
+
+  const { error } = await sb.from('deuda_calculos').update({
+    cuotas: nuevas,
+    fecha_calculo: hoy,
+    total_capital: r ? Math.round(r.totalCapital * 100) / 100 : 0,
+    total_simple: r ? Math.round(r.totalSimple * 100) / 100 : 0,
+    total_compuesto: r ? Math.round(r.totalComp * 100) / 100 : 0,
+    actualizado_at: new Date().toISOString(),
+    actualizado_por: state.user.id,
+  }).eq('id', id);
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  toast(`Cuota ${v.nro} abonada · quedan ${quedan.length} impagas`, 'ok');
+  await loadDeudaCalculos(); renderDeudaGuardados();
+};
+
+// Agrega las cuotas que vencieron desde la última cargada.
+window.ddAgregarVencidas = async function(id) {
+  const c = (state.deudaCalculos || []).find(x => x.id === id);
+  if (!c) return;
+  const n = cuotasPorAgregar(c);
+  if (!n) { toast('No hay cuotas nuevas para agregar', 'warn'); return; }
+
+  const todas = cuotasDe(c);
+  const ultima = todas[todas.length - 1];
+  const [a, m, d] = ultima.fecha.split('-').map(Number);
+  const modo = c.modo_cuota || 'fijo';
+
+  const nuevas = [];
+  for (let i = 1; i <= n; i++) {
+    const tot = (a * 12 + (m - 1)) + i;
+    const anio = Math.floor(tot / 12), mes = (tot % 12) + 1;
+    const dia = Math.min(d, new Date(anio, mes, 0).getDate());
+    const fecha = `${anio}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+
+    let monto = ultima.monto;
+    if (modo === 'icc') {
+      const base = iccValor(m, a), dest = iccValor(mes, anio);
+      // Sin ICC del mes nuevo se deja el monto anterior y se avisa
+      monto = (base && dest) ? Math.round(ultima.monto * (dest / base) * 100) / 100 : ultima.monto;
+    }
+    nuevas.push({ nro: (ultima.nro || todas.length) + i, fecha, monto, pagada: false });
+  }
+
+  const resumen = nuevas.map(x => `  Cuota ${x.nro} · ${fmtFecha(x.fecha)} · $${fmt(x.monto)}`).join('\n');
+  const aviso = modo === 'dolar'
+    ? '\n\nOJO: el plan es en dólares. Se agregan con el monto de la última y hay que corregirlas a mano.'
+    : modo === 'icc' && nuevas.some(x => x.monto === ultima.monto)
+    ? '\n\nAlguna quedó con el monto anterior porque falta el ICC de ese mes.'
+    : '';
+  if (!await confirmAction(`Se van a agregar ${n} cuota${n === 1 ? '' : 's'} a ${c.nombre}:\n\n${resumen}${aviso}`)) return;
+
+  const todasNuevas = [...cuotasDe(c), ...nuevas];
+  const quedan = todasNuevas.filter(x => !x.pagada);
+  const hoy = todayISO();
+  const r = calcularDeuda(quedan, c.tasa_anual, hoy);
+  const { error } = await sb.from('deuda_calculos').update({
+    cuotas: todasNuevas,
+    fecha_calculo: hoy,
+    total_capital: Math.round(r.totalCapital * 100) / 100,
+    total_simple: Math.round(r.totalSimple * 100) / 100,
+    total_compuesto: Math.round(r.totalComp * 100) / 100,
+    actualizado_at: new Date().toISOString(),
+    actualizado_por: state.user.id,
+  }).eq('id', id);
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  toast(`${n} cuota${n === 1 ? '' : 's'} agregada${n === 1 ? '' : 's'} a ${c.nombre}`,
+        modo === 'dolar' ? 'warn' : 'ok');
+  await loadDeudaCalculos(); renderDeudaGuardados();
+};
 
 function renderDeudaGuardados() {
   const tb = $('#dd-guardados tbody');
@@ -8733,18 +8959,28 @@ function renderDeudaGuardados() {
     tb.innerHTML = `<tr><td colspan="8" class="empty">${q ? 'Sin resultados' : 'Sin cálculos guardados'}</td></tr>`;
     return;
   }
-  tb.innerHTML = filas.slice(0, 50).map(c => `<tr>
-    <td>${fmtFecha(c.fecha_calculo)}</td>
+  tb.innerHTML = filas.slice(0, 50).map(c => {
+    const impagas = impagasDe(c);
+    const pagadas = cuotasDe(c).length - impagas.length;
+    const porAgregar = cuotasPorAgregar(c);
+    const desactualizado = c.fecha_calculo < todayISO();
+    return `<tr>
+    <td>${fmtFecha(c.fecha_calculo)}${desactualizado ? '<div class="muted" style="font-size:.7rem">desactualizado</div>' : ''}</td>
     <td class="mono">${esc(c.cliente || '—')}</td>
-    <td>${esc(c.nombre)}${c.emprendimiento ? `<div class="muted" style="font-size:.76rem">${esc(c.emprendimiento)}</div>` : ''}</td>
+    <td>${esc(c.nombre)}${c.emprendimiento ? `<div class="muted" style="font-size:.76rem">${esc(c.emprendimiento)}</div>` : ''}
+      <div class="muted" style="font-size:.73rem">${impagas.length} impaga${impagas.length === 1 ? '' : 's'}${pagadas ? ` · ${pagadas} pagada${pagadas === 1 ? '' : 's'}` : ''}${c.total_cuotas ? ` · plan de ${c.total_cuotas}` : ''}</div>
+      ${porAgregar ? `<span class="badge warn" style="font-size:.67rem;cursor:pointer" onclick="ddAgregarVencidas('${c.id}')">+ ${porAgregar} cuota${porAgregar === 1 ? '' : 's'} vencida${porAgregar === 1 ? '' : 's'}</span>` : ''}</td>
     <td class="num">${fmt(c.tasa_anual)}%</td>
     <td class="num">$${fmt(c.total_capital)}</td>
     <td class="num">$${fmt(c.total_simple)}</td>
     <td class="num">$${fmt(c.total_compuesto)}</td>
-    <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
+    <td class="actions" style="display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap">
+      <button class="btn ${desactualizado ? 'accent' : 'ghost'} sm" onclick="ddActualizar('${c.id}')" title="Recalcular al día de hoy">↻</button>
+      <button class="btn ghost sm" onclick="ddAbonar('${c.id}')" title="Abonó una cuota: se marca la más vieja impaga"${impagas.length ? '' : ' disabled'}>✓ Abonó</button>
       <button class="btn ghost sm" onclick="ddRecuperar('${c.id}')" title="Traer al formulario">↥</button>
       <button class="btn ghost sm" style="color:var(--err)" onclick="ddBorrarCalculo('${c.id}')">🗑</button>
-    </td></tr>`).join('');
+    </td></tr>`;
+  }).join('');
 }
 
 // Trae un cálculo guardado al formulario. Recalcula al día de hoy, así se
@@ -8758,7 +8994,10 @@ window.ddRecuperar = function(id) {
   $('#dd-fecha').value = c.fecha_calculo;
   const e = (state.identEmpr || []).find(x => x.nombre === c.emprendimiento);
   if (e) $('#dd-empr').value = e.id;
-  _ddCuotas = (c.cuotas || []).map(x => ({ fecha: x.fecha, monto: Number(x.monto) }));
+  $('#dd-total').value = c.total_cuotas ?? '';
+  $('#dd-modo').value = c.modo_cuota || 'fijo';
+  _ddCuotas = (c.cuotas || []).map((x, i) => ({
+    nro: x.nro ?? i + 1, fecha: x.fecha, monto: Number(x.monto), pagada: !!x.pagada }));
   renderCuotasDeuda();
   ejecutarCalculoDeuda();
   $('#dd-nombre').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -10590,6 +10829,41 @@ function retirosAVerificar() {
   return (state.retiros || []).filter(r => r.requiere_verificacion && !r.verificado);
 }
 
+// Lo que Legales verificó y Finanzas todavía no leyó.
+function retirosVerificadosSinLeer() {
+  return (state.retiros || []).filter(r => r.verificado && !r.visto_finanzas);
+}
+
+function renderDevolRetiros() {
+  const card = $('#retiros-devol-card');
+  if (!card) return;
+  const pend = puedeFinanzas() ? retirosVerificadosSinLeer() : [];
+  card.style.display = pend.length ? 'block' : 'none';
+  $('#retiros-devol-badge').textContent = pend.length;
+  if (!pend.length) { $('#retiros-devol-tabla tbody').innerHTML = ''; return; }
+
+  // Con hallazgos primero: son los que hay que accionar
+  const conHallazgo = r => r.verificacion_resultado &&
+    !/sin deudas/i.test(r.verificacion_resultado);
+
+  $('#retiros-devol-tabla tbody').innerHTML = pend
+    .sort((a, b) => conHallazgo(b) - conHallazgo(a))
+    .map(r => `<tr>
+      <td><b>${esc(r.inmueble)}</b></td>
+      <td><span class="badge ${conHallazgo(r) ? 'err' : 'ok'}">${esc(r.verificacion_resultado || '—')}</span></td>
+      <td style="max-width:420px;font-size:.84rem">${esc(r.verificacion_obs || '—')}</td>
+      <td class="muted" style="font-size:.78rem">${r.verificado_at ? fmtFechaHora(r.verificado_at) : '—'}</td>
+      <td class="actions"><button class="btn ghost sm" onclick="ddMarcarVisto('${r.id}')">Visto</button></td>
+    </tr>`).join('');
+}
+
+window.ddMarcarVisto = async function(id) {
+  const { error } = await sb.from('retiros_documentacion')
+    .update({ visto_finanzas: true }).eq('id', id);
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  await loadRetiros(); renderRetiros();
+};
+
 function renderVerifRetiros() {
   const card = $('#retiros-verif-card');
   if (!card) return;
@@ -10618,14 +10892,19 @@ function renderBadgeRetiros() {
   const nav = document.querySelector('.nav-item[data-tab="retiros"]');
   if (!nav) return;
   nav.querySelector('.badge-verif')?.remove();
-  const n = retirosAVerificar().length;
+  // Suma lo que Legales tiene que verificar y lo que Finanzas no leyó:
+  // cada usuario ve el número que le corresponde accionar.
+  const n = (puedeVerificarRetiro() ? retirosAVerificar().length : 0) +
+            (puedeFinanzas() ? retirosVerificadosSinLeer().length : 0);
   if (!n) return;
   const b = document.createElement('span');
   b.className = 'badge-verif';
   b.textContent = n;
   b.style.cssText = 'background:var(--warn);color:#fff;font-size:.66rem;padding:1px 7px;' +
                     'border-radius:10px;margin-left:auto;font-weight:700';
-  b.title = `${n} boleto${n === 1 ? '' : 's'} pendiente${n === 1 ? '' : 's'} de verificar`;
+  b.title = puedeVerificarRetiro()
+    ? `${n} boleto${n === 1 ? '' : 's'} pendiente${n === 1 ? '' : 's'} de verificar`
+    : `${n === 1 ? '1 verificación' : n + ' verificaciones'} de Legales sin leer`;
   nav.appendChild(b);
 }
 
@@ -10677,7 +10956,7 @@ window.verificarRetiro = function(id) {
 };
 
 function renderRetiros() {
-  renderVerifRetiros(); renderBadgeRetiros();
+  renderVerifRetiros(); renderDevolRetiros(); renderBadgeRetiros();
   const filtroEstado = $('#retiro-filtro-estado')?.value || '';
   const busq = ($('#retiro-filtro-busq')?.value || '').toLowerCase();
 
@@ -10730,9 +11009,20 @@ function renderRetiros() {
     const dias = r.estado === 'retirado' ? diasDesdeFecha(r.fecha_retiro) : null;
     const diasBadge = dias !== null && dias > 5 ? ` <span class="badge" style="background:var(--err);color:#fff">${dias} días</span>` : '';
 
+    // Lo que informó Legales queda a la vista en la fila, no sólo en la card
+    let verif = '';
+    if (r.requiere_verificacion && !r.verificado) {
+      verif = '<div style="margin-top:3px"><span class="badge warn" style="font-size:.67rem">⚖ esperando a Legales</span></div>';
+    } else if (r.verificado) {
+      const hallazgo = r.verificacion_resultado && !/sin deudas/i.test(r.verificacion_resultado);
+      verif = `<div style="margin-top:3px"><span class="badge ${hallazgo ? 'err' : 'ok'}" style="font-size:.67rem"
+        title="${esc(r.verificacion_obs || '')}">⚖ ${esc(r.verificacion_resultado || 'verificado')}</span>` +
+        (r.verificacion_obs ? `<div class="muted" style="font-size:.74rem">${esc(r.verificacion_obs)}</div>` : '') + '</div>';
+    }
+
     return `<tr>
       <td>${fmtFecha(r.fecha_retiro)}</td>
-      <td><b>${r.inmueble}</b>${r.observaciones ? `<div class="muted" style="font-size:.75rem">${esc(r.observaciones)}</div>` : ''}</td>
+      <td><b>${r.inmueble}</b>${r.observaciones ? `<div class="muted" style="font-size:.75rem">${esc(r.observaciones)}</div>` : ''}${verif}</td>
       <td style="font-size:.85rem">${docsTxt}</td>
       <td>${r.persona_retira_nombre || '—'}${diasBadge}</td>
       <td>${badgeEstado}</td>
