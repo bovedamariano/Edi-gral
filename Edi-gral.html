@@ -694,6 +694,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
     <button class="nav-item" data-tab="papeles">📑 Papeles de trabajo</button>
     <button class="nav-item" data-tab="cocheras">🅿️ Cocheras</button>
     <div class="nav-section" id="admin-section" style="display:none">Admin</div>
+    <button class="nav-item" data-tab="sugerencias">💡 Sugerencias</button>
     <button class="nav-item" data-tab="ajustes" id="ajustes-nav" style="display:none">⚙️ Ajustes</button>
     <button class="nav-item" data-tab="audit" id="audit-nav" style="display:none">📜 Audit log</button>
     <div class="sidebar-footer">
@@ -1854,6 +1855,37 @@ details[open] .ident-toggle{transform:rotate(180deg)}
       </div>
     </section>
 
+    <section class="tab-content" id="tab-sugerencias" style="display:none">
+      <div class="page-head">
+        <div><h1>Sugerencias</h1><p>Pedí una mejora o contá qué te está complicando</p></div>
+        <button class="btn accent" id="sug-add">+ Nueva sugerencia</button>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="field-row" style="align-items:end">
+          <div class="field" style="max-width:180px"><label>Estado</label><select id="sug-estado">
+            <option value="abiertas">Abiertas</option>
+            <option value="">Todas</option>
+            <option value="nueva">Nuevas</option>
+            <option value="en análisis">En análisis</option>
+            <option value="en curso">En curso</option>
+            <option value="hecha">Hechas</option>
+            <option value="descartada">Descartadas</option>
+          </select></div>
+          <div class="field" style="max-width:170px"><label>Área</label><select id="sug-area"></select></div>
+          <div class="field"><label>Buscar</label><input type="text" id="sug-buscar" placeholder="Título, descripción o solicitante"></div>
+        </div>
+        <div id="sug-resumen" class="hint"></div>
+      </div>
+
+      <div class="card">
+        <div class="tbl-wrap"><table class="tbl" id="sug-tabla">
+          <thead><tr><th class="num" style="width:70px">N°</th><th>Título</th><th>Solicitante</th><th>Área</th><th>Estado</th><th class="actions"></th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+    </section>
+
     <section class="tab-content" id="tab-ajustes" style="display:none">
       <div class="page-head"><div><h1>Ajustes</h1><p>Administración del sistema</p></div></div>
       <div class="tabs">
@@ -2080,9 +2112,9 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // Validación de credenciales antes de inicializar
 let sb = null;
 let configError = null;
-if (!SUPABASE_URL || SUPABASE_URL.includes('REEMPLAZAR') || !SUPABASE_URL.startsWith('http')) {
+if (!SUPABASE_URL || SUPABASE_URL.includes('REEMPLAZAR') || SUPABASE_URL.includes('PEGAR_AQUI') || !SUPABASE_URL.startsWith('http')) {
   configError = 'Faltan las credenciales de Supabase en el HTML. Editá las constantes SUPABASE_URL y SUPABASE_ANON_KEY (líneas 584-585) con los valores de tu proyecto (Settings → API).';
-} else if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('REEMPLAZAR') || SUPABASE_ANON_KEY.length < 50) {
+} else if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('REEMPLAZAR') || SUPABASE_ANON_KEY.includes('PEGAR_AQUI') || SUPABASE_ANON_KEY.length < 50) {
   configError = 'La SUPABASE_ANON_KEY no parece válida. Editá el HTML con el valor real (Settings → API → anon public).';
 } else {
   try {
@@ -2137,6 +2169,7 @@ const state = {
   speeches: [],
   mailReglas: [],
   mails: [],
+  sugerencias: [],
   uvi: [],
   cotizacionesBna: [],
   retirosPersonas: [],
@@ -2267,11 +2300,11 @@ async function initAuth() {
 // MATRIZ DE ACCESOS POR ÁREA
 // =================================================================
 const ACCESOS = {
-  admin:    ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','gastos-boleto','tareas','instructivos','transferencias','retiros','cocheras','papeles','mails','ajustes','audit'],
-  finanzas: ['icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias','retiros','cocheras','papeles','mails'],
-  legales:  ['icc','sellos','cesiones','cuentas','cotizacion','gastos','retiros','cocheras'],
-  ventas:   ['icc','cuentas','cotizacion','gastos','gastos-boleto'],
-  sac:      ['icc','cuentas','gastos'],
+  admin:    ['sugerencias','icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','gastos-boleto','tareas','instructivos','transferencias','retiros','cocheras','papeles','mails','ajustes','audit'],
+  finanzas: ['sugerencias','icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias','retiros','cocheras','papeles','mails'],
+  legales:  ['sugerencias','icc','sellos','cesiones','cuentas','cotizacion','gastos','retiros','cocheras'],
+  ventas:   ['sugerencias','icc','cuentas','cotizacion','gastos','gastos-boleto'],
+  sac:      ['sugerencias','icc','cuentas','gastos'],
 };
 
 function getAccesos() {
@@ -2348,7 +2381,7 @@ async function afterLogin() {
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
     loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadCocheras(),
-    loadBancosCuentas(), loadTransferenciasBanco(), loadTransfArchivo(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(), loadMailReglas(),
+    loadBancosCuentas(), loadTransferenciasBanco(), loadTransfArchivo(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(), loadMailReglas(), loadSugerencias(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -2365,6 +2398,7 @@ async function afterLogin() {
   llenarSelectsEmpr();
   $('#btn-speeches')?.classList.add('on');
   renderBadgeRetiros();
+  renderBadgeSugerencias();
   renderDeuda();
   purgarRealizadas();   // borra las realizadas hace más de 5 días
   renderCampanita();
@@ -2569,6 +2603,7 @@ function switchTab(tab) {
   if (tab === 'icc') { renderDeuda(); renderIccEnviadas(); }
   if (tab === 'papeles') renderPapeles();
   if (tab === 'mails') renderMails();
+  if (tab === 'sugerencias') renderSugerencias();
   if (tab === 'ajustes') { renderBancosCuentas(); renderIdentEmpr(); renderSpeeches(); }
   if (tab === 'transferencias') llenarSelectsEmpr();
 }
@@ -8300,6 +8335,217 @@ $('#sp-export')?.addEventListener('click', () => {
 
 
 // =================================================================
+// SUGERENCIAS · pedidos de mejora de cualquier área
+// =================================================================
+const SUG_ESTADOS = {
+  'nueva':       { badge: 'warn',   txt: 'Nueva' },
+  'en análisis': { badge: 'accent', txt: 'En análisis' },
+  'en curso':    { badge: 'accent', txt: 'En curso' },
+  'hecha':       { badge: 'ok',     txt: 'Hecha' },
+  'descartada':  { badge: 'muted',  txt: 'Descartada' },
+};
+
+async function loadSugerencias() {
+  state.sugerencias = await fetchPaged('sugerencias', q => q.order('numero', { ascending: false }));
+}
+
+function sugSinLeer() {
+  return (state.sugerencias || []).filter(s => !s.leida);
+}
+
+function sugerenciasFiltradas() {
+  const est = $('#sug-estado')?.value ?? 'abiertas';
+  const area = $('#sug-area')?.value || '';
+  const q = ($('#sug-buscar')?.value || '').toLowerCase().trim();
+  return (state.sugerencias || []).filter(s => {
+    if (est === 'abiertas' && ['hecha', 'descartada'].includes(s.estado)) return false;
+    if (est && est !== 'abiertas' && s.estado !== est) return false;
+    if (area && s.area !== area) return false;
+    if (q && !`${s.titulo} ${s.descripcion} ${s.solicitante}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function renderSugerencias() {
+  const tb = $('#sug-tabla tbody');
+  if (!tb) return;
+
+  const selA = $('#sug-area');
+  if (selA && !selA.options.length) {
+    const areas = [...new Set((state.sugerencias || []).map(s => s.area).filter(Boolean))].sort();
+    selA.innerHTML = '<option value="">Todas</option>' +
+      areas.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+  }
+
+  const filt = sugerenciasFiltradas();
+  const nuevas = (state.sugerencias || []).filter(s => s.estado === 'nueva').length;
+  $('#sug-resumen').innerHTML = (state.sugerencias || []).length
+    ? `${filt.length} de ${(state.sugerencias || []).length} · <b>${nuevas}</b> sin responder`
+    : '';
+
+  if (!filt.length) {
+    tb.innerHTML = `<tr><td colspan="6" class="empty">${(state.sugerencias || []).length ? 'Sin resultados' : 'Todavía no hay sugerencias. Si algo te complica el día, contalo acá.'}</td></tr>`;
+    return;
+  }
+  const esAdmin = state.profile?.rol === 'admin';
+  tb.innerHTML = filt.map(s => {
+    const e = SUG_ESTADOS[s.estado] || SUG_ESTADOS.nueva;
+    const mia = s.created_by === state.user?.id;
+    return `<tr style="${!s.leida && esAdmin ? 'background:#fffbeb' : ''}">
+      <td class="num mono"><b>#${String(s.numero).padStart(3, '0')}</b></td>
+      <td><b>${esc(s.titulo)}</b>
+        <div class="muted" style="font-size:.76rem;max-width:460px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.descripcion)}</div>
+        ${s.respuesta ? `<div style="font-size:.78rem;margin-top:3px;color:var(--accent)">↳ ${esc(s.respuesta)}</div>` : ''}</td>
+      <td>${esc(s.solicitante)}<div class="muted" style="font-size:.73rem">${fmtFecha(String(s.created_at).slice(0,10))}</div></td>
+      <td style="font-size:.85rem">${esc(s.area)}</td>
+      <td><span class="badge ${e.badge}">${e.txt}</span></td>
+      <td class="actions" style="display:flex;gap:5px;justify-content:flex-end">
+        <button class="btn ghost sm" onclick="verSugerencia('${s.id}')">Ver</button>
+        ${(mia && s.estado === 'nueva') || esAdmin
+          ? `<button class="btn ghost sm" onclick="editarSugerencia('${s.id}')">✎</button>` : ''}
+      </td></tr>`;
+  }).join('');
+}
+
+// Contador en el menú: al admin, las que no leyó
+function renderBadgeSugerencias() {
+  const nav = document.querySelector('.nav-item[data-tab="sugerencias"]');
+  if (!nav) return;
+  nav.querySelector('.badge-sug')?.remove();
+  if (state.profile?.rol !== 'admin') return;
+  const n = sugSinLeer().length;
+  if (!n) return;
+  const b = document.createElement('span');
+  b.className = 'badge-sug';
+  b.textContent = n;
+  b.style.cssText = 'background:var(--warn);color:#fff;font-size:.66rem;padding:1px 7px;' +
+                    'border-radius:10px;margin-left:auto;font-weight:700';
+  b.title = `${n} sugerencia${n === 1 ? '' : 's'} sin leer`;
+  nav.appendChild(b);
+}
+
+window.verSugerencia = async function(id) {
+  const s = (state.sugerencias || []).find(x => x.id === id);
+  if (!s) return;
+  const e = SUG_ESTADOS[s.estado] || SUG_ESTADOS.nueva;
+  const esAdmin = state.profile?.rol === 'admin';
+
+  showModal(`<div class="modal-head"><h3>#${String(s.numero).padStart(3, '0')} · ${esc(s.titulo)}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="hint" style="margin-bottom:10px">
+        <b>${esc(s.solicitante)}</b> · ${esc(s.area)} · ${fmtFechaHora(s.created_at)}
+        <span class="badge ${e.badge}" style="margin-left:6px">${e.txt}</span>
+      </div>
+      <div style="background:var(--surface-2);border-radius:var(--radius);padding:10px 12px;white-space:pre-wrap;font-size:.9rem">${esc(s.descripcion)}</div>
+      ${esAdmin ? `
+        <div class="field" style="margin-top:14px"><label>Estado</label><select id="sug-e">
+          ${Object.entries(SUG_ESTADOS).map(([k, v]) => `<option value="${k}" ${s.estado === k ? 'selected' : ''}>${v.txt}</option>`).join('')}
+        </select></div>
+        <div class="field"><label>Respuesta</label>
+          <textarea id="sug-r" rows="3" placeholder="Qué se va a hacer, o por qué no">${esc(s.respuesta || '')}</textarea></div>`
+      : s.respuesta ? `<div style="margin-top:12px"><b style="font-size:.85rem">Respuesta</b>
+          <div style="background:var(--accent-soft);border-radius:var(--radius);padding:10px 12px;margin-top:4px;white-space:pre-wrap;font-size:.88rem">${esc(s.respuesta)}</div></div>` : ''}
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cerrar</button>
+      ${esAdmin ? '<button class="btn accent" id="sug-guardar">Guardar</button>' : ''}
+    </div>`);
+
+  // Al abrirla, el admin la da por leída
+  if (esAdmin && !s.leida) {
+    await sb.from('sugerencias').update({ leida: true }).eq('id', id);
+    s.leida = true;
+    renderBadgeSugerencias();
+  }
+
+  $('#sug-guardar')?.addEventListener('click', async () => {
+    const { error } = await sb.from('sugerencias').update({
+      estado: $('#sug-e').value,
+      respuesta: $('#sug-r').value.trim() || null,
+    }).eq('id', id);
+    if (error) { toast(mensajeError(error), 'err'); return; }
+    closeModal();
+    toast(`#${String(s.numero).padStart(3, '0')} actualizada`, 'ok');
+    await loadSugerencias(); renderSugerencias(); renderBadgeSugerencias();
+  });
+};
+
+window.editarSugerencia = function(id) {
+  const s = id ? (state.sugerencias || []).find(x => x.id === id) || {} : {};
+  const nueva = !id;
+  const areas = ['Administración', 'Finanzas', 'Legales', 'Ventas', 'SAC', 'Sistemas', 'Otra'];
+  // El área y el nombre salen del perfil, pero se pueden corregir: a veces
+  // se carga un pedido en nombre de un compañero.
+  const areaPerfil = nueva ? (state.profile?.area || '') : s.area;
+  const areaCap = areaPerfil ? areaPerfil.charAt(0).toUpperCase() + areaPerfil.slice(1) : '';
+
+  showModal(`<div class="modal-head"><h3>${nueva ? 'Nueva sugerencia' : `Editar #${String(s.numero).padStart(3, '0')}`}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field"><label>Solicitante</label>
+          <input type="text" id="sg-sol" value="${esc(nueva ? (state.profile?.nombre || state.profile?.usuario || '') : s.solicitante)}"></div>
+        <div class="field" style="max-width:190px"><label>Área</label><select id="sg-area">
+          ${areas.map(a => `<option value="${a}" ${a.toLowerCase() === String(areaCap).toLowerCase() ? 'selected' : ''}>${a}</option>`).join('')}
+        </select></div>
+      </div>
+      <div class="field"><label>Título</label>
+        <input type="text" id="sg-tit" value="${esc(s.titulo || '')}" placeholder="En una línea, qué haría falta"></div>
+      <div class="field"><label>Descripción</label>
+        <textarea id="sg-desc" rows="6" placeholder="Contá qué estás haciendo hoy, qué te complica y qué te gustaría que pasara.">${esc(s.descripcion || '')}</textarea>
+        <div class="hint">Cuanto más concreto, mejor. Un ejemplo real de un caso que te pasó vale más que una descripción general.</div></div>
+    </div>
+    <div class="modal-foot">
+      ${!nueva ? `<button class="btn ghost" onclick="borrarSugerencia('${id}')" style="color:var(--err);margin-right:auto">Eliminar</button>` : ''}
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" id="sg-save" onclick="guardarSugerencia(${nueva ? 'null' : `'${id}'`})">${nueva ? 'Enviar' : 'Guardar'}</button>
+    </div>`);
+};
+
+window.guardarSugerencia = async function(id) {
+  const solicitante = $('#sg-sol').value.trim();
+  const titulo = $('#sg-tit').value.trim();
+  const descripcion = $('#sg-desc').value.trim();
+  if (!solicitante) { toast('Falta el solicitante', 'warn'); return; }
+  if (!titulo) { toast('Falta el título', 'warn'); $('#sg-tit').focus(); return; }
+  if (descripcion.length < 15) { toast('Contá un poco más en la descripción', 'warn'); $('#sg-desc').focus(); return; }
+
+  const payload = { solicitante, area: $('#sg-area').value, titulo, descripcion };
+  const btn = $('#sg-save');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  let error, numero;
+  if (id) {
+    ({ error } = await sb.from('sugerencias').update(payload).eq('id', id));
+  } else {
+    // leida en false es lo que la hace aparecer en el contador del admin
+    const { data, error: e2 } = await sb.from('sugerencias')
+      .insert({ ...payload, created_by: state.user.id, leida: false })
+      .select('numero').single();
+    error = e2; numero = data?.numero;
+  }
+  if (error) { toast(mensajeError(error), 'err'); btn.disabled = false; btn.textContent = id ? 'Guardar' : 'Enviar'; return; }
+  closeModal();
+  toast(id ? 'Sugerencia actualizada'
+           : `Sugerencia #${String(numero ?? '').padStart(3, '0')} enviada. Te vamos a responder por acá.`, 'ok');
+  await loadSugerencias(); renderSugerencias(); renderBadgeSugerencias();
+};
+
+window.borrarSugerencia = async function(id) {
+  const s = (state.sugerencias || []).find(x => x.id === id);
+  if (!await confirmAction(`¿Eliminar la sugerencia #${String(s?.numero).padStart(3, '0')}?`)) return;
+  const { error } = await sb.from('sugerencias').delete().eq('id', id);
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  closeModal();
+  toast('Sugerencia eliminada', 'ok');
+  await loadSugerencias(); renderSugerencias(); renderBadgeSugerencias();
+};
+
+if ($('#sug-tabla')) {
+  $('#sug-add').addEventListener('click', () => editarSugerencia(null));
+  ['#sug-estado', '#sug-area'].forEach(x => $(x).addEventListener('change', renderSugerencias));
+  $('#sug-buscar').addEventListener('input', renderSugerencias);
+}
+
+// =================================================================
 // MAILS · lee la bandeja de Outlook y la agrupa por reglas
 // =================================================================
 // Los mensajes NO se guardan: se piden a Graph, se clasifican en el
@@ -11829,7 +12075,7 @@ let realtimeActivo = false;
 function subscribeChanges() {
   if (realtimeActivo) return;   // evita canales duplicados
   realtimeActivo = true;
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','transferencias_archivo','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches','mail_reglas'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','transferencias_archivo','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches','mail_reglas','sugerencias'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -11861,6 +12107,7 @@ function subscribeChanges() {
         if (tabla==='icc_cotizaciones_enviadas') { await loadIccEnviadas(); renderIccEnviadas(); }
         if (tabla==='speeches') { await loadSpeeches(); renderSpeeches(); pintarSpeeches(); }
         if (tabla==='mail_reglas') { await loadMailReglas(); renderMails(); }
+        if (tabla==='sugerencias') { await loadSugerencias(); renderSugerencias(); renderBadgeSugerencias(); }
         if (tabla==='retiros_personas') { await loadRetirosPersonas(); renderPersonasRetiros(); }
       })
       .subscribe();
@@ -11872,7 +12119,8 @@ function subscribeChanges() {
 // =================================================================
 // subscribeChanges() se llama desde afterLogin(), que corre tanto en el
 // login manual como en la restauración de sesión.
-initAuth();
+// Sin credenciales válidas no hay cliente: se queda en el aviso de config
+if (sb) initAuth();
 
 </script>
 </body>
