@@ -7302,13 +7302,31 @@ if ($('#ta-tabla')) {
     if (!filas.length) { toast('Nada para exportar', 'warn'); return; }
     const k = $('#ta-periodo').value;
     const [a, m] = k ? k.split('-').map(Number) : [0, 0];
-    exportarExcel(filas.map(t => ({
-      Fecha: fmtFecha(t.fecha),
-      Descripcion: t.descripcion,
-      Importe: Number(t.importe),
-      Banco: t.banco || '',
-      Cuenta: t.cuenta || '',
-    })), k ? `Archivo ${MESES[m - 1]} ${a}` : 'Archivo transferencias');
+
+    let identificadas = 0;
+    const datos = filas.map(t => {
+      // Se identifica contra los identificadores de HOY: una transferencia
+      // vieja puede salir identificada si el identificador se cargó después.
+      const id = identificarTransferencia(t.descripcion);
+      if (id) identificadas++;
+      // El archivo guarda banco y cuenta como texto pero no la moneda, así
+      // que se busca por cuenta_id. Si la cuenta se borró, queda vacía.
+      const cta = (state.bancosCuentas || []).find(c => c.id === t.cuenta_id);
+      return {
+        'Fecha': fmtFecha(t.fecha),
+        'Quién transfiere': nombreDeDescripcion(t.descripcion),
+        'Monto': Number(t.importe),
+        'Banco': t.banco || '',
+        'Moneda': cta ? cta.moneda : '',
+        'Se imputa a': id ? id.titular : '',
+        'Barrio': (id && id.empr) ? id.empr : '',
+        'N° cliente': (id && id.nc) ? String(id.nc) : '',
+        'Cuenta': t.cuenta || '',
+        'Descripción': t.descripcion,
+      };
+    });
+    exportarExcel(datos, k ? `Archivo ${MESES[m - 1]} ${a}` : 'Archivo transferencias');
+    toast(`${filas.length} movimientos · ${identificadas} con identificador`, 'ok');
   });
 }
 
