@@ -1833,7 +1833,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:4px">
             <h3 style="margin:0">Plano de la biblioteca</h3>
             <div style="display:flex;gap:6px;align-items:center">
-              <input type="text" id="bib-buscar" placeholder="Buscar barrio, lote o cliente" style="width:auto;min-width:220px;padding:5px 8px;font-size:.82rem">
+              <input type="text" id="bib-buscar" placeholder="Buscar barrio, lote o quién lo retiró" style="width:auto;min-width:220px;padding:5px 8px;font-size:.82rem">
               <button class="btn ghost sm" id="bib-ubicar" style="display:none">+ Ubicar emprendimiento</button>
             </div>
           </div>
@@ -12686,56 +12686,15 @@ window.bibDesasignar = async function(retiroId) {
 };
 
 // ---------- Buscador ----------
-// Busca en los emprendimientos del plano, en los boletos cargados y en los
-// retiros. Los retiros entran aparte porque la tabla de boletos sólo tiene
-// los que pasaron por Sellos: si buscás un inmueble que salió, lo encuentra
-// igual aunque no tenga boleto cargado.
-
-// Índice de boletos con su barrio resuelto. Se rearma sólo si cambió algo,
-// para no recalcularlo en cada tecla.
-let _bibIdx = null, _bibIdxClave = '';
-function bibIndice() {
-  const clave = `${(state.boletos || []).length}|${(state.cuentasRentas || []).length}`;
-  if (_bibIdx && _bibIdxClave === clave) return _bibIdx;
-  const porCuenta = {};
-  (state.cuentasRentas || []).forEach(c => { porCuenta[c.num_cuenta] = c.barrio; });
-  _bibIdx = (state.boletos || []).map(b => {
-    const barrio = porCuenta[b.num_cuenta] || '';
-    return { b, barrio, tok: bibTokens(`${b.propietario || ''} ${b.unidad || ''} ${barrio}`) };
-  });
-  _bibIdxClave = clave;
-  return _bibIdx;
-}
-
-// En qué lugar del plano cae un boleto: por barrio, o por el nombre del
-// emprendimiento adentro de la unidad.
-function bibLugarDeBoleto(it) {
-  const lugares = state.biblioteca || [];
-  const nb = normalizarNombre(it.barrio);
-  let l = nb ? lugares.find(x => normalizarNombre(x.emprendimiento) === nb) : null;
-  if (!l) {
-    const nu = normalizarNombre(it.b.unidad || '');
-    l = lugares.find(x => nu.includes(normalizarNombre(x.emprendimiento)));
-  }
-  return l || null;
-}
+// Busca SÓLO en lo que vive en la biblioteca: los emprendimientos ubicados
+// en el plano y los retiros de documentación. NO toca la tabla de boletos
+// de Impuesto de sellos: ahí están únicamente los que se cargaron desde la
+// app, así que mezclarlos hacía aparecer un par de resultados sueltos que
+// no dicen nada sobre lo que hay en el estante.
 
 function bibLugarDeEmpr(nombre) {
   const n = normalizarNombre(nombre);
   return (state.biblioteca || []).find(l => normalizarNombre(l.emprendimiento) === n) || null;
-}
-
-// ¿Ese boleto puntual está afuera? El retiro tiene que nombrar la misma
-// unidad (y el barrio, si se sabe cuál es).
-function bibRetiroDe(it) {
-  const uni = bibTokens(it.b.unidad || '');
-  if (!uni.length) return null;
-  const nb = normalizarNombre(it.barrio);
-  return bibPendientes().find(r => {
-    if (nb && !normalizarNombre(r.inmueble || '').includes(nb)) return false;
-    const rt = bibTokens(r.inmueble || '');
-    return uni.every(t => rt.includes(t));
-  }) || null;
 }
 
 function bibBuscar(q) {
@@ -12755,9 +12714,10 @@ function bibBuscar(q) {
     hallazgos.push({ p: p + 2, lugar: l, html: `<b>${esc(l.emprendimiento)}</b> → ${lugarTxt(l)}` });
   });
 
-  // 2) Retiros: lo que está afuera, esté o no cargado como boleto
+  // 2) Retiros: lo que salió de la biblioteca. Se busca también por quién
+  // lo retiró, para poder preguntar "¿qué se llevó la escribanía?".
   (state.retiros || []).forEach(r => {
-    const p = bibPuntaje(toks, bibTokens(r.inmueble || ''));
+    const p = bibPuntaje(toks, bibTokens(`${r.inmueble || ''} ${r.persona_retira_nombre || ''}`));
     if (!p) return;
     const clave = 'R' + normalizarNombre(r.inmueble);
     if (yaDicho.has(clave)) return;
@@ -12772,31 +12732,6 @@ function bibBuscar(q) {
     hallazgos.push({ p: p + (r.estado === 'retirado' ? 1 : 0), lugar: l, html: txt });
   });
 
-  // 3) Boletos cargados: cliente, unidad o barrio, en cualquier orden
-  bibIndice().forEach(it => {
-    const p = bibPuntaje(toks, it.tok);
-    if (!p) return;
-    const clave = 'B' + normalizarNombre(`${it.b.propietario} ${it.b.unidad}`);
-    if (yaDicho.has(clave)) return;
-    yaDicho.add(clave);
-
-    const l = bibLugarDeBoleto(it);
-    const ret = bibRetiroDe(it);
-    let txt = `<b>${esc(it.b.propietario || '—')}</b> · ${esc(it.b.unidad || '')}`;
-    if (l) {
-      _bibResaltados.add(bibClave(l.pasillo, l.costado));
-      txt += ` → ${esc(l.emprendimiento)}, ${lugarTxt(l)}`;
-    } else if (it.barrio) {
-      txt += ` → ${esc(it.barrio)}: ese barrio todavía no está ubicado en el plano`;
-    } else {
-      txt += ` → sin barrio cargado, no se puede ubicar`;
-    }
-    if (ret) {
-      txt += `<br><span style="color:var(--err)">⚠ está afuera: lo retiró ${esc(ret.persona_retira_nombre || '—')} hace ${bibDias(ret.fecha_retiro)}</span>`;
-    }
-    hallazgos.push({ p, lugar: l, html: txt });
-  });
-
   hallazgos.sort((a, b) => b.p - a.p);
   const muestra = hallazgos.slice(0, 8);
 
@@ -12806,7 +12741,7 @@ function bibBuscar(q) {
         ? `<div class="bib-hit" onclick="bibSeleccionar(${h.lugar.pasillo},'${h.lugar.costado}')">${h.html}</div>`
         : `<div class="bib-hit">${h.html}</div>`).join('') +
       (hallazgos.length > muestra.length ? `<div class="bib-hit muted">y ${hallazgos.length - muestra.length} más</div>` : '')
-    : 'Sin resultados. Probá con el apellido, el barrio o el número de lote.';
+    : 'Sin resultados. Acá se busca el barrio y lo que figura en Retiro de documentación: probá con el barrio, el lote o quién lo retiró.';
 
   // Si todo cae en un solo lugar, se abre directo
   if (_bibResaltados.size === 1) {
