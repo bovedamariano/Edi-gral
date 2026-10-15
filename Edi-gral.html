@@ -117,6 +117,52 @@ aside.sidebar{
 #btn-speeches.abierto{background:var(--ink)}
 #btn-speeches.on{display:flex}
 @media print{#btn-speeches{display:none !important}}
+.ti-graf{margin-bottom:14px}
+.ti-tit{font-size:.78rem;font-weight:700;color:var(--ink-2);text-transform:uppercase;
+  letter-spacing:.04em;margin-bottom:4px}
+.ti-tit .ti-sub{font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)}
+.ti-cont{position:relative;width:100%}
+.ti-cont svg{display:block;width:100%;height:auto;overflow:visible}
+.ti-bar{fill:var(--accent);transition:opacity .12s}
+.ti-cont:hover .ti-bar{opacity:.55}
+.ti-cont .ti-bar:hover,.ti-cont .ti-hit:hover + .ti-bar{opacity:1}
+.ti-hit{fill:transparent;cursor:default}
+.ti-grid{stroke:var(--line);stroke-width:1;shape-rendering:crispEdges}
+.ti-ax{font-size:10px;fill:var(--ink-3);font-family:var(--font)}
+.ti-val{font-size:10px;fill:var(--ink-2);font-weight:700;font-family:var(--font)}
+.ti-tip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;
+  font-size:.74rem;padding:6px 10px;border-radius:6px;white-space:nowrap;opacity:0;
+  transition:opacity .12s;z-index:5;transform:translate(-50%,-100%);line-height:1.45;
+  max-width:280px;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.ti-tip.on{opacity:1}
+.ti-out{fill:var(--ink-3)}
+.ti-tip-extra{border-top:1px solid rgba(255,255,255,.22);margin-top:4px;padding-top:4px;
+  font-size:.7rem;opacity:.92;max-width:270px;white-space:normal}
+.ti-tip-pie{font-size:.65rem;opacity:.6;margin-top:3px}
+.ti-vacio{text-align:center;padding:26px 10px;color:var(--ink-3);font-size:.84rem}
+/* ===== Plano de la biblioteca ===== */
+#bib-plano svg{display:block;min-width:720px;width:100%;height:auto;font-family:var(--font)}
+.bib-piso{fill:var(--bg);stroke:var(--line-2)}
+.bib-paso{stroke:var(--line);stroke-width:1;stroke-dasharray:5 6;opacity:.8}
+.bib-est{fill:var(--surface);stroke:var(--line);stroke-width:1.5;cursor:pointer;transition:fill .12s}
+.bib-est.lleno{fill:var(--accent-soft);stroke:var(--accent-2)}
+.bib-est.falta{stroke:var(--err);stroke-width:2}
+.bib-est.sel{fill:var(--accent);stroke:var(--accent)}
+.bib-est.hit:hover{fill:var(--accent-2);fill-opacity:.35}
+.bib-est.buscado{stroke:var(--warn);stroke-width:3}
+.bib-nom{font-size:10px;fill:var(--ink-2);pointer-events:none;font-weight:600}
+.bib-nom.sel{fill:#fff}
+.bib-cant{font-size:9px;fill:var(--ink-3);pointer-events:none}
+.bib-cant.sel{fill:#fff;opacity:.85}
+.bib-pas{font-size:11px;fill:var(--ink-3);font-weight:700;pointer-events:none}
+.bib-vacio{font-size:10px;fill:var(--ink-3);opacity:.7;pointer-events:none}
+.bib-punto{fill:var(--err);pointer-events:none}
+.bib-ref{display:inline-flex;align-items:center;gap:5px}
+.bib-hit{padding:5px 8px;border-radius:6px;line-height:1.4}
+.bib-hit+.bib-hit{border-top:1px solid var(--line-2)}
+.bib-hit[onclick]{cursor:pointer}
+.bib-hit[onclick]:hover{background:var(--accent-soft)}
+.bib-ref i{width:13px;height:13px;border-radius:3px;display:inline-block;border:1.5px solid var(--line)}
 .chk-cobro{width:20px;height:20px;margin:0;cursor:pointer;accent-color:var(--ok);vertical-align:middle}
 .nav-section{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#7a7464;margin:18px 6px 4px}
 /* ===== Campanita de tareas por vencer ===== */
@@ -1612,6 +1658,57 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         </div>
       </div>
 
+      <!-- ===== INDICADORES ===== -->
+      <div class="card" id="tb-ind-card" style="margin-top:18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;flex-wrap:wrap;gap:8px">
+          <h3 style="margin:0">Indicadores</h3>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="ti-cuenta" style="width:auto;min-width:150px;padding:5px 8px;font-size:.82rem"></select>
+            <select id="ti-meses" style="width:auto;padding:5px 8px;font-size:.82rem">
+              <option value="6">Últimos 6 meses</option>
+              <option value="12" selected>Últimos 12 meses</option>
+              <option value="0">Todos</option>
+            </select>
+          </div>
+        </div>
+        <p class="sub" style="margin-bottom:14px">Sobre el archivo mensual. Los dólares se pasan a pesos con el comprador del BNA del día.</p>
+
+        <div id="ti-aviso" class="hint" style="margin-bottom:10px"></div>
+
+        <!-- Evolución mes a mes: dos gráficos apilados para poder compararlos -->
+        <div class="ti-graf">
+          <div class="ti-tit">Transferencias por mes</div>
+          <div class="ti-cont" id="ti-g-cant"></div>
+        </div>
+        <div class="ti-graf">
+          <div class="ti-tit">Monto por mes <span class="ti-sub">en pesos</span></div>
+          <div class="ti-cont" id="ti-g-monto"></div>
+        </div>
+
+        <div style="border-top:1px solid var(--line);margin:18px 0 14px"></div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:8px">
+          <h3 style="margin:0;font-size:1rem">Dentro del mes</h3>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="ti-mes" style="width:auto;min-width:150px;padding:5px 8px;font-size:.82rem"></select>
+            <select id="ti-agrup" style="width:auto;padding:5px 8px;font-size:.82rem">
+              <option value="dia">Por día</option>
+              <option value="semana" selected>Por semana</option>
+              <option value="quincena">Por quincena</option>
+              <option value="decena">Por decena</option>
+            </select>
+          </div>
+        </div>
+        <div class="ti-graf">
+          <div class="ti-tit">Transferencias</div>
+          <div class="ti-cont" id="ti-g-cant-mes"></div>
+        </div>
+        <div class="ti-graf">
+          <div class="ti-tit">Monto <span class="ti-sub">en pesos</span></div>
+          <div class="ti-cont" id="ti-g-monto-mes"></div>
+        </div>
+      </div>
+
       <!-- ===== ARCHIVO MENSUAL ===== -->
       <div class="card" style="margin-top:18px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;flex-wrap:wrap;gap:8px">
@@ -1621,12 +1718,13 @@ details[open] .ident-toggle{transform:rotate(180deg)}
             <select id="ta-cuenta" style="width:auto;min-width:150px;padding:5px 8px;font-size:.82rem"></select>
             <input type="text" id="ta-buscar" placeholder="Buscar" style="width:auto;min-width:150px;padding:5px 8px;font-size:.82rem">
             <button class="btn ghost sm" id="ta-excel">↓ Excel</button>
+            <button class="btn ghost sm" id="ta-correcciones" title="Qué se corrigió o se borró del archivo">📝 Correcciones</button>
           </div>
         </div>
         <p class="sub" style="margin-bottom:12px">Copia permanente de todo lo importado. No se borra a los 5 días.</p>
         <div id="ta-resumen" class="hint" style="margin-bottom:10px"></div>
         <div class="tbl-wrap" style="max-height:420px;overflow:auto"><table class="tbl" id="ta-tabla">
-          <thead><tr><th>Fecha</th><th>Descripción</th><th class="num">Importe</th><th>Cuenta</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Descripción</th><th class="num">Importe</th><th>Cuenta</th><th id="ta-th-acc" style="display:none"></th></tr></thead>
           <tbody></tbody>
         </table></div>
       </div>
@@ -1638,6 +1736,13 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <div><h1>Retiro de documentación</h1><p>Registro de documentos que salen físicamente de la oficina</p></div>
         <button class="btn accent" id="retiro-add">+ Nuevo retiro</button>
       </div>
+
+      <div class="tabs">
+        <button class="tab active" data-subtab="ret-listado">Retiros</button>
+        <button class="tab" data-subtab="ret-biblioteca">🗺 Biblioteca</button>
+      </div>
+
+      <div class="subtab-content" id="ret-listado">
 
       <!-- Card alerta atrasados (más de 5 días) -->
       <div class="card" id="retiros-alerta-card" style="display:none;border-left:3px solid var(--err);background:#fef2f2;margin-bottom:14px">
@@ -1701,6 +1806,44 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           </tr></thead>
           <tbody></tbody>
         </table></div>
+      </div>
+      </div><!-- /ret-listado -->
+
+      <!-- ===== BIBLIOTECA · plano de los 6 pasillos ===== -->
+      <div class="subtab-content" id="ret-biblioteca" style="display:none">
+
+        <div class="card" id="bib-falta-card" style="display:none;border-left:3px solid var(--err);background:#fef2f2;margin-bottom:14px">
+          <h3 style="display:flex;align-items:center;gap:8px;color:var(--err);margin:0">⚠ Atención · boletos que no están en la biblioteca
+            <span id="bib-falta-badge" style="background:var(--err);color:#fff;font-size:.7rem;padding:2px 8px;border-radius:12px">0</span></h3>
+          <p class="sub" style="margin:4px 0 0">Están retirados y todavía no volvieron. Todo lo demás está en el estante. Tocá un lugar del plano para ver cuáles.</p>
+        </div>
+
+        <!-- Lo que no cayó solo en ningún lugar: tiene que quedar en cero -->
+        <div class="card" id="bib-sinubic-card" style="display:none;border-left:3px solid var(--warn);background:#fffbeb;margin-bottom:14px">
+          <h3 style="display:flex;align-items:center;gap:8px;color:#92400e;margin:0">⚠ Sin identificar
+            <span id="bib-sinubic-badge" style="background:var(--warn);color:#fff;font-size:.7rem;padding:2px 8px;border-radius:12px">0</span></h3>
+          <p class="sub" style="margin:4px 0 8px">Estos retiros no se pudieron ubicar solos. Elegí el lugar que corresponde y queda fijo para ese retiro.</p>
+          <div class="tbl-wrap"><table class="tbl" id="bib-sinubic-tabla">
+            <thead><tr><th>Inmueble</th><th>Lo retiró</th><th>¿De qué lugar es?</th><th class="actions"></th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:4px">
+            <h3 style="margin:0">Plano de la biblioteca</h3>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="text" id="bib-buscar" placeholder="Buscar barrio, lote o cliente" style="width:auto;min-width:220px;padding:5px 8px;font-size:.82rem">
+              <button class="btn ghost sm" id="bib-ubicar" style="display:none">+ Ubicar emprendimiento</button>
+            </div>
+          </div>
+          <p class="sub" style="margin-bottom:10px">6 pasillos con estantería de los dos costados. Tocá un costado para ver qué guarda.</p>
+          <div id="bib-aviso" class="hint" style="margin-bottom:8px"></div>
+          <div id="bib-plano" style="overflow-x:auto"></div>
+          <div id="bib-leyenda" class="hint" style="margin-top:6px;display:flex;gap:16px;flex-wrap:wrap;align-items:center"></div>
+        </div>
+
+        <div class="card" id="bib-detalle" style="margin-top:14px"></div>
       </div>
     </section>
     <section class="tab-content" id="tab-mails" style="display:none">
@@ -2380,7 +2523,7 @@ async function afterLogin() {
   await Promise.all([
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
-    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadCocheras(),
+    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadBiblioteca(), loadBibAsignaciones(), loadCocheras(),
     loadBancosCuentas(), loadTransferenciasBanco(), loadTransfArchivo(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(), loadMailReglas(), loadSugerencias(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
@@ -2596,9 +2739,9 @@ function switchTab(tab) {
   }
   if (tab === 'audit') loadAudit();
   if (tab === 'ajustes') loadUsers();
-  if (tab === 'retiros') renderRetiros();
+  if (tab === 'retiros') { renderRetiros(); renderBiblioteca(); }
   if (tab === 'cocheras') renderCocheras();
-  if (tab === 'transferencias') { llenarSelectoresTB(); renderTransfBanco(); renderDashTransf(); renderArchivoTransf(); }
+  if (tab === 'transferencias') { llenarSelectoresTB(); renderTransfBanco(); renderDashTransf(); renderArchivoTransf(); renderIndicadores(); }
   if (tab === 'cotizacion') renderCotizDia();
   if (tab === 'icc') { renderDeuda(); renderIccEnviadas(); }
   if (tab === 'papeles') renderPapeles();
@@ -2629,6 +2772,7 @@ document.addEventListener('click', e => {
     container.querySelector('#' + e.target.dataset.subtab).style.display = 'block';
     // Triggers específicos al abrir subtab
     if (e.target.dataset.subtab === 'aj-personas-retiros') renderPersonasRetiros();
+    if (e.target.dataset.subtab === 'ret-biblioteca') renderBiblioteca();
   }
 });
 
@@ -7217,6 +7361,379 @@ function exportarUvis() {
 }
 
 // =================================================================
+// INDICADORES DE TRANSFERENCIAS
+// =================================================================
+// Se calculan sobre transferencias_archivo, que es la copia permanente:
+// las pendientes se purgan a los 5 días, así que es la única serie
+// histórica confiable.
+
+// Cotización del día, o la del día hábil anterior más cercano. Un pago de
+// un sábado no tiene cotización propia: corresponde la del viernes.
+function usdCompraDe(fecha) {
+  const porFecha = {};
+  (state.cotizacionesBna || []).forEach(c => { porFecha[c.fecha] = Number(c.compra); });
+  if (porFecha[fecha] > 0) return porFecha[fecha];
+  const d = new Date(fecha + 'T00:00:00');
+  for (let i = 1; i <= 10; i++) {
+    d.setDate(d.getDate() - 1);
+    const k = d.toISOString().slice(0, 10);
+    if (porFecha[k] > 0) return porFecha[k];
+  }
+  return null;
+}
+
+// Devuelve { pesos, problema }. problema != null cuando no se pudo convertir:
+// la fila se cuenta en la cantidad pero no en el monto, y se avisa.
+function montoEnPesos(t) {
+  const cta = (state.bancosCuentas || []).find(c => c.id === t.cuenta_id);
+  const imp = Number(t.importe) || 0;
+  if (!cta) return { pesos: imp, problema: 'cuenta' };   // se asume pesos
+  if (cta.moneda === 'ARS') return { pesos: imp, problema: null };
+  if (cta.moneda === 'USD') {
+    const c = usdCompraDe(t.fecha);
+    return c ? { pesos: imp * c, problema: null } : { pesos: 0, problema: 'sin cotización' };
+  }
+  return { pesos: 0, problema: cta.moneda };             // UVI u otra
+}
+
+function tiFiltrado() {
+  const cta = $('#ti-cuenta')?.value || '';
+  return (state.transfArchivo || []).filter(t =>
+    !cta || `${t.banco || '?'} · ${t.cuenta || '?'}` === cta);
+}
+
+// ---------- Agregaciones ----------
+function tiPorMes() {
+  const lim = Number($('#ti-meses')?.value || 12);
+  const acc = {};
+  let sinCotiz = 0, sinCuenta = 0;
+  tiFiltrado().forEach(t => {
+    const k = `${t.anio}-${String(t.mes).padStart(2, '0')}`;
+    acc[k] = acc[k] || { cant: 0, monto: 0, items: [] };
+    acc[k].cant++;
+    const { pesos, problema } = montoEnPesos(t);
+    acc[k].monto += pesos;
+    acc[k].items.push({ ...t, pesos });
+    if (problema === 'sin cotización') sinCotiz++;
+    else if (problema === 'cuenta') sinCuenta++;
+  });
+  let claves = Object.keys(acc).sort();
+  if (lim) claves = claves.slice(-lim);
+  return {
+    datos: claves.map(k => {
+      const [a, m] = k.split('-').map(Number);
+      return { etiqueta: MESES[m - 1].slice(0, 3), detalle: `${MESES[m - 1]} ${a}`,
+               clave: k, ...acc[k] };
+    }),
+    sinCotiz, sinCuenta,
+  };
+}
+
+// Los tramos no dependen del día de la semana: así el mismo día del mes cae
+// siempre en el mismo tramo y los meses se pueden comparar entre sí.
+function tramoDelMes(dia, modo, ultimo) {
+  if (modo === 'dia') return { i: dia, et: String(dia), det: `Día ${dia}` };
+  if (modo === 'quincena') return dia <= 15
+    ? { i: 1, et: '1ª quincena', det: 'Del 1 al 15' }
+    : { i: 2, et: '2ª quincena', det: `Del 16 al ${ultimo}` };
+  if (modo === 'decena') {
+    if (dia <= 10) return { i: 1, et: '1 a 10', det: 'Del 1 al 10' };
+    if (dia <= 20) return { i: 2, et: '11 a 20', det: 'Del 11 al 20' };
+    return { i: 3, et: `21 a ${ultimo}`, det: `Del 21 al ${ultimo}` };
+  }
+  const s = Math.min(5, Math.ceil(dia / 7));
+  const desde = (s - 1) * 7 + 1, hasta = Math.min(s * 7, ultimo);
+  return { i: s, et: `Sem ${s}`, det: `Semana ${s} · del ${desde} al ${hasta}` };
+}
+
+function tiEnElMes() {
+  const k = $('#ti-mes')?.value || '';
+  const modo = $('#ti-agrup')?.value || 'semana';
+  if (!k) return { datos: [], etiqueta: '' };
+  const [anio, mes] = k.split('-').map(Number);
+  const ultimo = new Date(anio, mes, 0).getDate();
+
+  const acc = {};
+  tiFiltrado().filter(t => t.anio === anio && t.mes === mes).forEach(t => {
+    const dia = Number(String(t.fecha).slice(8, 10));
+    const tr = tramoDelMes(dia, modo, ultimo);
+    acc[tr.i] = acc[tr.i] || { cant: 0, monto: 0, et: tr.et, det: tr.det, items: [] };
+    acc[tr.i].cant++;
+    const pesos = montoEnPesos(t).pesos;
+    acc[tr.i].monto += pesos;
+    acc[tr.i].items.push({ ...t, pesos });
+  });
+
+  // Los tramos sin movimientos se dibujan igual, en cero: un hueco es un dato
+  const total = modo === 'dia' ? ultimo
+    : modo === 'quincena' ? 2 : modo === 'decena' ? 3 : Math.ceil(ultimo / 7);
+  const datos = [];
+  for (let i = 1; i <= total; i++) {
+    const tr = acc[i] || tramoDelMes(modo === 'dia' ? i : (i - 1) * (modo === 'quincena' ? 15 : modo === 'decena' ? 10 : 7) + 1, modo, ultimo);
+    datos.push({ etiqueta: acc[i]?.et ?? tr.et, detalle: acc[i]?.det ?? tr.det,
+                 cant: acc[i]?.cant || 0, monto: acc[i]?.monto || 0,
+                 items: acc[i]?.items || [] });
+  }
+  return { datos, etiqueta: `${MESES[mes - 1]} ${anio}` };
+}
+
+// ---------- Dibujo ----------
+// dec: cuántos decimales. Si no se pasa, se eligen por el tamaño del número.
+// En un eje conviene fijarlos una vez para que no salga "5,0M" junto a "10M".
+function fmtCompacto(n, dec) {
+  const v = Math.abs(n);
+  if (v >= 1e6) return (n / 1e6).toFixed(dec ?? (v >= 1e7 ? 0 : 1)).replace('.', ',') + 'M';
+  if (v >= 1000) return (n / 1000).toFixed(dec ?? (v >= 1e4 ? 0 : 1)).replace('.', ',') + 'K';
+  return String(Math.round(n));
+}
+
+// Decimales que necesita el eje para que ningún tick quede ambiguo
+function decimalesEje(paso) {
+  const u = paso >= 1e6 ? 1e6 : paso >= 1000 ? 1000 : 1;
+  return Number.isInteger(paso / u) ? 0 : 1;
+}
+
+// Se redondea el PASO, no el techo: redondear el techo y dividirlo en cuatro
+// daba saltos de 125M o de 13 en 13. El techo sale del paso.
+function escalaLinda(max, nTicks = 4, entero = false) {
+  if (max <= 0) return { techo: 1, paso: 1 };
+  const crudo = max / nTicks;
+  const mag = Math.pow(10, Math.floor(Math.log10(crudo)));
+  const n = crudo / mag;
+  let paso = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
+  // En un conteo no existe "0,25 transferencias": el paso mínimo es 1
+  if (entero) paso = Math.max(1, Math.round(paso));
+  return { techo: Math.ceil(max / paso) * paso, paso };
+}
+
+// Umbral de barra atípica por el método del boxplot (Q3 + 1,5 × IQR).
+// Con menos de 5 barras con datos no se marca nada: los cuartiles no
+// significan nada y cualquier cosa parecería atípica.
+function umbralAtipico(valores) {
+  const v = valores.filter(x => x > 0).sort((a, b) => a - b);
+  if (v.length < 5) return Infinity;
+  const q = p => {
+    const i = (v.length - 1) * p, lo = Math.floor(i), hi = Math.ceil(i);
+    return v[lo] + (v[hi] - v[lo]) * (i - lo);
+  };
+  const q1 = q(0.25), q3 = q(0.75);
+  return q3 + 1.5 * (q3 - q1);
+}
+
+// Nombre legible de una transferencia: el del identificador si existe,
+// si no el que extrae el extracto.
+function nombreDeTransf(t) {
+  const id = identificarTransferencia(t.descripcion);
+  return id ? id.titular : nombreDeDescripcion(t.descripcion);
+}
+
+// Qué explica el monto de una barra. Devuelve null cuando no hay una causa
+// clara: si el total está repartido entre muchas, la causa es el volumen.
+function causaDeLaBarra(items, total) {
+  if (!items || !items.length || total <= 0) return null;
+  const may = [...items].sort((a, b) => b.pesos - a.pesos)[0];
+  const peso = may.pesos / total;
+  if (peso < 0.35) return null;
+  return { t: may, peso, nombre: nombreDeTransf(may) };
+}
+
+const _tiDatos = {};
+
+function dibujarBarras(contId, datos, opts = {}) {
+  _tiDatos[contId] = { datos, opts };
+  const cont = $('#' + contId);
+  if (!cont) return;
+  if (!datos.length || datos.every(d => !d.valor)) {
+    cont.innerHTML = `<div class="ti-vacio">${opts.vacio || 'Sin datos'}</div>`;
+    return;
+  }
+  const W = 820, H = 190, ML = 54, MR = 10, MT = 14, MB = 30;
+  const ancho = W - ML - MR, alto = H - MT - MB;
+  const max = Math.max(...datos.map(d => d.valor));
+  const { techo, paso } = escalaLinda(max, 4, !!opts.entero);
+  const dec = decimalesEje(paso);
+  const y = v => MT + alto - (v / techo) * alto;
+
+  // Barra de 24px como máximo: el resto de la banda queda como aire,
+  // menos 2px de separación entre vecinas.
+  const banda = ancho / datos.length;
+  const bw = Math.max(3, Math.min(24, banda - 2));
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.aria || 'Gráfico de barras')}">`;
+
+  for (let v = 0; v <= techo + 0.001; v += paso) {
+    svg += `<line class="ti-grid" x1="${ML}" y1="${y(v).toFixed(1)}" x2="${W - MR}" y2="${y(v).toFixed(1)}"></line>`
+         + `<text class="ti-ax" x="${ML - 7}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">${opts.fmtEje ? opts.fmtEje(v, dec) : fmtCompacto(v, dec)}</text>`;
+  }
+
+  const iMax = datos.indexOf(datos.find(d => d.valor === max));
+  const umbral = umbralAtipico(datos.map(d => d.valor));
+  // Con muchas barras se saltean etiquetas del eje para que no se pisen
+  const saltoX = datos.length > 16 ? Math.ceil(datos.length / 12) : 1;
+
+  datos.forEach((d, i) => {
+    const cx = ML + banda * i + banda / 2;
+    const x = cx - bw / 2;
+    const yv = y(d.valor), h = MT + alto - yv;
+    const r = Math.min(4, h);
+    // Extremo superior redondeado y base cuadrada, anclada a la línea de cero
+    const path = h <= 0.5 ? '' :
+      `M${x.toFixed(1)},${(MT + alto).toFixed(1)} L${x.toFixed(1)},${(yv + r).toFixed(1)}`
+      + ` Q${x.toFixed(1)},${yv.toFixed(1)} ${(x + r).toFixed(1)},${yv.toFixed(1)}`
+      + ` L${(x + bw - r).toFixed(1)},${yv.toFixed(1)}`
+      + ` Q${(x + bw).toFixed(1)},${yv.toFixed(1)} ${(x + bw).toFixed(1)},${(yv + r).toFixed(1)}`
+      + ` L${(x + bw).toFixed(1)},${(MT + alto).toFixed(1)} Z`;
+
+    // El área sensible cubre toda la banda: apuntarle a una barra fina es difícil
+    const causa = opts.conCausa ? causaDeLaBarra(d.items, d.valor) : null;
+    const extra = causa
+      ? `${causa.nombre} · $${fmt(causa.t.pesos)} (${Math.round(causa.peso * 100)}% del total)`
+      : (d.items && d.items.length > 1 ? `repartido entre ${d.items.length} transferencias` : '');
+    svg += `<rect class="ti-hit" x="${(cx - banda / 2).toFixed(1)}" y="${MT}" width="${banda.toFixed(1)}" height="${alto}"`
+         + ` data-i="${i}" data-tip="${esc(d.detalle)}|${esc(d.texto)}|${esc(extra)}"`
+         + ` data-cx="${(cx / W * 100).toFixed(2)}" data-cy="${(yv / H * 100).toFixed(2)}"></rect>`;
+    if (path) svg += `<path class="ti-bar" d="${path}"></path>`;
+    // Punto sobre las barras que se salen de lo habitual
+    if (d.valor > umbral && path) {
+      svg += `<circle class="ti-out" cx="${cx.toFixed(1)}" cy="${(yv - 7).toFixed(1)}" r="2.5"></circle>`;
+    }
+
+    if (i % saltoX === 0) {
+      svg += `<text class="ti-ax" x="${cx.toFixed(1)}" y="${H - MB + 16}" text-anchor="middle">${esc(d.etiqueta)}</text>`;
+    }
+    // Sólo se rotula el máximo: un número sobre cada barra no se lee
+    if (i === iMax && d.valor > 0) {
+      svg += `<text class="ti-val" x="${cx.toFixed(1)}" y="${(yv - 5).toFixed(1)}" text-anchor="middle">${esc(d.rotulo ?? d.texto)}</text>`;
+    }
+  });
+
+  svg += '</svg><div class="ti-tip"></div>';
+  cont.innerHTML = svg;
+
+  const tip = cont.querySelector('.ti-tip');
+  cont.querySelectorAll('.ti-hit').forEach(r => {
+    const tieneItems = (datos[+r.dataset.i]?.items || []).length > 0;
+    if (tieneItems) r.style.cursor = 'pointer';
+    r.addEventListener('mouseenter', () => {
+      const [det, val, extra] = r.dataset.tip.split('|');
+      tip.innerHTML = `${esc(det)}<br><b>${esc(val)}</b>`
+        + (extra ? `<div class="ti-tip-extra">${esc(extra)}</div>` : '')
+        + (tieneItems ? '<div class="ti-tip-pie">Tocá para ver el detalle</div>' : '');
+      // Se reacomoda contra los bordes: pegado a la derecha o sobre una barra
+      // alta, el tooltip se cortaba fuera del gráfico.
+      const cx = +r.dataset.cx, cy = +r.dataset.cy;
+      const tx = cx > 70 ? '-100%' : cx < 16 ? '0' : '-50%';
+      const abajo = cy < 32;
+      tip.style.transform = `translate(${tx},${abajo ? '0' : '-100%'})`;
+      tip.style.left = cx + '%';
+      tip.style.top = `calc(${cy}% ${abajo ? '+ 12px' : '- 8px'})`;
+      tip.classList.add('on');
+    });
+    if (tieneItems) r.addEventListener('click', () => verDetalleBarra(contId, +r.dataset.i));
+  });
+  cont.addEventListener('mouseleave', () => tip.classList.remove('on'));
+}
+
+// Detalle de lo que hay detrás de una barra, de mayor a menor: la primera
+// fila suele ser la respuesta a "por qué este día fue tan alto".
+window.verDetalleBarra = function(contId, i) {
+  const g = _tiDatos[contId];
+  const d = g?.datos?.[i];
+  if (!d || !d.items?.length) return;
+
+  const items = [...d.items].sort((a, b) => b.pesos - a.pesos);
+  const total = items.reduce((a, x) => a + x.pesos, 0);
+  const causa = causaDeLaBarra(items, total);
+
+  showModal(`<div class="modal-head"><h3>${esc(d.detalle)}</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="hint" style="margin-bottom:10px">
+        <b>${items.length}</b> ${items.length === 1 ? 'transferencia' : 'transferencias'} · total <b>$${fmt(total)}</b>
+        ${causa ? `<div style="margin-top:6px;color:var(--accent)">La más grande explica el ${Math.round(causa.peso * 100)}% del total</div>` : ''}
+      </div>
+      <div class="tbl-wrap" style="max-height:420px;overflow:auto"><table class="tbl">
+        <thead><tr><th>Fecha</th><th>Quién transfiere</th><th class="num">Monto</th><th class="num">%</th></tr></thead>
+        <tbody>${items.slice(0, 200).map(t => {
+          const p = total > 0 ? t.pesos / total : 0;
+          return `<tr${p >= 0.35 ? ' style="background:var(--accent-soft)"' : ''}>
+            <td style="white-space:nowrap">${fmtFecha(t.fecha)}</td>
+            <td style="max-width:360px">${esc(nombreDeTransf(t))}
+              <div class="muted" style="font-size:.73rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.banco || '')} · ${esc(t.cuenta || '')}</div></td>
+            <td class="num"><b>$${fmt(t.pesos)}</b></td>
+            <td class="num muted">${(p * 100).toFixed(p >= 0.1 ? 0 : 1)}%</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+      ${items.length > 200 ? `<div class="hint" style="margin-top:8px">Mostrando las 200 más grandes de ${items.length}</div>` : ''}
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Cerrar</button></div>`);
+};
+
+// ---------- Orquestación ----------
+function renderIndicadores() {
+  if (!$('#ti-g-cant')) return;
+
+  // Selectores: se llenan una vez y se respeta lo elegido
+  const selC = $('#ti-cuenta');
+  const cuentas = [...new Set((state.transfArchivo || []).map(t => `${t.banco || '?'} · ${t.cuenta || '?'}`))].sort();
+  if (selC.options.length !== cuentas.length + 1) {
+    const prev = selC.value;
+    selC.innerHTML = '<option value="">Todas las cuentas</option>' +
+      cuentas.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    if (cuentas.includes(prev)) selC.value = prev;
+  }
+
+  const selM = $('#ti-mes');
+  const meses = [...new Set((state.transfArchivo || [])
+    .map(t => `${t.anio}-${String(t.mes).padStart(2, '0')}`))].sort().reverse();
+  if (selM.options.length !== meses.length) {
+    const prev = selM.value;
+    selM.innerHTML = meses.length
+      ? meses.map(k => { const [a, m] = k.split('-').map(Number);
+          return `<option value="${k}">${MESES[m - 1]} ${a}</option>`; }).join('')
+      : '<option value="">— sin datos —</option>';
+    if (meses.includes(prev)) selM.value = prev;
+  }
+
+  const { datos, sinCotiz, sinCuenta } = tiPorMes();
+  const avisos = [];
+  if (sinCotiz) avisos.push(`${sinCotiz} en dólares sin cotización del BNA: suman a la cantidad pero no al monto`);
+  if (sinCuenta) avisos.push(`${sinCuenta} de cuentas que ya no están cargadas: se toman como pesos`);
+  $('#ti-aviso').innerHTML = avisos.length
+    ? `<span style="color:var(--warn)">⚠ ${avisos.join(' · ')}</span>` : '';
+
+  dibujarBarras('ti-g-cant', datos.map(d => ({
+    etiqueta: d.etiqueta, detalle: d.detalle, valor: d.cant, items: d.items,
+    texto: `${d.cant} ${d.cant === 1 ? 'transferencia' : 'transferencias'}`,
+    rotulo: String(d.cant),
+  })), { entero: true, aria: 'Cantidad de transferencias por mes', vacio: 'Todavía no hay movimientos archivados' });
+
+  dibujarBarras('ti-g-monto', datos.map(d => ({
+    etiqueta: d.etiqueta, detalle: d.detalle, valor: d.monto, items: d.items,
+    texto: '$' + fmt(d.monto), rotulo: '$' + fmtCompacto(d.monto, d.monto >= 1e6 ? 1 : undefined),
+  })), { conCausa: true, aria: 'Monto por mes en pesos', fmtEje: (v, dec) => '$' + fmtCompacto(v, dec),
+         vacio: 'Sin montos para mostrar' });
+
+  const mes = tiEnElMes();
+  dibujarBarras('ti-g-cant-mes', mes.datos.map(d => ({
+    etiqueta: d.etiqueta, detalle: d.detalle, valor: d.cant, items: d.items,
+    texto: `${d.cant} ${d.cant === 1 ? 'transferencia' : 'transferencias'}`,
+    rotulo: String(d.cant),
+  })), { entero: true, aria: 'Transferencias dentro del mes', vacio: 'Sin movimientos en ese mes' });
+
+  dibujarBarras('ti-g-monto-mes', mes.datos.map(d => ({
+    etiqueta: d.etiqueta, detalle: d.detalle, valor: d.monto, items: d.items,
+    texto: '$' + fmt(d.monto), rotulo: '$' + fmtCompacto(d.monto, d.monto >= 1e6 ? 1 : undefined),
+  })), { conCausa: true, aria: 'Monto dentro del mes', fmtEje: (v, dec) => '$' + fmtCompacto(v, dec),
+         vacio: 'Sin montos en ese mes' });
+}
+
+if ($('#ti-g-cant')) {
+  ['#ti-cuenta', '#ti-meses', '#ti-mes', '#ti-agrup'].forEach(s =>
+    $(s).addEventListener('change', renderIndicadores));
+}
+
+// =================================================================
 // ARCHIVO MENSUAL DE TRANSFERENCIAS
 // =================================================================
 // Copia permanente de todo lo importado. Sobrevive a la purga de los 5 días.
@@ -7280,18 +7797,35 @@ function renderArchivoTransf() {
     ? `<b>${filas.length}</b> movimientos${etiqueta ? ` en ${etiqueta}` : ''} · total <b>$${fmt(total)}</b>`
     : '';
 
+  // La columna de acciones es sólo para admin: el archivo es el registro
+  // permanente y las correcciones quedan firmadas.
+  const corrige = state.profile?.rol === 'admin';
+  const cols = corrige ? 5 : 4;
+  $('#ta-th-acc').style.display = corrige ? '' : 'none';
+
   const tb = $('#ta-tabla tbody');
   if (!filas.length) {
-    tb.innerHTML = `<tr><td colspan="4" class="empty">${(state.transfArchivo || []).length ? 'Sin resultados' : 'El archivo está vacío'}</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="${cols}" class="empty">${(state.transfArchivo || []).length ? 'Sin resultados' : 'El archivo está vacío'}</td></tr>`;
     return;
   }
-  tb.innerHTML = filas.slice(0, 1000).map(t => `<tr>
+  tb.innerHTML = filas.slice(0, 1000).map(t => {
+    const mon = monedaDeCuentaId(t.cuenta_id);
+    return `<tr>
     <td style="white-space:nowrap">${fmtFecha(t.fecha)}</td>
     <td style="max-width:460px">${esc(t.descripcion)}</td>
     <td class="num"><b>$${fmt(t.importe)}</b></td>
-    <td style="font-size:.8rem" class="muted">${esc(t.banco || '?')} · ${esc(t.cuenta || '?')}</td>
-  </tr>`).join('') +
-  (filas.length > 1000 ? `<tr><td colspan="4" class="empty">Mostrando 1000 de ${filas.length}</td></tr>` : '');
+    <td style="font-size:.8rem" class="muted">${esc(t.banco || '?')} · ${esc(t.cuenta || '?')}${mon && mon !== 'ARS' ? ` <span class="badge accent" style="font-size:.66rem">${mon}</span>` : ''}</td>
+    ${corrige ? `<td class="actions" style="white-space:nowrap">
+      <button class="btn ghost sm" onclick="corregirCuentaArchivo('${t.id}')" title="Está en la cuenta equivocada">✎</button>
+      <button class="btn ghost sm" onclick="borrarDelArchivo('${t.id}')" title="Borrar del archivo">🗑</button>
+    </td>` : ''}
+  </tr>`; }).join('') +
+  (filas.length > 1000 ? `<tr><td colspan="${cols}" class="empty">Mostrando 1000 de ${filas.length}</td></tr>` : '');
+}
+
+function monedaDeCuentaId(id) {
+  const c = (state.bancosCuentas || []).find(x => x.id === id);
+  return c ? c.moneda : '';
 }
 
 if ($('#ta-tabla')) {
@@ -7328,6 +7862,179 @@ if ($('#ta-tabla')) {
     exportarExcel(datos, k ? `Archivo ${MESES[m - 1]} ${a}` : 'Archivo transferencias');
     toast(`${filas.length} movimientos · ${identificadas} con identificador`, 'ok');
   });
+  $('#ta-correcciones').addEventListener('click', verCorreccionesArchivo);
+}
+
+// =================================================================
+// CORRECCIONES DEL ARCHIVO · cambiar de cuenta o borrar
+// =================================================================
+// El archivo no tiene policy de update ni de delete: se corrige con dos
+// funciones de la base (archivo_cambiar_cuenta y archivo_borrar) que piden
+// admin, exigen motivo y dejan todo registrado en
+// transferencias_archivo_cambios. Ver migracion_archivo_correcciones.sql.
+//
+// La moneda NO está en el archivo: sale de la cuenta. Un movimiento en
+// pesos importado en una cuenta en dólares queda convertido de más en los
+// indicadores, así que lo que corresponde es MOVERLO, no borrarlo: la plata
+// entró igual. Borrar es para lo que nunca debió entrar.
+
+function filaArchivo(id) {
+  return (state.transfArchivo || []).find(t => t.id === id);
+}
+
+function resumenFilaArchivo(t) {
+  const mon = monedaDeCuentaId(t.cuenta_id);
+  return `<div style="background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:10px 12px;font-size:.84rem;line-height:1.7">
+    <div><b>${fmtFecha(t.fecha)}</b> · <b>$${fmt(t.importe)}</b></div>
+    <div class="muted" style="word-break:break-word">${esc(t.descripcion)}</div>
+    <div>Cuenta actual: <b>${esc(t.banco || '?')} · ${esc(t.cuenta || '?')}</b>${mon ? ` <span class="badge ${mon === 'ARS' ? '' : 'accent'}">${mon}</span>` : ' <span class="badge">cuenta borrada</span>'}</div>
+  </div>`;
+}
+
+window.corregirCuentaArchivo = function(id) {
+  const t = filaArchivo(id);
+  if (!t) return;
+  const opciones = (state.bancosCuentas || [])
+    .filter(c => c.id !== t.cuenta_id)
+    .sort((a, b) => `${a.banco} ${a.nombre}`.localeCompare(`${b.banco} ${b.nombre}`))
+    .map(c => `<option value="${c.id}">${esc(c.banco || '?')} · ${esc(c.nombre || '?')} (${c.moneda})${c.activo ? '' : ' — inactiva'}</option>`)
+    .join('');
+
+  showModal(`<div class="modal-head"><h3>Corregir la cuenta</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      ${resumenFilaArchivo(t)}
+      <p class="sub" style="margin:12px 0 10px">El importe no se toca: lo único que cambia es a qué cuenta queda imputado,
+      y con eso la moneda con la que se convierte en los indicadores y en el Excel.
+      Si el movimiento todavía está en pendientes, se mueve también ahí y se recalcula la cotización congelada.</p>
+      <div class="field"><label>Cuenta correcta</label>
+        <select id="cca-cuenta">${opciones || '<option value="">— no hay otra cuenta cargada —</option>'}</select></div>
+      <div class="field"><label>Motivo</label>
+        <input id="cca-motivo" placeholder="Ej.: entró en pesos y se importó en la cuenta en dólares" maxlength="200">
+        <p class="hint">Queda registrado con tu usuario y la fecha.</p></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn" id="cca-ok" onclick="guardarCuentaArchivo('${id}')">Mover a esa cuenta</button>
+    </div>`);
+  setTimeout(() => $('#cca-motivo')?.focus(), 50);
+};
+
+window.guardarCuentaArchivo = async function(id) {
+  const cuenta = $('#cca-cuenta')?.value || '';
+  const motivo = ($('#cca-motivo')?.value || '').trim();
+  if (!cuenta) { toast('Elegí la cuenta correcta', 'warn'); return; }
+  if (motivo.length < 5) { toast('Escribí el motivo de la corrección', 'warn'); return; }
+
+  const btn = $('#cca-ok');
+  if (btn) { btn.disabled = true; btn.textContent = 'Moviendo…'; }
+  const { data, error } = await sb.rpc('archivo_cambiar_cuenta', {
+    p_id: id, p_cuenta_nueva: cuenta, p_motivo: motivo
+  });
+  if (error) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Mover a esa cuenta'; }
+    toast(error.message, 'err'); return;
+  }
+  closeModal();
+  toast(`Movido a ${data?.cuenta || 'la cuenta elegida'} (${data?.moneda || '?'})${data?.pendiente_movida ? ' · también la pendiente' : ''}`, 'ok');
+  await refrescarTrasCorreccion();
+};
+
+window.borrarDelArchivo = function(id) {
+  const t = filaArchivo(id);
+  if (!t) return;
+  // ¿Sigue estando en pendientes? Se avisa, porque borrar sólo del archivo
+  // deja el movimiento vivo del otro lado y la corrección queda a medias.
+  const pend = (state.transfBanco || []).find(x =>
+    x.cuenta_id === t.cuenta_id && x.fecha === t.fecha &&
+    Number(x.importe) === Number(t.importe) && x.descripcion === t.descripcion);
+
+  showModal(`<div class="modal-head"><h3>Borrar del archivo</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      ${resumenFilaArchivo(t)}
+      <p class="sub" style="margin:12px 0 10px">El archivo es el registro permanente del mes: una vez borrado, el movimiento
+      sale de los indicadores y del Excel. Si la plata entró de verdad y lo que está mal es la cuenta,
+      conviene <b>corregir la cuenta</b> (✎) en vez de borrar.</p>
+      ${pend ? `<label style="display:flex;gap:8px;align-items:flex-start;font-size:.84rem;margin-bottom:10px">
+        <input type="checkbox" id="bda-pend" checked style="width:auto;margin-top:3px">
+        <span>Borrar también el movimiento de la lista de transferencias
+        (está ahí como <b>${pend.realizada ? 'realizada' : 'pendiente'}</b>). Si hay varios idénticos se borra uno solo.</span></label>`
+      : `<p class="hint" style="margin-bottom:10px">En la lista de transferencias ya no está: o se purgó a los 5 días o se borró antes.</p>`}
+      <div class="field"><label>Motivo</label>
+        <input id="bda-motivo" placeholder="Ej.: el banco la informó dos veces" maxlength="200">
+        <p class="hint">Queda registrado con tu usuario y la fecha, con la fila completa como estaba.</p></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn ghost" onclick="closeModal(); corregirCuentaArchivo('${id}')">Mejor corregir la cuenta</button>
+      <button class="btn danger" id="bda-ok" onclick="confirmarBorrarArchivo('${id}')">Borrar</button>
+    </div>`);
+  setTimeout(() => $('#bda-motivo')?.focus(), 50);
+};
+
+window.confirmarBorrarArchivo = async function(id) {
+  const motivo = ($('#bda-motivo')?.value || '').trim();
+  if (motivo.length < 5) { toast('Escribí el motivo del borrado', 'warn'); return; }
+  const pendBox = $('#bda-pend');
+  const relacionadas = pendBox ? pendBox.checked : false;
+
+  const btn = $('#bda-ok');
+  if (btn) { btn.disabled = true; btn.textContent = 'Borrando…'; }
+  const { data, error } = await sb.rpc('archivo_borrar', {
+    p_id: id, p_motivo: motivo, p_relacionadas: relacionadas
+  });
+  if (error) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Borrar'; }
+    toast(error.message, 'err'); return;
+  }
+  closeModal();
+  toast(`Borrado del archivo${data?.pendiente_borrada ? ' y de la lista de transferencias' : ''}`, 'ok');
+  await refrescarTrasCorreccion();
+};
+
+async function refrescarTrasCorreccion() {
+  await loadTransfArchivo();
+  await loadTransferenciasBanco();
+  await loadFinalizadas();
+  renderArchivoTransf();
+  renderIndicadores();
+  renderTransfBanco();
+}
+
+async function verCorreccionesArchivo() {
+  const { data, error } = await sb.from('transferencias_archivo_cambios')
+    .select('*').order('hecho_at', { ascending: false }).limit(200);
+  if (error) { toast(error.message, 'err'); return; }
+
+  const ids = [...new Set((data || []).map(r => r.hecho_por).filter(Boolean))];
+  let nombres = {};
+  if (ids.length) {
+    const { data: profs } = await sb.from('profiles').select('id,nombre').in('id', ids);
+    nombres = Object.fromEntries((profs || []).map(p => [p.id, p.nombre]));
+  }
+
+  const filas = (data || []).map(r => `<tr>
+    <td style="white-space:nowrap;font-size:.8rem">${fmtFechaHora(r.hecho_at)}</td>
+    <td>${r.tipo === 'borrado'
+          ? '<span class="badge" style="background:var(--err-soft);color:var(--err)">borrado</span>'
+          : '<span class="badge accent">cuenta</span>'}</td>
+    <td style="font-size:.82rem"><b>${fmtFecha(r.fecha)}</b> · $${fmt(r.importe)}<br>
+      <span class="muted" style="font-size:.76rem">${esc(r.descripcion || '')}</span></td>
+    <td style="font-size:.78rem">${esc(r.banco || '?')} · ${esc(r.cuenta || '?')}
+      ${r.tipo === 'cambio_cuenta' ? `<br>→ <b>${esc(r.banco_nuevo || '?')} · ${esc(r.cuenta_nueva || '?')}</b>` : ''}</td>
+    <td style="font-size:.8rem">${esc(r.motivo || '')}${r.toco_pendiente ? '<br><span class="muted" style="font-size:.74rem">también en la lista de transferencias</span>' : ''}</td>
+    <td style="font-size:.8rem">${esc(nombres[r.hecho_por] || '—')}</td>
+  </tr>`).join('');
+
+  showModal(`<div class="modal-head"><h3>Correcciones del archivo</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <p class="sub" style="margin-bottom:10px">Todo lo que se movió de cuenta o se borró del archivo mensual, con el motivo y quién lo hizo.
+      La fila queda guardada como estaba antes de la corrección.</p>
+      <div class="tbl-wrap" style="max-height:60vh;overflow:auto"><table class="tbl">
+        <thead><tr><th>Cuándo</th><th>Qué</th><th>Movimiento</th><th>Cuenta</th><th>Motivo</th><th>Quién</th></tr></thead>
+        <tbody>${filas || '<tr><td colspan="6" class="empty">Todavía no se corrigió nada</td></tr>'}</tbody>
+      </table></div>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Cerrar</button></div>`, { wide: true });
 }
 
 // =================================================================
@@ -10075,7 +10782,7 @@ async function importarExcelTB(file) {
     closeModal();
     toast(`${ok} transferencias importadas`, 'ok');
     await loadTransferenciasBanco(); await loadTransfArchivo();
-    renderTransfBanco(); renderArchivoTransf();
+    renderTransfBanco(); renderArchivoTransf(); renderIndicadores();
   });
 }
 
@@ -11558,6 +12265,646 @@ window.pretiroEliminar = async function(id, nombre) {
 };
 
 // =================================================================
+// BIBLIOTECA · plano de los 6 pasillos
+// =================================================================
+// REGLA DEL NEGOCIO: todo está guardado en la biblioteca. Lo único que no
+// está es lo que figura en Retiro de documentación sin devolver.
+//
+// Por eso el plano NO cuenta boletos cargados en el sistema: la tabla de
+// boletos tiene sólo los que pasaron por Sellos, así que contar desde ahí
+// daría siempre de menos. Lo que se cuenta es lo que falta.
+//
+// Cada retiro pendiente tiene que caer sí o sí en un lugar del plano. El
+// cruce se hace por texto aproximado contra el nombre del emprendimiento;
+// el que no se identifica solo aparece en una card aparte, con el lugar
+// más parecido ya elegido, para confirmarlo a mano. Lo asignado a mano se
+// guarda en biblioteca_asignaciones y manda sobre el automático.
+const BIB_PASILLOS = 6;                       // cambiar acá si crece la biblioteca
+const BIB_COSTADOS = [['izq', 'izquierdo'], ['der', 'derecho']];
+let _bibSel = null;                           // 'pasillo|costado'
+let _bibResaltados = new Set();
+let _bibMapa = { porEmpr: {}, sinUbicar: [] };
+
+async function loadBiblioteca() {
+  state.biblioteca = await fetchPaged('biblioteca_lugares',
+    q => q.order('pasillo').order('costado').order('emprendimiento'));
+}
+async function loadBibAsignaciones() {
+  state.bibAsign = await fetchPaged('biblioteca_asignaciones', q => q.order('created_at'));
+}
+
+function bibPuedeEditar() {
+  return state.profile?.rol === 'admin' || state.profile?.area === 'finanzas';
+}
+const bibClave = (p, c) => `${p}|${c}`;
+const bibCostadoTxt = c => (c === 'izq' ? 'izquierdo' : 'derecho');
+function bibDeLugar(p, c) {
+  return (state.biblioteca || []).filter(l => l.pasillo === p && l.costado === c);
+}
+
+// ---------- Comparación aproximada ----------
+// Es a propósito APROXIMADO, no literal: nadie escribe el inmueble igual
+// dos veces. Se parte todo en palabras, se separan letras de números
+// ("MZ3LT12" = "MZ 3 LT 12"), no importa el orden y se tolera una letra de
+// diferencia en los nombres.
+
+// "Mz3 Lt12" -> ["MZ","3","LT","12"]
+function bibTokens(txt) {
+  return normalizarNombre(txt)
+    .replace(/([A-Z])(\d)/g, '$1 $2')
+    .replace(/(\d)([A-Z])/g, '$1 $2')
+    .split(' ').filter(Boolean);
+}
+
+// Dos palabras que se parecen: una arranca como la otra (escribiste la
+// mitad del apellido) o hay a lo sumo una letra de diferencia
+// (FERNANDEZ/FERNANDES, GASSET/GASET). Con los números no se arriesga:
+// un lote 12 no es un lote 13.
+function bibParecido(a, b) {
+  if (a === b) return true;
+  if (/\d/.test(a) || /\d/.test(b)) return false;
+  const [lar, cor] = a.length >= b.length ? [a, b] : [b, a];
+  if (cor.length >= 3 && lar.startsWith(cor)) return true;
+  if (cor.length < 4 || lar.length - cor.length > 1) return false;
+  let i = 0, j = 0, fallos = 0;
+  while (i < lar.length && j < cor.length) {
+    if (lar[i] === cor[j]) { i++; j++; continue; }
+    if (++fallos > 1) return false;
+    if (lar.length === cor.length) { i++; j++; } else i++;
+  }
+  return fallos + (lar.length - i) + (cor.length - j) <= 1;
+}
+
+// Palabras de relleno: suman para ordenar pero NO alcanzan por sí solas.
+// Si no fuera así, buscar "lt 13" traería todos los lotes del mundo porque
+// todos tienen "LT", y "Housing de Miradores" pegaría con cualquier
+// "housing".
+const BIB_RELLENO = new Set(['MZ', 'MZA', 'MANZANA', 'LT', 'LOTE', 'M', 'L',
+  'UF', 'DTO', 'DPTO', 'DEPTO', 'DEPARTAMENTO', 'CASA', 'LOCAL', 'COCHERA',
+  'COCHERAS', 'HOUSING', 'BARRIO', 'N', 'NRO', 'NUMERO', 'DE', 'DEL', 'LA',
+  'LAS', 'EL', 'LOS', 'Y']);
+
+// Puntaje de un texto contra las palabras buscadas. 0 = no entra.
+function bibPuntaje(tokensQ, hayTok) {
+  const hayStr = ' ' + hayTok.join(' ') + ' ';
+  // Si buscás SÓLO palabras de relleno ("cochera", "las tipas"), entonces
+  // esas pasan a valer: es lo único que escribiste.
+  const reales = tokensQ.filter(t => !BIB_RELLENO.has(t));
+  const cuentan = reales.length ? new Set(reales) : new Set(tokensQ);
+
+  let p = 0, pegaron = 0;
+  const total = cuentan.size;
+  new Set(tokensQ).forEach(t => {
+    let suma = 0;
+    if (hayTok.includes(t))                       suma = 4;
+    else if (hayStr.includes(t) && t.length >= 3) suma = 3;
+    else if (hayTok.some(h => bibParecido(h, t))) suma = 2;
+    if (!suma) return;
+    if (cuentan.has(t)) { p += suma; pegaron++; }
+    else p += 1;                                   // relleno: sólo desempata
+  });
+  if (!pegaron) return 0;
+  // Premio si pegaron todas: "gaset mz 3" gana sobre cualquier otro "mz 3"
+  return p + (pegaron === total ? 5 : 0);
+}
+
+// ---------- Qué falta y dónde ----------
+// Pendiente = salió y no volvió. Entran TODOS, sin mirar qué documentos
+// se llevaron: lo que no está en el estante, no está.
+function bibPendientes() {
+  return (state.retiros || []).filter(r => r.estado === 'retirado');
+}
+
+function bibEmprendimientosUnicos() {
+  const m = new Map();
+  (state.biblioteca || []).forEach(l => {
+    const k = normalizarNombre(l.emprendimiento);
+    if (!m.has(k)) m.set(k, l.emprendimiento);
+  });
+  return [...m.values()].sort((a, b) => a.localeCompare(b));
+}
+
+// Lugares del plano ordenados por cuánto se parecen al texto del retiro.
+function bibSugerenciasDe(r) {
+  const hay = bibTokens(r.inmueble || '');
+  const mejor = new Map();
+  (state.biblioteca || []).forEach(l => {
+    const p = bibPuntaje(bibTokens(l.emprendimiento), hay);
+    if (!p) return;
+    const k = normalizarNombre(l.emprendimiento);
+    if (!mejor.has(k) || mejor.get(k).p < p) mejor.set(k, { empr: l.emprendimiento, p });
+  });
+  return [...mejor.values()].sort((a, b) => b.p - a.p);
+}
+
+// A qué emprendimiento pertenece un retiro. Lo asignado a mano manda.
+// Automático sólo si la coincidencia es clara y no hay empate: ante la
+// duda prefiere mandarlo a revisión antes que ubicarlo mal.
+function bibEmprDeRetiro(r) {
+  const man = (state.bibAsign || []).find(a => a.retiro_id === r.id);
+  if (man) return { empr: man.emprendimiento, manual: true };
+  const s = bibSugerenciasDe(r);
+  if (s.length && s[0].p >= 3 && (s.length === 1 || s[0].p > s[1].p)) {
+    return { empr: s[0].empr, manual: false };
+  }
+  return null;
+}
+
+function bibArmarMapa() {
+  const porEmpr = {}, sinUbicar = [];
+  bibPendientes().forEach(r => {
+    const m = bibEmprDeRetiro(r);
+    if (!m) { sinUbicar.push(r); return; }
+    const k = normalizarNombre(m.empr);
+    (porEmpr[k] = porEmpr[k] || []).push({ r, manual: m.manual });
+  });
+  _bibMapa = { porEmpr, sinUbicar };
+  return _bibMapa;
+}
+function bibFaltanDe(nombre) { return _bibMapa.porEmpr[normalizarNombre(nombre)] || []; }
+
+function bibResumenLugar(p, c) {
+  const lugares = bibDeLugar(p, c);
+  const faltan = lugares.reduce((a, l) => a + bibFaltanDe(l.emprendimiento).length, 0);
+  return { lugares, faltan };
+}
+
+const bibDias = f => { const n = diasDesdeFecha(f); return n === 1 ? '1 día' : `${n} días`; };
+
+// Qué documentos se llevaron, para la fila del detalle
+function bibDocsDe(r) {
+  const d = [];
+  if (r.documentos_boletos) d.push('boletos');
+  if (r.documentos_cesiones) d.push('cesiones');
+  if (r.documentos_acta_tenencia) d.push('acta');
+  if (r.documentos_otros) d.push(r.documentos_otros);
+  return d.join(', ') || '—';
+}
+
+// Nombres para ubicar: los emprendimientos cargados, los barrios de Rentas
+// y los que ya están en el plano, sin repetir.
+function bibNombresPosibles() {
+  const vistos = new Map();
+  const sumar = n => { const k = normalizarNombre(n); if (k && !vistos.has(k)) vistos.set(k, n); };
+  (state.emprendimientos || []).forEach(e => sumar(e.emprendimiento));
+  (state.cuentasRentas || []).forEach(c => sumar(c.barrio));
+  (state.biblioteca || []).forEach(l => sumar(l.emprendimiento));
+  return [...vistos.values()].sort((a, b) => a.localeCompare(b));
+}
+
+// ---------- El plano ----------
+function dibujarPlanoBiblioteca() {
+  const EST = 36, PAS = 42, GAP = 22, ML = 8, MT = 22, ALTO = 232, MB = 20;
+  const grupo = EST * 2 + PAS;
+  const W = ML * 2 + BIB_PASILLOS * grupo + (BIB_PASILLOS - 1) * GAP;
+  const H = MT + ALTO + MB;
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Plano de la biblioteca">`;
+
+  for (let i = 0; i < BIB_PASILLOS; i++) {
+    const p = i + 1;
+    const x0 = ML + i * (grupo + GAP);
+    s += `<text class="bib-pas" x="${x0 + grupo / 2}" y="14" text-anchor="middle">PASILLO ${p}</text>`;
+    // El piso del pasillo, para que se lea como un plano y no como barras
+    s += `<rect class="bib-piso" x="${x0 + EST}" y="${MT}" width="${PAS}" height="${ALTO}" rx="3"/>`;
+    s += `<line class="bib-paso" x1="${x0 + EST + PAS / 2}" y1="${MT + 10}" x2="${x0 + EST + PAS / 2}" y2="${MT + ALTO - 10}"/>`;
+
+    BIB_COSTADOS.forEach(([c], j) => {
+      const x = j === 0 ? x0 : x0 + EST + PAS;
+      const r = bibResumenLugar(p, c);
+      const sel = _bibSel === bibClave(p, c);
+      const cls = ['bib-est', r.lugares.length ? 'lleno' : '', r.faltan ? 'falta' : '',
+                   sel ? 'sel' : '', _bibResaltados.has(bibClave(p, c)) ? 'buscado' : ''].filter(Boolean).join(' ');
+      const cx = x + EST / 2, cy = MT + ALTO / 2;
+
+      const titulo = r.lugares.length
+        ? r.lugares.map(l => l.emprendimiento).join(' · ') + (r.faltan ? ` — faltan ${r.faltan}` : ' — completo')
+        : 'Lugar libre';
+      s += `<rect class="${cls}" x="${x}" y="${MT}" width="${EST}" height="${ALTO}" rx="4"
+              onclick="bibSeleccionar(${p},'${c}')"><title>${esc(titulo)}</title></rect>`;
+
+      if (!r.lugares.length) {
+        s += `<text class="bib-vacio" x="${cx}" y="${cy}" text-anchor="middle"
+                transform="rotate(-90 ${cx} ${cy})">libre</text>`;
+      } else {
+        const principal = r.lugares.length === 1
+          ? r.lugares[0].emprendimiento
+          : `${r.lugares.length} emprendimientos`;
+        const corto = principal.length > 30 ? principal.slice(0, 29) + '…' : principal;
+        const dx = r.faltan ? 5 : 0;
+        s += `<text class="bib-nom${sel ? ' sel' : ''}" x="${cx - dx}" y="${cy}" text-anchor="middle"
+                transform="rotate(-90 ${cx - dx} ${cy})">${esc(corto)}</text>`;
+        if (r.faltan) {
+          s += `<text class="bib-cant${sel ? ' sel' : ''}" x="${cx + 8}" y="${cy}" text-anchor="middle"
+                  transform="rotate(-90 ${cx + 8} ${cy})">faltan ${r.faltan}</text>`;
+        }
+      }
+      if (r.faltan) s += `<circle class="bib-punto" cx="${cx}" cy="${MT + 8}" r="3.5"/>`;
+      // Costado, abajo
+      s += `<text class="bib-vacio" x="${cx}" y="${MT + ALTO + 13}" text-anchor="middle">${j === 0 ? 'izq' : 'der'}</text>`;
+    });
+  }
+  return s + '</svg>';
+}
+
+function renderBiblioteca() {
+  if (!$('#bib-plano')) return;
+  bibArmarMapa();
+  $('#bib-plano').innerHTML = dibujarPlanoBiblioteca();
+  $('#bib-ubicar').style.display = bibPuedeEditar() ? '' : 'none';
+
+  $('#bib-leyenda').innerHTML = `
+    <span class="bib-ref"><i style="background:var(--surface)"></i> libre</span>
+    <span class="bib-ref"><i style="background:var(--accent-soft);border-color:var(--accent-2)"></i> completo</span>
+    <span class="bib-ref"><i style="background:var(--accent-soft);border-color:var(--err);border-width:2px"></i> ● falta algo</span>`;
+
+  const pend = bibPendientes();
+  $('#bib-falta-card').style.display = pend.length ? '' : 'none';
+  $('#bib-falta-badge').textContent = pend.length;
+
+  const avisos = [];
+  if (!(state.biblioteca || []).length) avisos.push('Todavía no ubicaste ningún emprendimiento: tocá un costado del plano y agregalo.');
+  $('#bib-aviso').innerHTML = avisos.join(' · ');
+
+  renderBibSinUbicar();
+  renderBibDetalle();
+}
+
+// ---------- Lo que no se pudo identificar solo ----------
+// Tiene que quedar en cero: cada retiro pendiente va a un lugar del plano.
+function renderBibSinUbicar() {
+  const card = $('#bib-sinubic-card');
+  if (!card) return;
+  const lista = _bibMapa.sinUbicar;
+  card.style.display = lista.length ? '' : 'none';
+  if (!lista.length) return;
+
+  $('#bib-sinubic-badge').textContent = lista.length;
+  const nombres = bibEmprendimientosUnicos();
+  const puede = bibPuedeEditar();
+
+  $('#bib-sinubic-tabla tbody').innerHTML = lista.map(r => {
+    const sug = bibSugerenciasDe(r);
+    const elegido = sug.length ? normalizarNombre(sug[0].empr) : '';
+    // Si no hay nada parecido NO se preselecciona ninguno: que lo elija,
+    // antes que guardarlo en el primero de la lista por descuido.
+    const opciones = (elegido ? '' : '<option value="">— elegí el lugar —</option>') +
+      nombres.map(n =>
+        `<option value="${esc(n)}" ${normalizarNombre(n) === elegido ? 'selected' : ''}>${esc(n)}${
+          normalizarNombre(n) === elegido ? ' (el más parecido)' : ''}</option>`).join('');
+    return `<tr>
+      <td><b>${esc(r.inmueble)}</b><br><span class="muted" style="font-size:.76rem">${esc(bibDocsDe(r))}</span></td>
+      <td style="font-size:.82rem">${esc(r.persona_retira_nombre || '—')}<br>
+        <span class="muted" style="font-size:.76rem">${fmtFecha(r.fecha_retiro)} · hace ${bibDias(r.fecha_retiro)}</span></td>
+      <td>${puede
+        ? `<select id="bib-as-${r.id}" style="padding:5px 8px;font-size:.82rem;min-width:220px">
+             ${nombres.length ? opciones : '<option value="">— ubicá un emprendimiento primero —</option>'}
+           </select>`
+        : '<span class="muted">sin identificar</span>'}</td>
+      <td class="actions">${puede && nombres.length
+        ? `<button class="btn ghost sm" onclick="bibAsignar('${r.id}')">Asignar</button>` : ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderBibDetalle() {
+  const box = $('#bib-detalle');
+  if (!box) return;
+
+  if (!_bibSel) {
+    const todos = [...(state.biblioteca || [])].sort((a, b) =>
+      a.emprendimiento.localeCompare(b.emprendimiento));
+    box.innerHTML = `<h3 style="margin-top:0">Qué hay en cada lugar</h3>` + (todos.length
+      ? `<div class="tbl-wrap"><table class="tbl">
+          <thead><tr><th>Emprendimiento</th><th>Lugar</th><th>Estado</th></tr></thead>
+          <tbody>${todos.map(l => {
+            const f = bibFaltanDe(l.emprendimiento);
+            return `<tr style="cursor:pointer" onclick="bibSeleccionar(${l.pasillo},'${l.costado}')">
+              <td><b>${esc(l.emprendimiento)}</b>${l.nota ? `<br><span class="muted" style="font-size:.76rem">${esc(l.nota)}</span>` : ''}</td>
+              <td>Pasillo ${l.pasillo} · costado ${bibCostadoTxt(l.costado)}</td>
+              <td>${f.length
+                    ? `<span class="badge" style="background:var(--err-soft);color:var(--err)">faltan ${f.length}</span>`
+                    : '<span class="badge ok">completo</span>'}</td>
+            </tr>`;
+          }).join('')}</tbody></table></div>`
+      : `<p class="sub" style="margin:0">Tocá un costado del plano para empezar a ubicar los emprendimientos.</p>`);
+    return;
+  }
+
+  const [pStr, c] = _bibSel.split('|');
+  const p = Number(pStr);
+  const { lugares } = bibResumenLugar(p, c);
+
+  const bloques = lugares.map(l => {
+    const faltan = bibFaltanDe(l.emprendimiento);
+    return `<div style="border:1px solid var(--line-2);border-radius:var(--radius);padding:12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <div><b style="font-size:.95rem">${esc(l.emprendimiento)}</b>
+          ${l.nota ? `<div class="muted" style="font-size:.78rem">${esc(l.nota)}</div>` : ''}</div>
+        ${bibPuedeEditar() ? `<div style="display:flex;gap:6px">
+          <button class="btn ghost sm" onclick="bibEditar('${l.id}')">Mover</button>
+          <button class="btn ghost sm" style="color:var(--err)" onclick="bibQuitar('${l.id}')">🗑</button>
+        </div>` : ''}
+      </div>
+      ${faltan.length ? `
+        <div style="margin-top:10px;background:#fef2f2;border-left:3px solid var(--err);border-radius:6px;padding:10px">
+          <b style="color:var(--err);font-size:.86rem">⚠ Atención: faltan ${faltan.length} en el estante</b>
+          <div class="tbl-wrap" style="margin-top:6px"><table class="tbl">
+            <thead><tr><th>Inmueble</th><th>Documentos</th><th>Lo retiró</th><th>Desde</th><th class="num">Hace</th><th class="actions"></th></tr></thead>
+            <tbody>${faltan.map(({ r, manual }) => `<tr>
+              <td>${esc(r.inmueble)}${manual ? ' <span class="badge muted" style="font-size:.64rem">a mano</span>' : ''}</td>
+              <td style="font-size:.8rem">${esc(bibDocsDe(r))}</td>
+              <td>${esc(r.persona_retira_nombre || '—')}</td>
+              <td style="white-space:nowrap">${fmtFecha(r.fecha_retiro)}</td>
+              <td class="num">${bibDias(r.fecha_retiro)}</td>
+              <td class="actions">${bibPuedeEditar()
+                ? `<button class="btn ghost sm" title="No es de acá" onclick="bibReasignar('${r.id}')">✎</button>` : ''}</td>
+            </tr>`).join('')}</tbody>
+          </table></div>
+        </div>` : `<p class="hint" style="margin:8px 0 0">✓ Está todo: no hay nada retirado de este lugar.</p>`}
+    </div>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <h3 style="margin:0">Pasillo ${p} · costado ${bibCostadoTxt(c)}</h3>
+      <div style="display:flex;gap:6px">
+        ${bibPuedeEditar() ? `<button class="btn ghost sm" onclick="bibUbicarEn(${p},'${c}')">+ Agregar acá</button>` : ''}
+        <button class="btn ghost sm" onclick="bibSeleccionar(null)">Ver todo</button>
+      </div>
+    </div>
+    ${bloques || `<p class="sub" style="margin:0">Este lugar está libre.${bibPuedeEditar() ? ' Usá <b>+ Agregar acá</b> para poner un emprendimiento.' : ''}</p>`}`;
+}
+
+window.bibSeleccionar = function(p, c) {
+  _bibSel = p ? bibClave(p, c) : null;
+  renderBiblioteca();
+  if (p) $('#bib-detalle')?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+};
+
+// ---------- Asignar un retiro a un lugar ----------
+window.bibAsignar = async function(retiroId, empr) {
+  const nombre = empr || $(`#bib-as-${retiroId}`)?.value || '';
+  if (!nombre) { toast('Elegí de qué lugar es', 'warn'); return; }
+  const { error } = await sb.from('biblioteca_asignaciones')
+    .upsert({ retiro_id: retiroId, emprendimiento: nombre, created_by: state.user.id },
+            { onConflict: 'retiro_id' });
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  toast(`Asignado a ${nombre}`, 'ok');
+  await loadBibAsignaciones(); renderBiblioteca();
+};
+
+window.bibReasignar = function(retiroId) {
+  const r = (state.retiros || []).find(x => x.id === retiroId);
+  if (!r) return;
+  const nombres = bibEmprendimientosUnicos();
+  const actual = bibEmprDeRetiro(r);
+  showModal(`<div class="modal-head"><h3>¿De qué lugar es?</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div style="background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:10px 12px;font-size:.84rem;line-height:1.7">
+        <div><b>${esc(r.inmueble)}</b></div>
+        <div class="muted">${esc(bibDocsDe(r))} · lo retiró ${esc(r.persona_retira_nombre || '—')} el ${fmtFecha(r.fecha_retiro)}</div>
+      </div>
+      <div class="field" style="margin-top:12px"><label>Emprendimiento</label>
+        <select id="bib-re-sel">${nombres.map(n =>
+          `<option value="${esc(n)}" ${actual && normalizarNombre(n) === normalizarNombre(actual.empr) ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
+        <p class="hint">Queda fijo para este retiro: la próxima no lo adivina.</p></div>
+    </div>
+    <div class="modal-foot">
+      ${(state.bibAsign || []).some(a => a.retiro_id === retiroId)
+        ? `<button class="btn ghost" style="color:var(--err)" onclick="bibDesasignar('${retiroId}')">Volver a automático</button>` : ''}
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn" onclick="bibAsignar('${retiroId}', $('#bib-re-sel').value); closeModal()">Guardar</button>
+    </div>`);
+};
+
+window.bibDesasignar = async function(retiroId) {
+  const { error } = await sb.from('biblioteca_asignaciones').delete().eq('retiro_id', retiroId);
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  closeModal();
+  toast('Vuelve a identificarse solo', 'ok');
+  await loadBibAsignaciones(); renderBiblioteca();
+};
+
+// ---------- Buscador ----------
+// Busca en los emprendimientos del plano, en los boletos cargados y en los
+// retiros. Los retiros entran aparte porque la tabla de boletos sólo tiene
+// los que pasaron por Sellos: si buscás un inmueble que salió, lo encuentra
+// igual aunque no tenga boleto cargado.
+
+// Índice de boletos con su barrio resuelto. Se rearma sólo si cambió algo,
+// para no recalcularlo en cada tecla.
+let _bibIdx = null, _bibIdxClave = '';
+function bibIndice() {
+  const clave = `${(state.boletos || []).length}|${(state.cuentasRentas || []).length}`;
+  if (_bibIdx && _bibIdxClave === clave) return _bibIdx;
+  const porCuenta = {};
+  (state.cuentasRentas || []).forEach(c => { porCuenta[c.num_cuenta] = c.barrio; });
+  _bibIdx = (state.boletos || []).map(b => {
+    const barrio = porCuenta[b.num_cuenta] || '';
+    return { b, barrio, tok: bibTokens(`${b.propietario || ''} ${b.unidad || ''} ${barrio}`) };
+  });
+  _bibIdxClave = clave;
+  return _bibIdx;
+}
+
+// En qué lugar del plano cae un boleto: por barrio, o por el nombre del
+// emprendimiento adentro de la unidad.
+function bibLugarDeBoleto(it) {
+  const lugares = state.biblioteca || [];
+  const nb = normalizarNombre(it.barrio);
+  let l = nb ? lugares.find(x => normalizarNombre(x.emprendimiento) === nb) : null;
+  if (!l) {
+    const nu = normalizarNombre(it.b.unidad || '');
+    l = lugares.find(x => nu.includes(normalizarNombre(x.emprendimiento)));
+  }
+  return l || null;
+}
+
+function bibLugarDeEmpr(nombre) {
+  const n = normalizarNombre(nombre);
+  return (state.biblioteca || []).find(l => normalizarNombre(l.emprendimiento) === n) || null;
+}
+
+// ¿Ese boleto puntual está afuera? El retiro tiene que nombrar la misma
+// unidad (y el barrio, si se sabe cuál es).
+function bibRetiroDe(it) {
+  const uni = bibTokens(it.b.unidad || '');
+  if (!uni.length) return null;
+  const nb = normalizarNombre(it.barrio);
+  return bibPendientes().find(r => {
+    if (nb && !normalizarNombre(r.inmueble || '').includes(nb)) return false;
+    const rt = bibTokens(r.inmueble || '');
+    return uni.every(t => rt.includes(t));
+  }) || null;
+}
+
+function bibBuscar(q) {
+  _bibResaltados = new Set();
+  const toks = bibTokens(q);
+  if (!toks.length || normalizarNombre(q).length < 2) { renderBiblioteca(); return; }
+
+  const lugarTxt = l => `pasillo ${l.pasillo}, costado ${bibCostadoTxt(l.costado)}`;
+  const hallazgos = [];
+  const yaDicho = new Set();
+
+  // 1) Emprendimientos ubicados
+  (state.biblioteca || []).forEach(l => {
+    const p = bibPuntaje(toks, bibTokens(l.emprendimiento));
+    if (!p) return;
+    _bibResaltados.add(bibClave(l.pasillo, l.costado));
+    hallazgos.push({ p: p + 2, lugar: l, html: `<b>${esc(l.emprendimiento)}</b> → ${lugarTxt(l)}` });
+  });
+
+  // 2) Retiros: lo que está afuera, esté o no cargado como boleto
+  (state.retiros || []).forEach(r => {
+    const p = bibPuntaje(toks, bibTokens(r.inmueble || ''));
+    if (!p) return;
+    const clave = 'R' + normalizarNombre(r.inmueble);
+    if (yaDicho.has(clave)) return;
+    yaDicho.add(clave);
+    const m = bibEmprDeRetiro(r);
+    const l = m ? bibLugarDeEmpr(m.empr) : null;
+    let txt = `<b>${esc(r.inmueble)}</b>`;
+    if (l) { _bibResaltados.add(bibClave(l.pasillo, l.costado)); txt += ` → ${esc(l.emprendimiento)}, ${lugarTxt(l)}`; }
+    txt += r.estado === 'retirado'
+      ? `<br><span style="color:var(--err)">⚠ está afuera: ${esc(bibDocsDe(r))} · lo retiró ${esc(r.persona_retira_nombre || '—')} hace ${bibDias(r.fecha_retiro)}</span>`
+      : `<br><span class="muted">volvió el ${fmtFecha(r.fecha_devolucion || r.fecha_retiro)}, está en el estante</span>`;
+    hallazgos.push({ p: p + (r.estado === 'retirado' ? 1 : 0), lugar: l, html: txt });
+  });
+
+  // 3) Boletos cargados: cliente, unidad o barrio, en cualquier orden
+  bibIndice().forEach(it => {
+    const p = bibPuntaje(toks, it.tok);
+    if (!p) return;
+    const clave = 'B' + normalizarNombre(`${it.b.propietario} ${it.b.unidad}`);
+    if (yaDicho.has(clave)) return;
+    yaDicho.add(clave);
+
+    const l = bibLugarDeBoleto(it);
+    const ret = bibRetiroDe(it);
+    let txt = `<b>${esc(it.b.propietario || '—')}</b> · ${esc(it.b.unidad || '')}`;
+    if (l) {
+      _bibResaltados.add(bibClave(l.pasillo, l.costado));
+      txt += ` → ${esc(l.emprendimiento)}, ${lugarTxt(l)}`;
+    } else if (it.barrio) {
+      txt += ` → ${esc(it.barrio)}: ese barrio todavía no está ubicado en el plano`;
+    } else {
+      txt += ` → sin barrio cargado, no se puede ubicar`;
+    }
+    if (ret) {
+      txt += `<br><span style="color:var(--err)">⚠ está afuera: lo retiró ${esc(ret.persona_retira_nombre || '—')} hace ${bibDias(ret.fecha_retiro)}</span>`;
+    }
+    hallazgos.push({ p, lugar: l, html: txt });
+  });
+
+  hallazgos.sort((a, b) => b.p - a.p);
+  const muestra = hallazgos.slice(0, 8);
+
+  renderBiblioteca();
+  $('#bib-aviso').innerHTML = muestra.length
+    ? muestra.map(h => h.lugar
+        ? `<div class="bib-hit" onclick="bibSeleccionar(${h.lugar.pasillo},'${h.lugar.costado}')">${h.html}</div>`
+        : `<div class="bib-hit">${h.html}</div>`).join('') +
+      (hallazgos.length > muestra.length ? `<div class="bib-hit muted">y ${hallazgos.length - muestra.length} más</div>` : '')
+    : 'Sin resultados. Probá con el apellido, el barrio o el número de lote.';
+
+  // Si todo cae en un solo lugar, se abre directo
+  if (_bibResaltados.size === 1) {
+    const [p, c] = [..._bibResaltados][0].split('|');
+    _bibSel = bibClave(Number(p), c);
+    $('#bib-plano').innerHTML = dibujarPlanoBiblioteca();
+    renderBibDetalle();
+  }
+}
+
+// ---------- Alta y edición de lugares ----------
+window.bibUbicarEn = function(p, c) { bibModal(null, p, c); };
+window.bibEditar = function(id) {
+  const l = (state.biblioteca || []).find(x => x.id === id);
+  if (l) bibModal(l, l.pasillo, l.costado);
+};
+
+function bibModal(lugar, p, c) {
+  const nombres = bibNombresPosibles();
+  showModal(`<div class="modal-head"><h3>${lugar ? 'Mover' : 'Ubicar'} emprendimiento</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Emprendimiento o barrio</label>
+        <input id="bib-nom" list="bib-nombres" value="${lugar ? esc(lugar.emprendimiento).replace(/"/g, '&quot;') : ''}" placeholder="Ej.: Las Tipas" maxlength="80">
+        <datalist id="bib-nombres">${nombres.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+        <p class="hint">Escribilo como aparece en los retiros, así los identifica solo. Podés escribir uno que no esté en la lista.</p></div>
+      <div class="field-row">
+        <div class="field"><label>Pasillo</label><select id="bib-pas">
+          ${Array.from({ length: BIB_PASILLOS }, (_, i) => `<option value="${i + 1}" ${p === i + 1 ? 'selected' : ''}>Pasillo ${i + 1}</option>`).join('')}
+        </select></div>
+        <div class="field"><label>Costado</label><select id="bib-cos">
+          ${BIB_COSTADOS.map(([v, t]) => `<option value="${v}" ${c === v ? 'selected' : ''}>Costado ${t}</option>`).join('')}
+        </select></div>
+      </div>
+      <div class="field"><label>Nota (opcional)</label>
+        <input id="bib-nota" value="${lugar?.nota ? esc(lugar.nota).replace(/"/g, '&quot;') : ''}" placeholder="Ej.: estante de arriba, cajas 1 a 4" maxlength="120"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn" id="bib-ok" onclick="bibGuardar('${lugar?.id || ''}')">Guardar</button>
+    </div>`);
+  setTimeout(() => $('#bib-nom')?.focus(), 50);
+}
+
+window.bibGuardar = async function(id) {
+  const nombre = $('#bib-nom').value.trim();
+  const pasillo = Number($('#bib-pas').value);
+  const costado = $('#bib-cos').value;
+  const nota = $('#bib-nota').value.trim() || null;
+  if (!nombre) { toast('Escribí el emprendimiento', 'warn'); return; }
+
+  const repetido = (state.biblioteca || []).find(l => l.id !== id &&
+    l.pasillo === pasillo && l.costado === costado &&
+    normalizarNombre(l.emprendimiento) === normalizarNombre(nombre));
+  if (repetido) { toast('Ese emprendimiento ya está en ese lugar', 'warn'); return; }
+
+  const btn = $('#bib-ok');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+  const payload = { emprendimiento: nombre, pasillo, costado, nota };
+  let error;
+  if (id) ({ error } = await sb.from('biblioteca_lugares').update(payload).eq('id', id));
+  else {
+    payload.created_by = state.user.id;
+    ({ error } = await sb.from('biblioteca_lugares').insert(payload));
+  }
+  if (error) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
+    toast(mensajeError(error), 'err'); return;
+  }
+  closeModal();
+  toast(id ? 'Movido' : `${nombre} ubicado en el pasillo ${pasillo}`, 'ok');
+  _bibSel = bibClave(pasillo, costado);
+  await loadBiblioteca(); renderBiblioteca();
+};
+
+window.bibQuitar = async function(id) {
+  const l = (state.biblioteca || []).find(x => x.id === id);
+  if (!l) return;
+  if (!await confirmAction(`¿Sacar "${l.emprendimiento}" del plano? Los retiros no se tocan, sólo se olvida dónde está.`)) return;
+  const { error } = await sb.from('biblioteca_lugares').delete().eq('id', id);
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  toast('Quitado del plano', 'ok');
+  await loadBiblioteca(); renderBiblioteca();
+};
+
+if ($('#bib-plano')) {
+  $('#bib-ubicar').addEventListener('click', () => {
+    const [p, c] = _bibSel ? _bibSel.split('|') : [1, 'izq'];
+    bibModal(null, Number(p), c);
+  });
+  let _bibTimer;
+  $('#bib-buscar').addEventListener('input', e => {
+    clearTimeout(_bibTimer);
+    const v = e.target.value;
+    _bibTimer = setTimeout(() => bibBuscar(v), 180);
+  });
+}
+
+// =================================================================
 // MODULO: AJUSTES (admin)
 // =================================================================
 // "hace 2 h", "ayer 09:14", "12/07 15:30". Lo relativo se lee más rápido que
@@ -12093,7 +13440,7 @@ let realtimeActivo = false;
 function subscribeChanges() {
   if (realtimeActivo) return;   // evita canales duplicados
   realtimeActivo = true;
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','transferencias_archivo','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches','mail_reglas','sugerencias'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','transferencias_archivo','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches','mail_reglas','sugerencias','biblioteca_lugares','biblioteca_asignaciones'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -12111,10 +13458,12 @@ function subscribeChanges() {
         if (tabla==='emprendimientos') { await loadEmprendimientos(); if(state.profile?.rol==='admin') renderEmprAdmin(); }
         if (tabla==='icc_valores') { await loadIcc(); renderIccTabla(); initConceptosMesRef(); renderConceptos(); renderIccAlerta(); }
         if (tabla==='sellos_alicuotas') { await loadAlicuotas(); if(state.profile?.rol==='admin') renderAlicuotas(); updateAlicuotaForFecha(); }
-        if (tabla==='retiros_documentacion') { await loadRetiros(); renderRetiros(); }
+        if (tabla==='retiros_documentacion') { await loadRetiros(); renderRetiros(); renderBiblioteca(); }
+        if (tabla==='biblioteca_lugares') { await loadBiblioteca(); renderBiblioteca(); }
+        if (tabla==='biblioteca_asignaciones') { await loadBibAsignaciones(); renderBiblioteca(); }
         if (tabla==='cocheras') { await loadCocheras(); renderCocheras(); }
         if (tabla==='transferencias_banco') { await loadTransferenciasBanco(); renderTransfBanco(); }
-        if (tabla==='transferencias_archivo') { await loadTransfArchivo(); renderArchivoTransf(); }
+        if (tabla==='transferencias_archivo') { await loadTransfArchivo(); renderArchivoTransf(); renderIndicadores(); }
         if (tabla==='bancos_cuentas') { await loadBancosCuentas(); llenarSelectoresTB(); renderBancosCuentas(); }
         if (tabla==='cotizaciones_uvi') { await loadCotizacionesUvi(); renderCotizDia(); }
         if (tabla==='identif_emprendimientos') { await loadIdentEmpr(); renderIdentEmpr(); llenarSelectsEmpr(); }
