@@ -1641,6 +1641,21 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <span id="tb-resumen" class="hint" style="margin-left:auto"></span>
         </div>
 
+        <details style="margin-bottom:12px">
+          <summary style="cursor:pointer;font-size:.85rem;color:var(--accent);font-weight:600">📋 Pegar en vez de subir el archivo</summary>
+          <div style="padding:10px 0">
+            <p class="hint" style="margin-bottom:6px">Una línea por movimiento, a la cuenta elegida arriba. Pegá desde el Excel del banco o escribí a mano.<br>
+              <code>fecha&nbsp;&nbsp;descripción&nbsp;&nbsp;importe</code> — si pegás columnas de más (comprobante, concepto, saldo) las ordena solo.<br>
+              Ej: <code>05/08/2026&nbsp;&nbsp;TRANSF.INTER.DISTINTO TIT.-20294245805-PEREZ JUAN&nbsp;&nbsp;95000</code></p>
+            <textarea id="tb-pegar" rows="6" style="width:100%;font-family:monospace;font-size:.82rem"
+              placeholder="05/08/2026	TRANSF.INTER.DISTINTO TIT.-20294245805-PEREZ JUAN	95000&#10;06/08/2026	CREDIN - Credito Inmediato-27290630946-NORES MARIA	1269419,86"></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
+              <button class="btn accent sm" id="tb-pegar-btn">Revisar e importar</button>
+              <span class="hint" id="tb-pegar-msg"></span>
+            </div>
+          </div>
+        </details>
+
         <div class="tbl-wrap"><table class="tbl" id="tb-tabla">
           <thead><tr>
             <th style="width:34px"><input type="checkbox" id="tb-all" title="Seleccionar todo"></th>
@@ -10614,6 +10629,45 @@ async function marcarSeleccionadas(valor) {
 
 // ---------- Importación del Excel ----------
 // Formato esperado (hoja limpia): Fecha | Descripción | Importe
+// Los dos parsers viven afuera porque los usan la importación de Excel y
+// la carga pegada.
+const tbParseImporte = v => {
+  if (typeof v === 'number') return v;
+  let s = String(v ?? '').replace(/[^\d,.\-]/g, '');
+  if (!s) return null;
+  if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (s.includes(',')) s = s.replace(',', '.');
+  else if (s.includes('.')) {
+    const p = s.split('.');
+    if (p.slice(1).every(x => x.length === 3)) s = s.replace(/\./g, '');
+  }
+  const n = Number(s);
+  return isNaN(n) ? null : n;
+};
+
+const tbParseFecha = v => {
+  // No se usa `instanceof Date`: si el objeto viene de otro contexto de
+  // ejecución la comprobación falla aunque sea una fecha perfectamente
+  // válida. Se detecta por comportamiento.
+  if (v && typeof v === 'object' && typeof v.getTime === 'function' && !isNaN(v.getTime())) {
+    return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+  }
+  // Número de serie de Excel (cuando la lectura no convierte a fecha)
+  if (typeof v === 'number' && v > 20000 && v < 80000) {
+    const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 864e5);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+  }
+  const s = String(v ?? '').trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);   // dd/mm/aaaa
+  if (m) {
+    const a = m[3].length === 2 ? '20' + m[3] : m[3];
+    return `${a}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  return null;
+};
+
 async function importarExcelTB(file) {
   const cta = cuentaTBActual();
   if (!cta) { toast('Elegí primero una cuenta', 'warn'); return; }
@@ -10642,46 +10696,19 @@ async function importarExcelTB(file) {
     toast('No se pudo leer el archivo: ' + e.message, 'err'); return;
   }
   if (!filas.length) { toast('El archivo está vacío', 'warn'); return; }
+  procesarFilasTB(filas, cta, hojaUsada);
+}
 
+// Toma las filas ya leídas (del Excel o de lo pegado) y hace todo el resto:
+// valida, deduplica, congela la cotización, muestra la previsualización e
+// inserta. Es el mismo circuito para los dos caminos.
+function procesarFilasTB(filas, cta, hojaUsada = '', origen = 'archivo') {
   // La primera fila puede ser encabezado o ya un dato; se detecta.
   const esEncabezado = filas[0].some(c => /fecha|descrip|importe/i.test(String(c || '')));
   const datos = esEncabezado ? filas.slice(1) : filas;
 
-  const parseImporte = v => {
-    if (typeof v === 'number') return v;
-    let s = String(v ?? '').replace(/[^\d,.\-]/g, '');
-    if (!s) return null;
-    if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
-    else if (s.includes(',')) s = s.replace(',', '.');
-    else if (s.includes('.')) {
-      const p = s.split('.');
-      if (p.slice(1).every(x => x.length === 3)) s = s.replace(/\./g, '');
-    }
-    const n = Number(s);
-    return isNaN(n) ? null : n;
-  };
-  const parseFecha = v => {
-    // No se usa `instanceof Date`: si el objeto viene de otro contexto de
-    // ejecución la comprobación falla aunque sea una fecha perfectamente
-    // válida. Se detecta por comportamiento.
-    if (v && typeof v === 'object' && typeof v.getTime === 'function' && !isNaN(v.getTime())) {
-      return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
-    }
-    // Número de serie de Excel (cuando la lectura no convierte a fecha)
-    if (typeof v === 'number' && v > 20000 && v < 80000) {
-      const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 864e5);
-      return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
-    }
-    const s = String(v ?? '').trim();
-    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-    m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);   // dd/mm/aaaa
-    if (m) {
-      const a = m[3].length === 2 ? '20' + m[3] : m[3];
-      return `${a}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-    }
-    return null;
-  };
+  const parseImporte = tbParseImporte;
+  const parseFecha = tbParseFecha;
 
   const nuevas = [], descartadas = [];
   datos.forEach((r, i) => {
@@ -10742,7 +10769,7 @@ async function importarExcelTB(file) {
   const totalNuevo = aInsertar.reduce((a, n) => a + n.importe, 0);
   const detalle = [
     `<b>${aInsertar.length}</b> movimientos nuevos por <b>${MONEDAS[cta.moneda]} ${fmt(totalNuevo)}</b>`,
-    hojaUsada ? `leídos de la hoja <b>${esc(hojaUsada)}</b>` : '',
+    hojaUsada ? `leídos de la hoja <b>${esc(hojaUsada)}</b>` : (origen === 'pegado' ? 'pegados a mano' : ''),
     dupBase.length ? `${dupBase.length} ya estaban cargados (se omiten)` : '',
     repetidasOk ? `<span style="color:var(--warn)">⚠ ${repetidasOk} movimiento${repetidasOk === 1 ? '' : 's'} idéntico${repetidasOk === 1 ? '' : 's'} a otro del mismo día: se importan igual (pueden ser transferencias repetidas reales). Revisalos abajo.</span>` : '',
     descartadas.length ? `${descartadas.length} filas sin fecha/descripción/importe válidos (se omiten)` : '',
@@ -10781,9 +10808,92 @@ async function importarExcelTB(file) {
     }
     closeModal();
     toast(`${ok} transferencias importadas`, 'ok');
+    if (origen === 'pegado' && $('#tb-pegar')) {
+      $('#tb-pegar').value = '';
+      $('#tb-pegar-msg').innerHTML = `<span style="color:var(--ok)">✓ ${ok} importada${ok === 1 ? '' : 's'}</span>`;
+    }
     await loadTransferenciasBanco(); await loadTransfArchivo();
     renderTransfBanco(); renderArchivoTransf(); renderIndicadores();
   });
+}
+
+// ---------- Carga pegada ----------
+// Mismo resultado que importar el Excel, pero pegando. Para cuando son pocos
+// movimientos o cuando se copia directo de la pantalla del banco: bajar el
+// archivo, abrirlo y subirlo por tres líneas no tiene sentido.
+//
+// Acepta lo que venga: columnas separadas por tabulación (lo normal al pegar
+// de Excel) o una línea suelta tipo "05/08/2026 TRANSF... 95000". Si la fila
+// trae más columnas de las tres esperadas —el extracto del banco tiene
+// comprobante, concepto y saldo— busca cuál es cuál en vez de exigir que se
+// borren a mano: la primera que sea fecha, el último número que no sea fecha
+// es el importe, y el texto más largo es la descripción.
+function parsearPegadoTB(texto) {
+  const filas = [], errores = [];
+  String(texto || '').split(/\r?\n/).forEach((linea, i) => {
+    const bruta = linea.trim();
+    if (!bruta) return;
+    const nro = i + 1;
+
+    // Encabezado pegado sin querer: se saltea en silencio
+    if (/^fecha\b/i.test(bruta) && /(descrip|concepto|importe)/i.test(bruta)) return;
+
+    let campos = bruta.includes('\t')
+      ? bruta.split('\t').map(c => c.trim())
+      : bruta.split(/\s{2,}|\s*;\s*/).map(c => c.trim()).filter(Boolean);
+
+    // Todo junto en una sola columna: "fecha descripción importe"
+    if (campos.length < 3) {
+      const m = bruta.match(/^(\S+)\s+(.*?)\s+(-?[\d.,]+)$/);
+      if (!m) { errores.push(`línea ${nro}: no se entiende "${bruta.slice(0, 40)}"`); return; }
+      campos = [m[1], m[2], m[3]];
+    }
+
+    const fechas = campos.map(c => tbParseFecha(c));
+    const iFecha = fechas.findIndex(f => f);
+    if (iFecha < 0) { errores.push(`línea ${nro}: no encontré la fecha`); return; }
+
+    // La descripción es el texto más largo que no sea fecha ni un número
+    // suelto, así no se confunde con el comprobante ni con el concepto.
+    const esNumero = k => k !== iFecha && !fechas[k] && /\d/.test(campos[k]) &&
+                          tbParseImporte(campos[k]) != null;
+    const esTexto  = k => k !== iFecha && !fechas[k] && campos[k] &&
+                          !/^[\d.,\-\s\/]+$/.test(campos[k]);
+    let iDesc = -1;
+    campos.forEach((c, k) => {
+      if (esTexto(k) && (iDesc < 0 || c.length > campos[iDesc].length)) iDesc = k;
+    });
+    if (iDesc < 0) { errores.push(`línea ${nro}: falta la descripción`); return; }
+
+    // El importe es el PRIMER número DESPUÉS de la descripción. En el
+    // extracto del banco la fila termina en ... Descripción | Importe |
+    // Saldo, así que tomar el último número de la derecha traía el saldo.
+    let iImporte = -1;
+    for (let k = iDesc + 1; k < campos.length; k++) if (esNumero(k)) { iImporte = k; break; }
+    if (iImporte < 0) for (let k = iDesc - 1; k >= 0; k--) if (esNumero(k)) { iImporte = k; break; }
+    if (iImporte < 0) { errores.push(`línea ${nro}: no encontré el importe`); return; }
+
+    filas.push([fechas[iFecha], campos[iDesc], tbParseImporte(campos[iImporte])]);
+  });
+  return { filas, errores };
+}
+
+function importarPegadoTB() {
+  const cta = cuentaTBActual();
+  const msg = $('#tb-pegar-msg');
+  if (!cta) { msg.innerHTML = '<span style="color:var(--err)">Elegí primero la empresa y la cuenta</span>'; return; }
+
+  const { filas, errores } = parsearPegadoTB($('#tb-pegar').value);
+  if (!filas.length) {
+    msg.innerHTML = `<span style="color:var(--err)">No se entendió ninguna línea. ${esc(errores[0] || '')}</span>`;
+    return;
+  }
+  msg.innerHTML = `<span class="muted">${filas.length} línea${filas.length === 1 ? '' : 's'} leída${filas.length === 1 ? '' : 's'}</span>` +
+    (errores.length ? ` <span style="color:var(--warn)">· ${errores.length} con problemas: ${esc(errores[0])}</span>` : '');
+
+  // De acá en adelante es el mismo circuito que el Excel: deduplica, congela
+  // la cotización y pide confirmación antes de insertar.
+  procesarFilasTB(filas, cta, '', 'pegado');
 }
 
 // ---------- Modelo para importar ----------
@@ -10976,6 +11086,7 @@ if ($('#tb-empresa')) {
     renderTransfBanco();
   });
   $('#tb-importar').addEventListener('click', () => $('#tb-file').click());
+  $('#tb-pegar-btn').addEventListener('click', importarPegadoTB);
   $('#tb-modelo').addEventListener('click', bajarModeloImportacion);
   $('#tb-file').addEventListener('change', e => {
     const f = e.target.files[0];
