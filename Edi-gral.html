@@ -751,6 +751,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
     <button class="nav-item" data-tab="tareas">📋 Tareas</button>
     <button class="nav-item" data-tab="instructivos">📚 Instructivos</button>
     <button class="nav-item" data-tab="transferencias">💸 Transferencias</button>
+    <button class="nav-item" data-tab="seguimiento">👥 Seguimiento de clientes</button>
     <button class="nav-item" data-tab="retiros">📤 Retiro de documentación</button>
     <button class="nav-item" data-tab="mails">📬 Mails</button>
     <button class="nav-item" data-tab="papeles">📑 Papeles de trabajo</button>
@@ -1869,6 +1870,18 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <div class="card" id="bib-detalle" style="margin-top:14px"></div>
       </div>
     </section>
+    <!-- SEGUIMIENTO DE CLIENTES -->
+    <section class="tab-content" id="tab-seguimiento" style="display:none">
+      <div class="page-head">
+        <div><h1>Seguimiento de clientes</h1><p>Listas de gente a la que hay que seguir hasta que cumpla</p></div>
+        <button class="btn accent" id="seg-nueva-lista">+ Nueva lista</button>
+      </div>
+
+      <div id="seg-chips" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"></div>
+
+      <div id="seg-detalle"></div>
+    </section>
+
     <section class="tab-content" id="tab-mails" style="display:none">
       <div class="page-head">
         <div><h1>Mails</h1><p>Tu bandeja de Outlook, agrupada por tipo</p></div>
@@ -2474,8 +2487,8 @@ async function initAuth() {
 // MATRIZ DE ACCESOS POR ÁREA
 // =================================================================
 const ACCESOS = {
-  admin:    ['sugerencias','icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','gastos-boleto','tareas','instructivos','transferencias','retiros','cocheras','papeles','mails','ajustes','audit'],
-  finanzas: ['sugerencias','icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias','retiros','cocheras','papeles','mails'],
+  admin:    ['sugerencias','icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','gastos-boleto','tareas','instructivos','transferencias','seguimiento','retiros','cocheras','papeles','mails','ajustes','audit'],
+  finanzas: ['sugerencias','icc','sellos','posesiones','cesiones','cuentas','cotizacion','gastos','tareas','instructivos','transferencias','seguimiento','retiros','cocheras','papeles','mails'],
   legales:  ['sugerencias','icc','sellos','cesiones','cuentas','cotizacion','gastos','retiros','cocheras'],
   ventas:   ['sugerencias','icc','cuentas','cotizacion','gastos','gastos-boleto'],
   sac:      ['sugerencias','icc','cuentas','gastos'],
@@ -2555,7 +2568,7 @@ async function afterLogin() {
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
     loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadBiblioteca(), loadBibAsignaciones(), loadCocheras(),
-    loadBancosCuentas(), loadTransferenciasBanco(), loadTransfArchivo(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(), loadMailReglas(), loadSugerencias(),
+    loadBancosCuentas(), loadTransferenciasBanco(), loadTransfArchivo(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(), loadMailReglas(), loadSugerencias(), loadSeguimiento(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -2778,12 +2791,14 @@ function switchTab(tab) {
   if (tab === 'papeles') renderPapeles();
   if (tab === 'mails') renderMails();
   if (tab === 'sugerencias') renderSugerencias();
+  if (tab === 'seguimiento') renderSeguimiento();
   if (tab === 'ajustes') { renderBancosCuentas(); renderIdentEmpr(); renderSpeeches(); }
   if (tab === 'transferencias') llenarSelectsEmpr();
 }
 
 $$('.nav-item[data-tab]').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 $('#nav-campana').addEventListener('click', abrirCampanita);
+$('#seg-nueva-lista')?.addEventListener('click', segNuevaLista);
 $('#burger').addEventListener('click', () => {
   const isOpen = $('#sidebar').classList.toggle('open');
   $('#sidebar-backdrop')?.classList.toggle('show', isOpen);
@@ -13769,13 +13784,702 @@ function renderAll() {
 }
 
 // =================================================================
+// MODULO: SEGUIMIENTO DE CLIENTES
+//
+// Listas de gente a la que hay que seguir hasta que haga algo. La
+// primera es "Pagadores últimos días del mes": los que transfieren
+// después del 25 y hay que pedirles que paguen antes.
+//
+// Cada cliente pasa por pendiente → contactado → cumplió. El estado y
+// las fechas los sella la base (ver migracion_seguimiento.sql), así que
+// acá sólo se pide el cambio; quién y cuándo no los pone el navegador.
+// =================================================================
+
+function segPuede() {
+  const p = state.profile;
+  return !!p && (p.rol === 'admin' || p.area === 'finanzas');
+}
+const segEsAdmin = () => state.profile?.rol === 'admin';
+
+// --- Nombre de pila -----------------------------------------------
+// Los titulares vienen como APELLIDO(S) NOMBRE(S). Para saludar hay
+// que separar uno de otro, y con dos apellidos no alcanza con tomar la
+// segunda palabra ("ALLENDE POSSE PEDRO" no es "Posse"). Se busca el
+// primer nombre conocido; si no reconoce ninguno avisa para revisarlo.
+const SEG_NOMBRES = new Set(('ABEL ADRIAN AGOSTINA AGUSTIN AGUSTINA AIDA ALAN ALBERTO ALDO ALEJANDRA ALEJANDRO '+
+'ALEXIS ALFREDO ALICIA AMALIA ANA ANABELLA ANALIA ANDREA ANDRES ANGEL ANGELA ANIBAL ANTONELLA ANTONIO ARIEL '+
+'ARIADNA ARMANDO AXEL AYELEN BARBARA BAUTISTA BEATRIZ BELEN BENJAMIN BERNARDO BETIANA BLANCA BRAIAN BRENDA '+
+'BRIAN BRUNO CAMILA CANDELARIA CARINA CARLA CARLOS CARMEN CAROLINA CATALINA CECILIA CELESTE CESAR CINTIA '+
+'CLARA CLAUDIA CLAUDIO CONSTANZA CRISTIAN CRISTINA DAIANA DAMIAN DANIEL DANIELA DARIO DAVID DEBORA DELFINA '+
+'DIEGO DOLORES DOMINGO EDGARDO EDUARDO ELBA ELENA ELIAS ELSA EMANUEL EMILCE EMILIA EMILIANO EMILSE ENRIQUE '+
+'ERICA ERNESTO ESTEBAN ESTELA ESTER EUGENIA EVA EXEQUIEL EZEQUIEL FABIAN FABIANA FABRICIO FACUNDO FEDERICO '+
+'FELIPE FERNANDA FERNANDO FLAVIA FLORENCIA FRANCISCO FRANCO GABRIEL GABRIELA GASTON GERARDO GERMAN GISELA '+
+'GLADYS GLORIA GONZALO GRACIELA GREGORIO GUADALUPE GUILLERMINA GUILLERMO GUSTAVO HECTOR HERNAN HILDA HORACIO '+
+'HUGO IGNACIO INES IRENE IRMA ISABEL IVAN IVANA JAVIER JESICA JIMENA JOAQUIN JONATHAN JORGE JOSE JOSEFINA '+
+'JUAN JUANA JUDITH JULIA JULIAN JULIETA JULIO KARINA KEVIN LAUTARO LEANDRO LEONARDO LETICIA LIDIA LILIANA '+
+'LISANDRO LORENA LORENZO LOURDES LUCAS LUCIA LUCIANA LUCIANO LUCIO LUIS LUJAN LUZ MACARENA MAGALI MAIRA '+
+'MANUEL MARA MARCELA MARCELO MARCOS MARIA MARIANA MARIANO MARIELA MARINA MARIO MARISA MARTA MARTIN '+
+'MARTINA MATEO MATIAS MAURICIO MAURO MAXIMILIANO MELINA MERCEDES MIA MICAELA MIGUEL MILAGROS MIRIAM MIRTA '+
+'MIRTHA MONICA MYRIAM NADIA NAHUEL NATALIA NATALIE NELIDA NELSON NESTOR NICOLAS NIDIA NILDA NOELIA NOEMI '+
+'NORA NORBERTO NORMA OLGA OMAR ORLANDO OSCAR OSVALDO PABLO PAMELA PAOLA PATRICIA PATRICIO PAULA PAULO PEDRO '+
+'PRISCILA RAFAEL RAMIRO RAMON RAUL RENEE RICARDO ROBERTO ROCIO RODOLFO RODRIGO ROMINA ROSA ROSARIO RUBEN '+
+'RUTH SABRINA SALVADOR SAMANTA SANDRA SANTIAGO SARA SEBASTIAN SERGIO SILVANA SILVANO SILVIA SOFIA SOL SOLANGE '+
+'SONIA SUSANA TAMARA TERESA THIAGO TOMAS VALENTIN VALENTINA VALERIA VANESA VERONICA VICENTE VICTOR VICTORIA '+
+'VILMA VIRGILIO VIRGINIA VIVIANA WALTER YAMILA YENINA YOLANDA ZULEMA ZULIMER').split(/\s+/));
+
+function segNombrePila(completo) {
+  const partes = normalizarNombre(completo || '').split(' ').filter(Boolean);
+  if (!partes.length) return { pila: '', dudoso: true };
+  if (partes.length === 1) return { pila: segCapitalizar(partes[0]), dudoso: true };
+  for (let i = 1; i < partes.length; i++) {
+    if (SEG_NOMBRES.has(partes[i])) return { pila: segCapitalizar(partes[i]), dudoso: false };
+  }
+  // Sin ningún nombre reconocido: con 3 o más palabras lo más probable es
+  // que las primeras sean apellidos, así que se usa la penúltima.
+  const elegida = partes.length >= 3 ? partes[partes.length - 2] : partes[1];
+  return { pila: segCapitalizar(elegida), dudoso: true };
+}
+const segCapitalizar = p => p.charAt(0) + p.slice(1).toLowerCase();
+
+// --- Teléfonos ----------------------------------------------------
+// WhatsApp quiere el número internacional sin signos: 54 9 + característica
+// + abonado, y SIN el 15 que se usa acá para marcar un celular.
+function segNormTel(crudo) {
+  if (crudo === null || crudo === undefined) return { tel: null, motivo: 'sin número' };
+  let d = String(crudo).replace(/\D/g, '');
+  if (!d) return { tel: null, motivo: 'sin número' };
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.startsWith('54')) { d = d.slice(2); if (d.startsWith('9')) d = d.slice(1); }
+  d = d.replace(/^0+/, '');
+  // El 15 escrito a la criolla ("0351 15 6878458") deja 12 dígitos: la
+  // característica, el 15 y el abonado. Se saca el 15 del medio, que en
+  // el formato internacional no va.
+  if (d.length === 12) {
+    for (const corte of [2, 3, 4]) {
+      if (d.slice(corte, corte + 2) === '15') { d = d.slice(0, corte) + d.slice(corte + 2); break; }
+    }
+  }
+  if (d.length !== 10) return { tel: null, motivo: `tiene ${d.length} dígitos y tienen que ser 10` };
+  return { tel: '549' + d, motivo: null };
+}
+
+// Características de 3 dígitos; el 11 es de 2 y el resto del país de 4.
+const SEG_AREAS3 = new Set(['220','221','223','230','236','237','249','260','261','263','264','266','280',
+  '291','294','297','299','336','341','342','343','345','351','353','358','362','364','370','376','379',
+  '380','381','383','385','387','388']);
+function segLindoTel(tel) {
+  if (!tel) return '—';
+  const n = String(tel).replace(/^549/, '');
+  if (n.length !== 10) return '+' + tel;
+  const largo = n.startsWith('11') ? 2 : SEG_AREAS3.has(n.slice(0, 3)) ? 3 : 4;
+  return '+54 9 ' + n.slice(0, largo) + ' ' + n.slice(largo);
+}
+
+// --- Datos --------------------------------------------------------
+async function loadSeguimiento() {
+  if (!segPuede()) { state.segListas = []; state.segClientes = []; return; }
+  const [ls, cs] = await Promise.all([
+    sb.from('seguimiento_listas').select('*').order('orden').order('nombre'),
+    sb.from('seguimiento_clientes').select('*').order('titular'),
+  ]);
+  state.segListas = ls.data || [];
+  state.segClientes = cs.data || [];
+  if (!state.segListaSel || !state.segListas.some(l => l.id === state.segListaSel)) {
+    state.segListaSel = state.segListas[0]?.id || null;
+  }
+}
+
+const segLista = () => (state.segListas || []).find(l => l.id === state.segListaSel) || null;
+const segGente = id => (state.segClientes || []).filter(c => c.lista_id === (id || state.segListaSel));
+
+// --- El mensaje ---------------------------------------------------
+function segArmarMensaje(c, plantilla) {
+  const saludar = state.segSaludar !== false;
+  const nom = saludar ? (c.nombre_pila || '').trim() : '';
+  // Sin nombre se saca también el espacio de antes, para que "Hola
+  // {nombre}!" quede "Hola!" y no "Hola !". No se tocan los demás
+  // espacios: "Hola Pablo! ¡Buen día!" tiene que conservar el suyo.
+  return String(plantilla || '')
+    .replace(nom ? /\{nombre\}/g : / ?\{nombre\}/g, nom)
+    .replace(/\{barrio\}/g, c.barrio || '')
+    .replace(/\{cliente\}/g, c.num_cliente || '');
+}
+const segEnlaceWsp = (tel, c, plantilla) =>
+  'https://wa.me/' + tel + '?text=' + encodeURIComponent(segArmarMensaje(c, plantilla));
+
+// --- Render -------------------------------------------------------
+function renderSeguimiento() {
+  if (!$('#tab-seguimiento')) return;
+  const chips = $('#seg-chips'), det = $('#seg-detalle');
+  if (!segPuede()) { chips.innerHTML = ''; det.innerHTML = '<div class="card"><p class="empty">No tenés acceso a esta sección.</p></div>'; return; }
+
+  const listas = state.segListas || [];
+  chips.innerHTML = listas.map(l => {
+    const g = segGente(l.id);
+    const pend = g.filter(c => c.estado !== 'cumplio').length;
+    const act = l.id === state.segListaSel;
+    return `<button class="btn ${act ? 'accent' : 'ghost'} sm" onclick="segElegirLista('${l.id}')">
+      ${esc(l.nombre)} ${pend ? `<span class="badge ${act ? 'muted' : 'accent'}" style="margin-left:6px">${pend}</span>` : ''}
+    </button>`;
+  }).join('');
+
+  const l = segLista();
+  if (!l) {
+    det.innerHTML = `<div class="card"><p class="empty">Todavía no hay ninguna lista.
+      Creá una con <b>+ Nueva lista</b> y cargale la gente desde la planilla.</p></div>`;
+    return;
+  }
+
+  const g = segGente(l.id);
+  const pend = g.filter(c => c.estado === 'pendiente');
+  const cont = g.filter(c => c.estado === 'contactado');
+  const cumpl = g.filter(c => c.estado === 'cumplio');
+  const porMandar = g.filter(c => c.estado === 'pendiente' && c.telefono);
+  const filtro = state.segFiltro || 'activos';
+  const mostrar = filtro === 'cumplieron' ? cumpl
+                : filtro === 'todos' ? g
+                : g.filter(c => c.estado !== 'cumplio');
+
+  det.innerHTML = `
+    <div class="card">
+      <h3 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${esc(l.nombre)}
+        <button class="btn ghost sm" onclick="segEditarLista('${l.id}')">✎ Nombre y mensaje</button>
+        ${segEsAdmin() ? `<button class="btn ghost sm" onclick="segBorrarLista('${l.id}')">🗑 Borrar lista</button>` : ''}
+      </h3>
+      ${l.descripcion ? `<p class="sub" style="margin:-8px 0 14px">${esc(l.descripcion)}</p>` : ''}
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px">
+        <div class="stat"><div class="lab">En la lista</div><div class="val">${g.length}</div></div>
+        <div class="stat"><div class="lab">Por contactar</div><div class="val">${pend.length}</div>
+          <div class="sub">${porMandar.length} con WhatsApp</div></div>
+        <div class="stat"><div class="lab">Contactados</div><div class="val">${cont.length}</div>
+          <div class="sub">esperando que paguen</div></div>
+        <div class="stat"><div class="lab">Cumplieron</div><div class="val">${cumpl.length}</div></div>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn accent" onclick="segWhatsapp()" ${porMandar.length ? '' : 'disabled'}>
+          📱 Mandar WhatsApp${porMandar.length ? ` (${porMandar.length})` : ''}</button>
+        <button class="btn" onclick="segCargarGente()">+ Cargar gente</button>
+        ${cumpl.length ? `<button class="btn ghost" onclick="segReiniciar()">↻ Arrancar una vuelta nueva</button>` : ''}
+      </div>
+      ${pend.length && !porMandar.length ? `<p class="sub" style="margin-top:10px">
+        Los ${pend.length} que quedan no tienen teléfono cargado: hay que ubicarlos por otro lado.</p>` : ''}
+    </div>
+
+    <div class="card">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        ${[['activos', 'Activos', g.filter(c => c.estado !== 'cumplio').length],
+           ['cumplieron', 'Cumplieron', cumpl.length],
+           ['todos', 'Todos', g.length]].map(([k, t, n]) =>
+          `<button class="btn ${filtro === k ? 'accent' : 'ghost'} sm" onclick="segFiltrar('${k}')">${t} (${n})</button>`).join('')}
+      </div>
+      <div class="tbl-wrap"><table class="tbl" id="seg-tabla">
+        <thead><tr><th>Cliente</th><th>Barrio</th><th>N° cliente</th><th>WhatsApp</th>
+          <th>Estado</th><th class="actions"></th></tr></thead>
+        <tbody>${mostrar.length ? mostrar.map(c => segFila(c, l)).join('')
+          : `<tr><td colspan="6" class="empty">No hay nadie para mostrar acá.</td></tr>`}</tbody>
+      </table></div>
+    </div>`;
+}
+
+function segFila(c, l) {
+  const chip = c.estado === 'cumplio'
+      ? `<span class="badge ok">✓ cumplió</span>`
+    : c.estado === 'contactado'
+      ? `<span class="badge warn" title="Contactado el ${c.contactado_at ? fmtFechaHora(c.contactado_at) : '—'}">📱 contactado</span>`
+      : `<span class="badge muted">pendiente</span>`;
+  const wsp = c.telefono
+    ? `<a class="btn ghost sm" href="${segEnlaceWsp(c.telefono, c, l.mensaje)}" target="_blank" rel="noopener"
+         onclick="segMarcar('${c.id}','contactado',true)" title="Abre WhatsApp con el mensaje escrito">📱</a>`
+    : '';
+  return `<tr${c.estado === 'cumplio' ? ' style="opacity:.6"' : ''}>
+    <td><b>${esc(c.titular)}</b>${c.nombre_pila ? `<br><span class="sub" style="font-size:.76rem">se lo saluda: ${esc(c.nombre_pila)}</span>` : ''}</td>
+    <td>${esc(c.barrio || '—')}</td>
+    <td class="num">${esc(c.num_cliente || '—')}</td>
+    <td style="white-space:nowrap">${c.telefono ? esc(segLindoTel(c.telefono)) : '<span class="sub">sin teléfono</span>'}</td>
+    <td>${chip}</td>
+    <td class="actions">
+      ${wsp}
+      ${c.estado !== 'cumplio' ? `<button class="btn ghost sm" onclick="segMarcar('${c.id}','cumplio')" title="Ya pagó antes del 25">✓</button>` : ''}
+      ${c.estado !== 'pendiente' ? `<button class="btn ghost sm" onclick="segMarcar('${c.id}','pendiente')" title="Volver a pendiente">↩</button>` : ''}
+      <button class="btn ghost sm" onclick="segEditarCliente('${c.id}')" title="Corregir los datos">✎</button>
+      <button class="btn ghost sm" onclick="segBorrarCliente('${c.id}')" title="Sacar de la lista">🗑</button>
+    </td></tr>`;
+}
+
+function segElegirLista(id) { state.segListaSel = id; state.segFiltro = 'activos'; renderSeguimiento(); }
+function segFiltrar(k) { state.segFiltro = k; renderSeguimiento(); }
+
+// --- Cambiar el estado --------------------------------------------
+// soloSiPendiente: lo usa el botón de WhatsApp, que no tiene que
+// retroceder a "contactado" a alguien que ya pagó.
+async function segMarcar(id, estado, soloSiPendiente = false) {
+  const c = (state.segClientes || []).find(x => x.id === id);
+  if (!c) return;
+  if (soloSiPendiente && c.estado !== 'pendiente') return;
+  const { data, error } = await sb.from('seguimiento_clientes')
+    .update({ estado }).eq('id', id).select('id');
+  if (error) { toast('No se pudo cambiar: ' + error.message, 'err'); return; }
+  if (!data || !data.length) { toast('No se pudo cambiar: la base no te dejó', 'err'); return; }
+  c.estado = estado;
+  if (estado === 'pendiente') { c.contactado_at = null; c.cumplio_at = null; }
+  if (!soloSiPendiente) toast(estado === 'cumplio' ? 'Marcado como que cumplió' :
+    estado === 'pendiente' ? 'Vuelve a pendiente' : 'Marcado como contactado', 'ok');
+  renderSeguimiento();
+  if (state.segWsp) segWspPintar();
+}
+
+async function segBorrarCliente(id) {
+  const c = (state.segClientes || []).find(x => x.id === id);
+  if (!c) return;
+  if (!await confirmAction(`¿Sacar a ${c.titular} de la lista?\n\nSe borra el registro, no el cliente.`)) return;
+  const { error } = await sb.from('seguimiento_clientes').delete().eq('id', id);
+  if (error) { toast('No se pudo borrar: ' + error.message, 'err'); return; }
+  state.segClientes = state.segClientes.filter(x => x.id !== id);
+  toast('Sacado de la lista', 'ok');
+  renderSeguimiento();
+}
+
+async function segReiniciar() {
+  const l = segLista(); if (!l) return;
+  const cumpl = segGente(l.id).filter(c => c.estado === 'cumplio');
+  if (!cumpl.length) return;
+  if (!await confirmAction(`Arrancar una vuelta nueva en "${l.nombre}".\n\n` +
+    `Los ${cumpl.length} que ya cumplieron vuelven a pendiente, con la misma gente cargada. ` +
+    `Se pierden las fechas de la vuelta anterior.\n\n¿Vamos?`)) return;
+  const { data, error } = await sb.from('seguimiento_clientes')
+    .update({ estado: 'pendiente' }).eq('lista_id', l.id).eq('estado', 'cumplio').select('id');
+  if (error) { toast('No se pudo: ' + error.message, 'err'); return; }
+  await loadSeguimiento();
+  toast(`${(data || []).length} vuelven a pendiente`, 'ok');
+  renderSeguimiento();
+}
+
+// --- Alta y edición de listas -------------------------------------
+function segNuevaLista() {
+  if (!segPuede()) { toast('No tenés permiso', 'warn'); return; }
+  segFormLista(null);
+}
+function segEditarLista(id) { segFormLista((state.segListas || []).find(l => l.id === id) || null); }
+
+function segFormLista(l) {
+  const esNueva = !l;
+  showModal(`<div class="modal-head"><h3>${esNueva ? 'Nueva lista de seguimiento' : 'Editar la lista'}</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+    <div class="field"><label>Nombre</label>
+      <input id="segl-nombre" value="${esc(l?.nombre || '')}" placeholder="Pagadores últimos días del mes"></div>
+    <div class="field"><label>Para qué es (opcional)</label>
+      <input id="segl-desc" value="${esc(l?.descripcion || '')}" placeholder="A quién se sigue y por qué"></div>
+    <div class="field"><label>Mensaje de WhatsApp</label>
+      <textarea id="segl-msg" rows="11" style="font-size:.86rem">${esc(l?.mensaje || 'Hola {nombre}! ')}</textarea>
+      <p class="sub" style="margin-top:6px">Se reemplazan <code>{nombre}</code> por el nombre de pila,
+        <code>{barrio}</code> y <code>{cliente}</code>. En WhatsApp, *entre asteriscos* sale en negrita.</p></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" onclick="segGuardarLista('${l?.id || ''}')">${esNueva ? 'Crear' : 'Guardar'}</button>
+    </div>`, { wide: true });
+}
+
+async function segGuardarLista(id) {
+  const nombre = $('#segl-nombre').value.trim();
+  if (!nombre) { toast('Ponele un nombre', 'warn'); return; }
+  const fila = { nombre, descripcion: $('#segl-desc').value.trim() || null, mensaje: $('#segl-msg').value };
+  let r;
+  if (id) r = await sb.from('seguimiento_listas').update(fila).eq('id', id).select('id');
+  else { fila.created_by = state.user?.id; r = await sb.from('seguimiento_listas').insert(fila).select('id'); }
+  if (r.error) { toast('No se pudo guardar: ' + r.error.message, 'err'); return; }
+  if (!r.data || !r.data.length) { toast('No se pudo guardar: la base no te dejó', 'err'); return; }
+  closeModal();
+  await loadSeguimiento();
+  if (!id) state.segListaSel = r.data[0].id;
+  toast(id ? 'Lista guardada' : 'Lista creada', 'ok');
+  renderSeguimiento();
+}
+
+async function segBorrarLista(id) {
+  const l = (state.segListas || []).find(x => x.id === id); if (!l) return;
+  const n = segGente(id).length;
+  if (!await confirmAction(`¿Borrar la lista "${l.nombre}"?\n\n` +
+    (n ? `Se van también los ${n} clientes cargados y su historial. ` : '') + 'No se puede deshacer.')) return;
+  const { error } = await sb.from('seguimiento_listas').delete().eq('id', id);
+  if (error) { toast('No se pudo borrar: ' + error.message, 'err'); return; }
+  await loadSeguimiento();
+  toast('Lista borrada', 'ok');
+  renderSeguimiento();
+}
+
+// --- Editar un cliente de la lista --------------------------------
+function segEditarCliente(id) {
+  const c = (state.segClientes || []).find(x => x.id === id); if (!c) return;
+  showModal(`<div class="modal-head"><h3>Datos de ${esc(c.titular)}</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+    <div class="field"><label>Titular</label><input id="segc-tit" value="${esc(c.titular)}"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="field"><label>Se lo saluda</label><input id="segc-pila" value="${esc(c.nombre_pila || '')}"></div>
+      <div class="field"><label>N° cliente</label><input id="segc-cli" value="${esc(c.num_cliente || '')}"></div>
+      <div class="field"><label>Barrio</label><input id="segc-barrio" value="${esc(c.barrio || '')}"></div>
+      <div class="field"><label>Teléfono</label><input id="segc-tel" value="${esc(c.telefono ? segLindoTel(c.telefono) : '')}"
+        placeholder="351 687 8458"></div>
+    </div>
+    <div class="field"><label>Nota (opcional)</label><input id="segc-nota" value="${esc(c.nota || '')}"
+      placeholder="Dijo que pagaba el viernes"></div>
+    <p class="sub">El teléfono se pasa solo a formato internacional.</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" onclick="segGuardarCliente('${id}')">Guardar</button>
+    </div>`, { wide: true });
+}
+
+async function segGuardarCliente(id) {
+  const tit = $('#segc-tit').value.trim();
+  if (!tit) { toast('Falta el titular', 'warn'); return; }
+  const crudo = $('#segc-tel').value.trim();
+  const { tel, motivo } = segNormTel(crudo);
+  if (crudo && !tel) { toast('El teléfono no cierra: ' + motivo, 'err'); return; }
+  const fila = {
+    titular: tit.toUpperCase(), nombre_pila: $('#segc-pila').value.trim() || null,
+    num_cliente: $('#segc-cli').value.trim() || null, barrio: $('#segc-barrio').value.trim() || null,
+    telefono: tel, nota: $('#segc-nota').value.trim() || null,
+  };
+  const { data, error } = await sb.from('seguimiento_clientes').update(fila).eq('id', id).select('id');
+  if (error) { toast('No se pudo guardar: ' + error.message, 'err'); return; }
+  if (!data || !data.length) { toast('No se pudo guardar: la base no te dejó', 'err'); return; }
+  closeModal();
+  await loadSeguimiento();
+  toast('Datos guardados', 'ok');
+  renderSeguimiento();
+}
+
+// --- Cargar gente (pegado o Excel) --------------------------------
+// Mismo criterio que la carga masiva de transferencias: se parsea, se
+// muestra qué entendió y recién después se graba.
+function segCargarGente() {
+  const l = segLista(); if (!l) return;
+  showModal(`<div class="modal-head"><h3>Cargar gente en "${esc(l.nombre)}"</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+    <p class="sub">Pegá las filas de la planilla con los encabezados incluidos, o elegí el Excel.
+      Necesita el titular y el teléfono; barrio, N° de cliente, banco y cuenta los toma si están.</p>
+    <div class="field"><label>Pegar desde Excel</label>
+      <textarea id="segp-texto" rows="8" placeholder="Banco	Moneda	Se imputa a	Barrio	N° cliente	Cuenta	telefono1	Telefono2"
+        style="font-family:ui-monospace,monospace;font-size:.8rem"></textarea></div>
+    <div class="field"><label>o un archivo Excel</label><input type="file" id="segp-file" accept=".xlsx,.xls,.csv"></div>
+    <div id="segp-previa"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn" onclick="segPrevisualizar()">Ver qué entendió</button>
+    </div>`, { wide: true });
+  $('#segp-file').addEventListener('change', e => {
+    if (e.target.files[0]) segLeerExcel(e.target.files[0]);
+  });
+}
+
+function segPartirLinea(linea) {
+  if (linea.includes('\t')) return linea.split('\t');
+  if (linea.includes(';')) return linea.split(';');
+  return linea.split(/ {2,}/);
+}
+
+function segParsearPegado(texto) {
+  return String(texto || '').split(/\r?\n/).map(l => l.trimEnd())
+    .filter(l => l.trim()).map(segPartirLinea);
+}
+
+async function segLeerExcel(file) {
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { cellDates: false });
+    // Se elige la hoja que tenga encabezados con un titular y un teléfono.
+    let elegida = null;
+    for (const nombre of wb.SheetNames) {
+      const f = XLSX.utils.sheet_to_json(wb.Sheets[nombre], { header: 1, raw: true, blankrows: false });
+      const cab = (f[0] || []).map(x => normalizarNombre(String(x || '')));
+      if (cab.some(h => /IMPUTA|TITULAR|NOMBRE|APELLIDO/.test(h)) && cab.some(h => /TEL/.test(h))) { elegida = f; break; }
+      if (!elegida) elegida = f;
+    }
+    if (!elegida || !elegida.length) { toast('El archivo está vacío', 'warn'); return; }
+    segPrevisualizar(elegida.map(r => r.map(c => c === null || c === undefined ? '' : String(c))));
+  } catch (e) { toast('No se pudo leer el archivo: ' + e.message, 'err'); }
+}
+
+// Mapea las columnas por el encabezado. El N° de cliente se busca ANTES
+// que el titular: "N° cliente" también contiene la palabra cliente y si
+// no, se la lleva puesta como si fuera el nombre.
+function segMapearColumnas(cab) {
+  const h = cab.map(x => normalizarNombre(String(x || '')));
+  const buscar = (re, usados) => h.findIndex((x, i) => re.test(x) && !usados.includes(i));
+  const usados = [];
+  const tomar = re => { const i = buscar(re, usados); if (i >= 0) usados.push(i); return i; };
+  const m = {};
+  m.num_cliente = tomar(/N\s*CLIENTE|NRO.*CLIENTE|NUMERO.*CLIENTE|COD.*CLIENTE/);
+  m.titular     = tomar(/IMPUTA|TITULAR|NOMBRE|APELLIDO|CLIENTE/);
+  m.tel         = tomar(/TEL|CELULAR|WHATSAPP|WSP/);
+  m.tel2        = tomar(/TEL|CELULAR|WHATSAPP|WSP/);
+  m.barrio      = tomar(/BARRIO|EMPREND/);
+  m.banco       = tomar(/BANCO/);
+  m.cuenta      = tomar(/CUENTA/);
+  m.moneda      = tomar(/MONEDA/);
+  return (m.titular >= 0 && m.tel >= 0) ? m : null;
+}
+
+function segInterpretar(filas) {
+  if (!filas.length) return { gente: [], avisos: ['No llegó ninguna fila.'] };
+  let mapa = segMapearColumnas(filas[0]), desde = 1;
+  if (!mapa) {
+    // Sin encabezados: se acepta "titular <tab> telefono [<tab> barrio]"
+    mapa = { titular: 0, tel: 1, barrio: filas[0].length > 2 ? 2 : -1,
+             tel2: -1, num_cliente: -1, banco: -1, cuenta: -1, moneda: -1 };
+    desde = 0;
+  }
+  const dame = (f, i) => (i >= 0 && f[i] !== undefined ? String(f[i]).trim() : '');
+  const yaEstan = segGente();
+  const gente = [], completar = [], avisos = [];
+  const porPersona = new Map();   // clave de persona -> posición en gente
+  const porTel = new Map();       // teléfono -> titular que ya lo usa
+  let repetidos = 0, yaCargados = 0, compartidos = 0;
+
+  for (let i = desde; i < filas.length; i++) {
+    const f = filas[i];
+    const titular = dame(f, mapa.titular).replace(/\s+/g, ' ');
+    if (!titular || /^(se imputa|titular|nombre)/i.test(titular)) continue;
+    const r1 = segNormTel(dame(f, mapa.tel));
+    const r2 = segNormTel(dame(f, mapa.tel2));
+    const tel = r1.tel || r2.tel || null;
+    const tel2 = r1.tel && r2.tel && r1.tel !== r2.tel ? r2.tel : null;
+    const num_cliente = dame(f, mapa.num_cliente) || null;
+    const clave = segClavePersona(titular, num_cliente);
+
+    // ¿Ya está cargado en la lista? Si está sin teléfono y ahora viene
+    // con uno, se completa en vez de ignorarlo.
+    const existente = yaEstan.find(c => segClavePersona(c.titular, c.num_cliente) === clave);
+    if (existente) {
+      if (tel && !existente.telefono && !completar.some(x => x.id === existente.id)) {
+        completar.push({ id: existente.id, titular: existente.titular, telefono: tel, telefono2: tel2 });
+      } else yaCargados++;
+      continue;
+    }
+
+    // ¿Repetido dentro de lo que pegó? En la planilla el mismo cliente
+    // aparece en varias filas, a veces una con teléfono y otra sin.
+    // Se juntan en una sola, quedándose con el teléfono.
+    if (porPersona.has(clave)) {
+      const yaEsta = gente[porPersona.get(clave)];
+      if (tel && !yaEsta.telefono) {
+        yaEsta.telefono = tel; yaEsta.telefono2 = tel2; yaEsta.motivo_tel = null;
+      }
+      repetidos++;
+      continue;
+    }
+
+    if (tel) {
+      if (porTel.has(tel) && porTel.get(tel) !== titular) compartidos++;
+      else porTel.set(tel, titular);
+    }
+    porPersona.set(clave, gente.length);
+    const { pila, dudoso } = segNombrePila(titular);
+    gente.push({
+      titular: titular.toUpperCase(), nombre_pila: pila, dudoso,
+      barrio: dame(f, mapa.barrio) || null, num_cliente,
+      banco: dame(f, mapa.banco) || null, cuenta: dame(f, mapa.cuenta) || null,
+      moneda: dame(f, mapa.moneda) || null, telefono: tel, telefono2: tel2,
+      motivo_tel: tel ? null : (r1.motivo || 'sin número'),
+    });
+  }
+  if (desde === 0) avisos.push('No encontré encabezados, así que tomé la primera columna como el titular y la segunda como el teléfono.');
+  if (repetidos) avisos.push(`${repetidos} ${repetidos === 1 ? 'fila repetida' : 'filas repetidas'}: el mismo cliente aparece más de una vez y se carga una sola, con el teléfono que haya.`);
+  if (yaCargados) avisos.push(`${yaCargados} ya ${yaCargados === 1 ? 'estaba' : 'estaban'} en la lista, no se duplican.`);
+  if (completar.length) avisos.push(`${completar.length} que ya ${completar.length === 1 ? 'estaba' : 'estaban'} sin teléfono: ahora se ${completar.length === 1 ? 'le completa el suyo' : 'les completan los suyos'}.`);
+  if (compartidos) avisos.push(`Ojo: ${compartidos} ${compartidos === 1 ? 'comparte' : 'comparten'} teléfono con otro de la lista. Al mismo número le va a llegar más de un mensaje.`);
+  return { gente, completar, avisos };
+}
+
+// Dos filas son la misma persona si coinciden el nombre y el N° de
+// cliente. El teléfono solo no alcanza: marido y mujer comparten número
+// y son dos clientes distintos.
+function segClavePersona(titular, num) {
+  return normalizarNombre(titular || '') + '|' + (num || '');
+}
+
+function segPrevisualizar(filasExcel) {
+  const filas = filasExcel || segParsearPegado($('#segp-texto').value);
+  const { gente, completar, avisos } = segInterpretar(filas);
+  state.segPendienteCarga = gente;
+  state.segPendienteCompletar = completar;
+  const sinTel = gente.filter(g => !g.telefono);
+  $('#segp-previa').innerHTML = `
+    <div class="card" style="margin:14px 0 0;background:var(--surface-2)">
+      <h3 style="font-size:.95rem">${gente.length ? `${gente.length} ${gente.length === 1 ? 'persona nueva' : 'personas nuevas'}`
+        : completar.length ? 'Nadie nuevo, pero hay teléfonos para completar' : 'No hay nada nuevo para cargar'}</h3>
+      ${avisos.map(a => `<p class="sub" style="margin:2px 0">· ${esc(a)}</p>`).join('')}
+      ${sinTel.length ? `<p class="sub" style="margin:2px 0">· ${sinTel.length} sin teléfono: se cargan igual, para que no se pierdan, pero no les sale el WhatsApp.</p>` : ''}
+      ${gente.length ? `<div class="tbl-wrap" style="margin-top:10px;max-height:240px;overflow-y:auto">
+        <table class="tbl"><thead><tr><th>Titular</th><th>Se lo saluda</th><th>Barrio</th><th>WhatsApp</th></tr></thead>
+        <tbody>${gente.map(g => `<tr>
+          <td>${esc(g.titular)}</td>
+          <td>${esc(g.nombre_pila)}${g.dudoso ? ' <span class="badge warn" title="No reconocí el nombre, revisalo">revisar</span>' : ''}</td>
+          <td>${esc(g.barrio || '—')}</td>
+          <td style="white-space:nowrap">${g.telefono ? esc(segLindoTel(g.telefono))
+            : `<span class="sub">${esc(g.motivo_tel)}</span>`}</td></tr>`).join('')}
+        </tbody></table></div>` : ''}
+    </div>`;
+  const total = gente.length + completar.length;
+  $('.modal-foot').innerHTML = `
+    <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+    <button class="btn" onclick="segPrevisualizar()">Volver a leer</button>
+    ${total ? `<button class="btn accent" onclick="segConfirmarCarga()">${
+      gente.length && completar.length ? `Cargar ${gente.length} y completar ${completar.length}`
+      : gente.length ? `Cargar ${gente.length}` : `Completar ${completar.length}`}</button>` : ''}`;
+}
+
+async function segConfirmarCarga() {
+  const l = segLista();
+  const gente = state.segPendienteCarga || [], completar = state.segPendienteCompletar || [];
+  if (!l || (!gente.length && !completar.length)) return;
+
+  let cargados = 0;
+  if (gente.length) {
+    const filas = gente.map(g => ({
+      lista_id: l.id, titular: g.titular, nombre_pila: g.nombre_pila, barrio: g.barrio,
+      num_cliente: g.num_cliente, banco: g.banco, cuenta: g.cuenta, moneda: g.moneda,
+      telefono: g.telefono, telefono2: g.telefono2, created_by: state.user?.id,
+    }));
+    const { data, error } = await sb.from('seguimiento_clientes').insert(filas).select('id');
+    if (error) { toast('No se pudo cargar: ' + error.message, 'err'); return; }
+    if (!data || !data.length) { toast('No se cargó nada: la base no te dejó', 'err'); return; }
+    cargados = data.length;
+  }
+
+  let completados = 0;
+  for (const c of completar) {
+    const { data } = await sb.from('seguimiento_clientes')
+      .update({ telefono: c.telefono, telefono2: c.telefono2 }).eq('id', c.id).select('id');
+    if (data && data.length) completados++;
+  }
+
+  closeModal();
+  state.segPendienteCarga = []; state.segPendienteCompletar = [];
+  await loadSeguimiento();
+  toast([cargados ? `${cargados} cargados` : '', completados ? `${completados} completados` : '']
+    .filter(Boolean).join(' y ') + ' en la lista', 'ok');
+  renderSeguimiento();
+}
+
+// --- Mandar los WhatsApp uno atrás del otro -----------------------
+// No se puede mandar solo: WhatsApp no deja, y automatizarlo con un
+// script es la forma más rápida de que Meta bloquee el número de la
+// empresa. Esto deja el mensaje escrito y el Enter lo aprieta la
+// persona. Al abrir el chat el cliente queda marcado "contactado".
+function segWhatsapp() {
+  const l = segLista(); if (!l) return;
+  const cola = segGente(l.id).filter(c => c.estado === 'pendiente' && c.telefono);
+  if (!cola.length) { toast('No queda nadie pendiente con teléfono', 'warn'); return; }
+  state.segWsp = { lista: l.id, ids: cola.map(c => c.id), i: 0 };
+  showModal('<div id="segw"></div>', { wide: true });
+  segWspPintar();
+}
+
+function segWspPintar() {
+  const w = state.segWsp; if (!w) return;
+  const cont = $('#segw'); if (!cont) { state.segWsp = null; return; }
+  const l = (state.segListas || []).find(x => x.id === w.lista);
+  const todos = w.ids.map(id => (state.segClientes || []).find(c => c.id === id)).filter(Boolean);
+  const hechos = todos.filter(c => c.estado !== 'pendiente').length;
+
+  // Avanza hasta el primero que siga pendiente
+  while (w.i < todos.length && todos[w.i] && todos[w.i].estado !== 'pendiente' && !w.saltados?.includes(todos[w.i].id)) w.i++;
+  const c = todos[w.i];
+
+  if (!c) {
+    cont.innerHTML = `<div class="modal-head"><h3>Listo, no queda nadie</h3>
+        <button class="modal-close" onclick="closeModal();state.segWsp=null">&times;</button></div>
+      <div class="modal-body"><p class="sub" style="margin:0">Mandaste ${hechos} de ${todos.length}.
+        Los que quedaron salteados siguen en pendiente.</p></div>
+      <div class="modal-foot"><button class="btn accent" onclick="closeModal();state.segWsp=null">Cerrar</button></div>`;
+    return;
+  }
+
+  const msg = segArmarMensaje(c, l?.mensaje);
+  cont.innerHTML = `<div class="modal-head">
+      <h3 style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+        <span class="badge muted">${w.i + 1} de ${todos.length}</span>
+        ${esc(c.titular)}</h3>
+      <button class="modal-close" onclick="closeModal();state.segWsp=null">&times;</button></div>
+    <div class="modal-body">
+    <p class="sub" style="margin:0 0 12px">${esc(c.barrio || '')}${c.num_cliente ? ' · cliente ' + esc(c.num_cliente) : ''}
+      · <b>${esc(segLindoTel(c.telefono))}</b></p>
+
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:.84rem">
+        <input type="checkbox" id="segw-saludo" ${state.segSaludar !== false ? 'checked' : ''}> Saludar por el nombre</label>
+      <input id="segw-pila" value="${esc(c.nombre_pila || '')}" style="width:12ch;padding:5px 8px"
+        ${state.segSaludar !== false ? '' : 'disabled'} aria-label="Nombre de pila">
+      ${c.nombre_pila && segNombrePila(c.titular).dudoso ? '<span class="badge warn">revisá el nombre</span>' : ''}
+    </div>
+
+    <div style="background:var(--surface-2);border-left:3px solid var(--accent);border-radius:var(--radius);
+      padding:12px 14px;font-size:.86rem;white-space:pre-wrap;max-height:200px;overflow-y:auto"
+      id="segw-previa">${esc(msg)}</div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center">
+      <a class="btn accent" id="segw-ir" href="${segEnlaceWsp(c.telefono, c, l?.mensaje)}" target="_blank" rel="noopener"
+         style="text-decoration:none">📱 Abrir WhatsApp →</a>
+      ${c.telefono2 ? `<a class="btn ghost" href="${segEnlaceWsp(c.telefono2, c, l?.mensaje)}" target="_blank" rel="noopener"
+         style="text-decoration:none" title="Si el primero no tiene WhatsApp">2º número</a>` : ''}
+      <button class="btn ghost" onclick="segWspCopiar()">Copiar texto</button>
+      <button class="btn ghost" onclick="segWspSaltear()">Saltear</button>
+      <span class="sub" style="margin-left:auto">${hechos} mandados</span>
+    </div>
+    <p class="sub" style="margin-top:10px">Apretás Enter en el chat y volvés acá: ya te espera el siguiente.
+      Tiene que estar abierto WhatsApp Web en este navegador.</p>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="closeModal();state.segWsp=null">Cerrar</button></div>`;
+
+  $('#segw-saludo').onchange = e => { state.segSaludar = e.target.checked; segWspPintar(); };
+  $('#segw-pila').oninput = e => {
+    c.nombre_pila = e.target.value;
+    $('#segw-previa').textContent = segArmarMensaje(c, l?.mensaje);
+    $('#segw-ir').href = segEnlaceWsp(c.telefono, c, l?.mensaje);
+  };
+  // Al abrir el chat: se guarda el nombre si lo corrigió y queda contactado.
+  $('#segw-ir').addEventListener('click', async () => {
+    const pila = $('#segw-pila').value.trim();
+    if (pila && pila !== (segNombrePila(c.titular).pila)) {
+      await sb.from('seguimiento_clientes').update({ nombre_pila: pila }).eq('id', c.id).select('id');
+    }
+    await segMarcar(c.id, 'contactado', true);
+    w.i++;
+    segWspPintar();
+  });
+}
+
+function segWspSaltear() {
+  const w = state.segWsp; if (!w) return;
+  const c = (state.segClientes || []).find(x => x.id === w.ids[w.i]);
+  (w.saltados = w.saltados || []).push(c?.id);
+  w.i++;
+  segWspPintar();
+}
+
+async function segWspCopiar() {
+  const t = $('#segw-previa')?.textContent || '';
+  try { await navigator.clipboard.writeText(t); toast('Texto copiado', 'ok'); }
+  catch { toast('No se pudo copiar, seleccionalo a mano', 'warn'); }
+}
+
+// =================================================================
 // REAL-TIME SUBSCRIPTIONS
 // =================================================================
 let realtimeActivo = false;
 function subscribeChanges() {
   if (realtimeActivo) return;   // evita canales duplicados
   realtimeActivo = true;
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','transferencias_archivo','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches','mail_reglas','sugerencias','biblioteca_lugares','biblioteca_asignaciones'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','transferencias_archivo','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches','mail_reglas','sugerencias','biblioteca_lugares','biblioteca_asignaciones','seguimiento_listas','seguimiento_clientes'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -13811,6 +14515,7 @@ function subscribeChanges() {
         if (tabla==='mail_reglas') { await loadMailReglas(); renderMails(); }
         if (tabla==='sugerencias') { await loadSugerencias(); renderSugerencias(); renderBadgeSugerencias(); }
         if (tabla==='retiros_personas') { await loadRetirosPersonas(); renderPersonasRetiros(); }
+        if (tabla==='seguimiento_listas'||tabla==='seguimiento_clientes') { await loadSeguimiento(); renderSeguimiento(); }
       })
       .subscribe();
   });
