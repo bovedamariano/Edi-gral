@@ -62,6 +62,9 @@
   --warn-soft:#fbf0d3;
   --err:#9b2226;
   --err-soft:#f9dfe0;
+  --mon:#1d6a73;
+  --mon-2:#8cc2c7;
+  --mon-soft:#e3f1f2;
   --radius:6px;
   --radius-lg:10px;
   --shadow-sm:0 1px 2px rgba(26,35,50,.06);
@@ -158,6 +161,17 @@ aside.sidebar{
 .bib-vacio{font-size:10px;fill:var(--ink-3);opacity:.7;pointer-events:none}
 .bib-punto{fill:var(--err);pointer-events:none}
 .bib-ref{display:inline-flex;align-items:center;gap:5px}
+/* ===== Moneda distinta del peso =====
+   NO se usa verde: en esta pantalla el verde ya significa "sin pendientes".
+   Un color propio, que no aparece en ningún otro lado, no se confunde con
+   un estado. */
+.chip-mon{display:inline-block;padding:2px 9px;border-radius:99px;font-size:.72rem;
+  font-weight:700;background:var(--mon-soft);color:var(--mon);border:1px solid var(--mon-2);
+  letter-spacing:.02em}
+.chip-mon.sm{font-size:.66rem;padding:1px 7px;font-weight:600}
+.mon-val{color:var(--mon);font-weight:700}
+.card.en-moneda{border-left:3px solid var(--mon)}
+
 .bib-hit{padding:5px 8px;border-radius:6px;line-height:1.4}
 .bib-hit+.bib-hit{border-top:1px solid var(--line-2)}
 .bib-hit[onclick]{cursor:pointer}
@@ -218,6 +232,8 @@ main.content{padding:28px 36px;max-width:1280px}
   background:var(--surface-2);transition:border-color .15s,background .15s
 }
 .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);background:#fff}
+/* El borde de moneda va después de .field select para que no lo pise */
+select.en-moneda,.field select.en-moneda{border-left:4px solid var(--mon)}
 .field-row{display:flex;gap:10px}
 .field-row>*{flex:1}
 .field .hint{font-size:.74rem;color:var(--ink-3);margin-top:4px}
@@ -1117,7 +1133,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         </div>
 
         <div class="tbl-wrap"><table class="tbl" id="sellos-tabla">
-          <thead><tr><th>Fecha</th><th>Propietario</th><th>Unidad</th><th>Operación</th><th class="num">Monto</th><th>Moneda</th><th class="num">A pagar</th><th>Vence</th><th>Estado</th><th class="actions"></th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Propietario</th><th>Unidad</th><th>Operación</th><th class="num">Monto</th><th>Moneda</th><th class="num">A pagar</th><th>Vence</th><th>Estado</th><th>Rentas</th><th class="actions"></th></tr></thead>
           <tbody></tbody>
         </table></div>
       </div>
@@ -1613,9 +1629,10 @@ details[open] .ident-toggle{transform:rotate(180deg)}
       </div>
 
       <!-- ===== TRANSFERENCIAS POR BANCO (carga masiva) ===== -->
-      <div class="card" style="margin-top:18px">
-        <h3 style="margin-bottom:4px">Transferencias por banco</h3>
-        <p class="sub" style="margin-bottom:14px">Importadas del extracto. Al marcarlas como realizadas pasan al repositorio y se borran a los 5 días.</p>
+      <div class="card" id="tb-card" style="margin-top:18px">
+        <h3 style="margin-bottom:4px;display:flex;align-items:center;gap:8px">Transferencias por banco
+          <span id="tb-chip-moneda"></span></h3>
+        <p class="sub" style="margin-bottom:14px">Importadas del extracto. Al marcarlas como realizadas pasan al repositorio y se borran a los <span class="js-dias-purga">10</span> días.</p>
 
         <div id="tb-dash" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
 
@@ -1736,7 +1753,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
             <button class="btn ghost sm" id="ta-correcciones" title="Qué se corrigió o se borró del archivo">📝 Correcciones</button>
           </div>
         </div>
-        <p class="sub" style="margin-bottom:12px">Copia permanente de todo lo importado. No se borra a los 5 días.</p>
+        <p class="sub" style="margin-bottom:12px">Copia permanente de todo lo importado. No se borra a los <span class="js-dias-purga">10</span> días.</p>
         <div id="ta-resumen" class="hint" style="margin-bottom:10px"></div>
         <div class="tbl-wrap" style="max-height:420px;overflow:auto"><table class="tbl" id="ta-tabla">
           <thead><tr><th>Fecha</th><th>Descripción</th><th class="num">Importe</th><th>Cuenta</th><th id="ta-th-acc" style="display:none"></th></tr></thead>
@@ -1758,15 +1775,6 @@ details[open] .ident-toggle{transform:rotate(180deg)}
       </div>
 
       <div class="subtab-content" id="ret-listado">
-
-      <!-- Card alerta atrasados (más de 5 días) -->
-      <div class="card" id="retiros-alerta-card" style="display:none;border-left:3px solid var(--err);background:#fef2f2;margin-bottom:14px">
-        <h3 style="display:flex;align-items:center;gap:8px;color:var(--err)">⚠ Documentación sin devolver hace más de 5 días <span id="retiros-alerta-badge" style="background:var(--err);color:#fff;font-size:.7rem;padding:2px 8px;border-radius:12px">0</span></h3>
-        <div class="tbl-wrap" style="margin-top:8px"><table class="tbl" id="retiros-alerta-tabla">
-          <thead><tr><th>Inmueble</th><th>Retira</th><th>Fecha retiro</th><th>Días</th></tr></thead>
-          <tbody></tbody>
-        </table></div>
-      </div>
 
       <!-- Lo que informó Legales, para Finanzas -->
       <div class="card" id="retiros-devol-card" style="display:none;border-left:3px solid var(--accent);background:var(--accent-soft);margin-bottom:14px">
@@ -2336,6 +2344,14 @@ const state = {
   bnaActual: null,
 };
 
+// Días que una transferencia realizada sobrevive en el repositorio antes de
+// borrarse. Tiene que coincidir con el interval de
+// purgar_transferencias_realizadas() en la base: si no coinciden, manda la
+// que borre primero. El archivo mensual guarda copia permanente igual.
+// Va acá arriba a propósito: si se declara más abajo, cualquier función que
+// corra antes la encuentra en zona muerta y deja la pantalla en blanco.
+const DIAS_PURGA = 10;
+
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 // =================================================================
@@ -2558,7 +2574,7 @@ async function afterLogin() {
   renderBadgeRetiros();
   renderBadgeSugerencias();
   renderDeuda();
-  purgarRealizadas();   // borra las realizadas hace más de 5 días
+  purgarRealizadas();   // borra las realizadas pasados DIAS_PURGA días
   renderCampanita();
   // Recalcular cada 10 min para que el contador cruce la medianoche solo,
   // sin depender de que el usuario recargue la pestaña.
@@ -4151,32 +4167,43 @@ function renderSellos() {
       resumen.textContent = `${filt.length} de ${state.boletos.length} boletos (filtrados)`;
     }
   }
-  if (!filt.length) { tb.innerHTML = '<tr><td colspan="10" class="empty">Sin boletos que coincidan con los filtros</td></tr>'; return; }
+  if (!filt.length) { tb.innerHTML = '<tr><td colspan="11" class="empty">Sin boletos que coincidan con los filtros</td></tr>'; return; }
   const badgeFor = e => {
     if (e === 'pagado') return '<span class="badge ok">Pagado</span>';
     if (e === 'generado') return '<span class="badge accent">Generado</span>';
     return '<span class="badge warn">Pendiente</span>';
   };
+  const esAdmin = state.profile?.rol === 'admin';
   tb.innerHTML = filt.map(b => {
     const est = b.estado || 'pendiente';
     const tipoOp = TIPOS_OPERACION[b.tipo_operacion] || '—';
-    return `<tr>
+    // Una DDJJ declarada dos veces son dos declaraciones REALES ante el
+    // fisco. Apenas se marca, la fila se bloquea para todos menos el admin.
+    const rEst = b.rentas_estado || 'no';
+    const tomada = rEst !== 'no';
+    const puedeTocar = esAdmin || !tomada;
+    return `<tr${tomada ? ' style="background:var(--surface-2)"' : ''}>
       <td>${fmtFecha(b.fecha)}</td><td>${b.propietario}</td><td>${b.unidad}</td>
       <td><span class="badge muted" style="font-size:.7rem">${tipoOp}</span></td>
       <td class="num">${fmt(b.monto)}</td><td>${b.moneda}</td>
       <td class="num">$${fmt(b.importe_pagar)}</td>
       <td>${fmtFecha(b.fecha_vencimiento)}</td>
       <td>
-        <select onchange="cambiarEstadoBoleto('${b.id}', this.value)" style="padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--surface);font-size:.78rem">
+        <select onchange="cambiarEstadoBoleto('${b.id}', this.value)" ${puedeTocar ? '' : 'disabled title="Bloqueado: ya se mandó a declarar en Rentas"'} style="padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--surface);font-size:.78rem">
           <option value="pendiente" ${est==='pendiente'?'selected':''}>Pendiente</option>
           <option value="generado" ${est==='generado'?'selected':''}>Generado</option>
           <option value="pagado" ${est==='pagado'?'selected':''}>Pagado</option>
         </select>
         <span style="margin-left:4px">${badgeFor(est)}</span>
       </td>
+      <td>${chipRentas(b)}</td>
       <td class="actions">
+        ${rEst === 'no'
+          ? `<button class="btn accent sm" onclick="declararEnRentas('${b.id}')" title="Marcar para declarar en Rentas. Queda bloqueado.">⚖ Declarar</button>`
+          : (esAdmin ? `<button class="btn ghost sm" onclick="desbloquearRentas('${b.id}')" title="Desbloquear y volver a 'sin declarar'">↩</button>` : '')}
+        <button class="btn ghost sm" onclick="verDatosBoleto('${b.id}')" title="Ver y corregir los datos de la DDJJ">👁</button>
         <button class="btn ghost sm" onclick="reimprimirSello('${b.id}')" title="Reimprimir PDF">↓</button>
-        ${state.profile?.rol==='admin'?`<button class="btn ghost sm" onclick="deleteSello('${b.id}')">×</button>`:''}
+        ${esAdmin ? `<button class="btn ghost sm" onclick="deleteSello('${b.id}')">×</button>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -4192,6 +4219,247 @@ $('#sellos-clear-filtros').addEventListener('click', () => {
   $('#sellos-filtro-estado').value = '';
   renderSellos();
 });
+
+
+// ---------- Ver y corregir los datos de la DDJJ ----------
+// Los datos que se mandan a Rentas (documentos, nombres, barrio, mail) se
+// cargan una vez y después no se veían más. Si quedó un DNI mal, Rentas
+// rechaza la declaración o la genera a nombre equivocado, así que tienen
+// que poder revisarse y corregirse antes de declarar.
+//
+// Quién puede corregir es lo mismo que dicen las policies de la base: el
+// admin siempre; el resto sólo mientras el boleto no esté tomado por
+// Rentas. Acá no se inventa un permiso aparte, se refleja el que ya hay.
+function bPuedeEditar(b) {
+  return state.profile?.rol === 'admin' || (b.rentas_estado || 'no') === 'no';
+}
+
+function filaParteDDJJ(b, prefijo, i, editable) {
+  const v = c => b[`${prefijo}${i}_${c}`] || '';
+  const dis = editable ? '' : 'disabled';
+  const sel = (campo, ops) => `<select id="vd-${prefijo}${i}-${campo}" ${dis}>` +
+    ops.map(([val, txt]) => `<option value="${val}" ${v(campo) === val ? 'selected' : ''}>${txt}</option>`).join('') +
+    '</select>';
+  return `<div class="ddjj-parte">
+    <div class="field"><label>Tipo</label>${sel('tipo_doc', [['', '—'], ['DNI', 'DNI'], ['CUIT', 'CUIT']])}</div>
+    <div class="field"><label>N° documento</label>
+      <input id="vd-${prefijo}${i}-num_doc" value="${esc(String(v('num_doc'))).replace(/"/g, '&quot;')}" maxlength="11" ${dis}></div>
+    <div class="field"><label>Sexo</label>${sel('sexo', [['', '—'], ['M', 'M'], ['F', 'F'], ['J', 'J']])}</div>
+    <div class="field"><label>Nombre</label>
+      <input id="vd-${prefijo}${i}-nombre" value="${esc(String(v('nombre'))).replace(/"/g, '&quot;')}" ${dis}></div>
+    <div></div>
+  </div>`;
+}
+
+window.verDatosBoleto = function(id) {
+  const b = (state.boletos || []).find(x => x.id === id);
+  if (!b) return;
+  const editable = bPuedeEditar(b);
+  const rEst = b.rentas_estado || 'no';
+
+  const barrios = (state.cuentasRentas || []).filter(c => c.activo);
+  const barrioActual = barrios.find(c => c.num_cuenta === b.num_cuenta);
+  const opcionesBarrio = '<option value="">— Seleccionar —</option>' +
+    barrios.map(c => `<option value="${c.num_cuenta}" ${barrioActual && barrioActual.num_cuenta === c.num_cuenta ? 'selected' : ''}>${esc(c.barrio)}</option>`).join('') +
+    `<option value="otra" ${b.num_cuenta && !barrioActual ? 'selected' : ''}>Otra (a mano)</option>`;
+
+  let avisos = '';
+  if (rEst === 'declarado') {
+    avisos = `<div style="background:#fef2f2;border-left:3px solid var(--err);border-radius:6px;padding:10px;margin-bottom:12px;font-size:.84rem">
+      <b style="color:var(--err)">Este boleto ya se declaró en Rentas.</b> Corregir algo acá
+      <b>no cambia la DDJJ que ya está presentada</b>: sólo arregla lo que guarda la app.
+      Para corregir en Rentas hay que hacerlo por el organismo.</div>`;
+  } else if (rEst !== 'no' && editable) {
+    avisos = `<div style="background:#fffbeb;border-left:3px solid var(--warn);border-radius:6px;padding:10px;margin-bottom:12px;font-size:.84rem">
+      Está marcado para declarar. Si el bot lo toma mientras lo corregís, va a usar lo que esté guardado en ese momento.</div>`;
+  } else if (!editable) {
+    avisos = `<div class="hint" style="margin-bottom:12px">Está marcado para declarar, así que quedó bloqueado. Sólo un administrador puede corregirlo.</div>`;
+  }
+
+  showModal(`<div class="modal-head"><h3>Datos de la DDJJ</h3><button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      ${avisos}
+      <div style="background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:10px 12px;font-size:.84rem;line-height:1.7;margin-bottom:12px">
+        <div><b>${esc(b.propietario || '')}</b> · ${esc(b.unidad || '')}</div>
+        <div class="muted">Boleto del ${fmtFecha(b.fecha)} · ${b.moneda} ${fmt(b.monto)}
+          ${b.moneda !== 'ARS' && b.equivalente_ars ? ` · base imponible $${fmt(b.equivalente_ars)}` : ''}
+          · sello $${fmt(b.importe_pagar)}</div>
+        <div class="muted" style="font-size:.76rem">El importe y la fecha salen del cálculo y no se editan acá.</div>
+      </div>
+
+      <div class="grid-3">
+        <div class="field"><label>Tipo de contrato</label>
+          <select id="vd-tipo-contrato" ${editable ? '' : 'disabled'}>
+            <option value="">—</option>
+            <option value="1045" ${b.tipo_contrato === '1045' ? 'selected' : ''}>Boleto</option>
+            <option value="1161" ${b.tipo_contrato === '1161' ? 'selected' : ''}>Cesión</option>
+          </select></div>
+        <div class="field"><label>Barrio (N° de cuenta)</label>
+          <select id="vd-barrio" ${editable ? '' : 'disabled'} onchange="vdBarrioCambio()">${opcionesBarrio}</select>
+          <div class="hint" id="vd-cuenta-hint"></div>
+          <input id="vd-cuenta-otra" maxlength="12" placeholder="12 dígitos"
+            value="${!barrioActual && b.num_cuenta ? esc(b.num_cuenta) : ''}"
+            style="margin-top:6px;display:${!barrioActual && b.num_cuenta ? 'block' : 'none'}" ${editable ? '' : 'disabled'}></div>
+        <div class="field"><label>Mail responsable</label>
+          <input id="vd-mail" type="email" value="${esc(b.mail_responsable || '').replace(/"/g, '&quot;')}" ${editable ? '' : 'disabled'}></div>
+      </div>
+
+      <div class="ddjj-bloque" style="margin-top:4px">
+        <div class="ddjj-bloque-head"><b>${b.tipo_contrato === '1161' ? 'Cesionarios' : 'Compradores'}</b></div>
+        ${[1, 2, 3, 4].map(i => filaParteDDJJ(b, 'c', i, editable)).join('')}
+      </div>
+      <div class="ddjj-bloque" style="margin-top:10px">
+        <div class="ddjj-bloque-head"><b>${b.tipo_contrato === '1161' ? 'Cedentes' : 'Vendedores'}</b></div>
+        ${[1, 2, 3, 4].map(i => filaParteDDJJ(b, 'v', i, editable)).join('')}
+      </div>
+      <p class="hint" style="margin-top:8px">Dejá en blanco las filas que no uses. DNI de 6 a 8 dígitos, CUIT de 11.</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">${editable ? 'Cancelar' : 'Cerrar'}</button>
+      ${editable ? `<button class="btn" id="vd-ok" onclick="guardarDatosBoleto('${id}')">Guardar cambios</button>` : ''}
+    </div>`, { wide: true });
+  vdBarrioCambio();
+};
+
+window.vdBarrioCambio = function() {
+  const sel = $('#vd-barrio'); if (!sel) return;
+  const otra = $('#vd-cuenta-otra'), hint = $('#vd-cuenta-hint');
+  if (sel.value === 'otra') {
+    otra.style.display = 'block'; hint.innerHTML = '';
+  } else {
+    otra.style.display = 'none';
+    hint.innerHTML = sel.value ? `N° de cuenta: <b>${esc(sel.value)}</b>` : '';
+  }
+};
+
+window.guardarDatosBoleto = async function(id) {
+  const b = (state.boletos || []).find(x => x.id === id);
+  if (!b) return;
+
+  const cuenta = $('#vd-barrio').value === 'otra'
+    ? $('#vd-cuenta-otra').value.replace(/\D/g, '')
+    : $('#vd-barrio').value;
+
+  const payload = {
+    tipo_contrato:    $('#vd-tipo-contrato').value || null,
+    num_cuenta:       cuenta || null,
+    mail_responsable: $('#vd-mail').value.trim() || null,
+  };
+  ['c', 'v'].forEach(p => {
+    for (let i = 1; i <= 4; i++) {
+      payload[`${p}${i}_tipo_doc`] = $(`#vd-${p}${i}-tipo_doc`).value || null;
+      payload[`${p}${i}_num_doc`]  = $(`#vd-${p}${i}-num_doc`).value.trim() || null;
+      payload[`${p}${i}_sexo`]     = $(`#vd-${p}${i}-sexo`).value || null;
+      payload[`${p}${i}_nombre`]   = $(`#vd-${p}${i}-nombre`).value.trim().toUpperCase() || null;
+    }
+  });
+
+  // Se valida con la MISMA función que el formulario de alta: si algo no
+  // sirve para declarar, que no se pueda guardar tampoco acá.
+  const error = validarDDJJ(payload);
+  if (error) { toast(error, 'warn'); return; }
+
+  const btn = $('#vd-ok');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+  const { data, error: errBase } = await sb.from('boletos')
+    .update(payload).eq('id', id).select('id');
+  if (errBase) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar cambios'; }
+    toast(mensajeError(errBase), 'err'); return;
+  }
+  if (!data || !data.length) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar cambios'; }
+    toast('No se pudo guardar: el boleto quedó bloqueado por Rentas', 'err');
+    await loadBoletos(); renderSellos(); return;
+  }
+  closeModal();
+  toast('Datos corregidos', 'ok');
+  await loadBoletos(); renderSellos();
+};
+
+// ---------- Declarar en Rentas ----------
+// El botón NO declara: marca el boleto y lo bloquea. Quien declara es el
+// bot (sellos_bot.py), que abre su propio Chromium. Una página web no puede
+// manejar otro sitio ni abrir un navegador, así que lo que vive acá es el
+// control: quién lo mandó, cuándo, y que nadie lo mande dos veces.
+function chipRentas(b) {
+  const e = b.rentas_estado || 'no';
+  if (e === 'no') return '<span class="muted" style="font-size:.78rem">—</span>';
+  if (e === 'en_cola') return `<span class="badge warn" style="font-size:.7rem"
+    title="Marcado el ${b.rentas_pedido_at ? fmtFechaHora(b.rentas_pedido_at) : ''}">⏳ en cola</span>`;
+  if (e === 'declarado') {
+    const pdfs = [];
+    if (b.rentas_pdf_djj) pdfs.push(`<a href="#" onclick="event.preventDefault();bajarPdfRentas('${b.id}','djj')" title="Declaración jurada de Rentas">DDJJ</a>`);
+    if (b.rentas_pdf_cedulon) pdfs.push(`<a href="#" onclick="event.preventDefault();bajarPdfRentas('${b.id}','cedulon')" title="Cedulón para pagar">cedulón</a>`);
+    return `<span class="badge ok" style="font-size:.7rem"
+      title="${b.rentas_at ? fmtFechaHora(b.rentas_at) : ''}">✓ declarado</span>` +
+      (b.rentas_numero ? `<div class="muted" style="font-size:.72rem">N° ${esc(b.rentas_numero)}</div>` : '') +
+      (pdfs.length ? `<div style="font-size:.72rem">↓ ${pdfs.join(' · ')}</div>` : '') +
+      (b.rentas_error ? `<div style="font-size:.7rem;color:var(--warn)" title="${esc(b.rentas_error)}">⚠ sin comprobante</div>` : '');
+  }
+  return `<span class="badge" style="background:var(--err-soft);color:var(--err);font-size:.7rem"
+    title="${esc(b.rentas_error || '')}">⚠ error</span>`;
+}
+
+// Los comprobantes viven en un bucket PRIVADO: no se puede linkear directo,
+// hay que pedirle a Supabase una URL firmada que dura un rato.
+window.bajarPdfRentas = async function(id, cual) {
+  const b = (state.boletos || []).find(x => x.id === id);
+  if (!b) return;
+  const ruta = cual === 'cedulon' ? b.rentas_pdf_cedulon : b.rentas_pdf_djj;
+  if (!ruta) { toast('Ese comprobante todavía no está subido', 'warn'); return; }
+  try {
+    const { data, error } = await sb.storage.from('cedulones')
+      .createSignedUrl(ruta, 3600, { download: true });
+    if (error) throw error;
+    window.open(data.signedUrl, '_blank');
+  } catch (e) {
+    toast('No se pudo bajar el comprobante: ' + e.message, 'err');
+  }
+};
+
+window.declararEnRentas = async function(id) {
+  const b = (state.boletos || []).find(x => x.id === id);
+  if (!b) return;
+  if (!await confirmAction(
+      `¿Mandar a declarar en Rentas el boleto de ${b.propietario} (${b.unidad})?\n\n` +
+      `La declaración es real ante Rentas y no se puede deshacer desde acá. ` +
+      `La fila queda bloqueada: sólo un administrador puede volver atrás.`)) return;
+
+  // Con .select() vuelven las filas que realmente cambiaron. Hace falta:
+  // cuando RLS bloquea un update NO da error, simplemente no toca nada, y
+  // sin esto la app cantaría "listo" sin haber hecho nada.
+  const { data, error } = await sb.from('boletos')
+    .update({ rentas_estado: 'en_cola' }).eq('id', id).select('id');
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  if (!data || !data.length) {
+    toast('No se pudo marcar: la fila ya está tomada o no tenés permiso', 'err');
+    await loadBoletos(); renderSellos(); return;
+  }
+  toast('Marcado para declarar. La fila queda bloqueada.', 'ok');
+  await loadBoletos(); renderSellos();
+};
+
+window.desbloquearRentas = async function(id) {
+  const b = (state.boletos || []).find(x => x.id === id);
+  if (!b) return;
+  const yaEsta = (b.rentas_estado === 'declarado');
+  if (!await confirmAction(
+      (yaEsta
+        ? `OJO: este boleto figura como YA DECLARADO en Rentas. Desbloquearlo lo deja como si nunca se hubiera declarado, y alguien podría volver a mandarlo — serían dos DDJJ reales.\n\n`
+        : '') +
+      `¿Desbloquear el boleto de ${b.propietario} (${b.unidad})?`)) return;
+
+  const { data, error } = await sb.from('boletos')
+    .update({ rentas_estado: 'no' }).eq('id', id).select('id');
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  if (!data || !data.length) {
+    toast('No se pudo desbloquear: hace falta ser administrador', 'err');
+    await loadBoletos(); renderSellos(); return;
+  }
+  toast('Desbloqueado', 'ok');
+  await loadBoletos(); renderSellos();
+};
 
 window.cambiarEstadoBoleto = async function(id, nuevoEstado) {
   const { error } = await sb.from('boletos').update({ estado: nuevoEstado }).eq('id', id);
@@ -7195,7 +7463,6 @@ function renderDashTransf() {
 
   const verMes = _dashMes || mesEnCurso();
   const fin = finalizadasDe(verMes.mes, verMes.anio);
-  const totalFin = fin.reduce((a, f) => a + Number(f.importe || 0), 0);
   const { desde, hasta } = periodoDe(verMes.mes, verMes.anio);
   const cierre = new Date(hasta.getTime() - 864e5);
   const abierto = Date.now() < hasta.getTime() && Date.now() >= desde.getTime();
@@ -7213,7 +7480,7 @@ function renderDashTransf() {
     tarjeta('Cargadas en el sistema', todas.length,
             `${pend.length} pendientes · ${rep.length} en repositorio`, 'var(--accent-2)') +
     tarjeta('Pendientes', pend.length,
-            `$${fmt(pend.reduce((a, t) => a + Number(t.importe || 0), 0))}`, 'var(--warn)') +
+            totalPorMoneda(pend, t => monedaDeCuentaId(t.cuenta_id)), 'var(--warn)') +
     `<div style="flex:1.4;min-width:210px;background:var(--surface);border:1px solid var(--line);
                  border-left:3px solid var(--ok);border-radius:var(--radius);padding:10px 12px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
@@ -7225,7 +7492,7 @@ function renderDashTransf() {
         </div>
       </div>
       <div style="font-size:1.35rem;font-weight:700;color:var(--ink);line-height:1.25">${fin.length}${abierto ? ' <span style="font-size:.65rem;font-weight:400;color:var(--ok)">en curso</span>' : ''}</div>
-      <div style="font-size:.74rem;color:var(--ink-3)">$${fmt(totalFin)} · ${rango}</div>
+      <div style="font-size:.74rem;color:var(--ink-3)">${totalPorMoneda(fin, f => f.moneda)} · ${rango}</div>
     </div>`;
 }
 
@@ -7379,7 +7646,7 @@ function exportarUvis() {
 // INDICADORES DE TRANSFERENCIAS
 // =================================================================
 // Se calculan sobre transferencias_archivo, que es la copia permanente:
-// las pendientes se purgan a los 5 días, así que es la única serie
+// las pendientes se purgan a los pocos días, así que es la única serie
 // histórica confiable.
 
 // Cotización del día, o la del día hábil anterior más cercano. Un pago de
@@ -7751,7 +8018,7 @@ if ($('#ti-g-cant')) {
 // =================================================================
 // ARCHIVO MENSUAL DE TRANSFERENCIAS
 // =================================================================
-// Copia permanente de todo lo importado. Sobrevive a la purga de los 5 días.
+// Copia permanente de todo lo importado. Sobrevive a la purga del repositorio.
 // El mes sale de la FECHA DEL MOVIMIENTO, no de cuándo se importó: una
 // transferencia del 31/08 subida en septiembre queda en el archivo de agosto.
 async function loadTransfArchivo() {
@@ -7829,7 +8096,7 @@ function renderArchivoTransf() {
     <td style="white-space:nowrap">${fmtFecha(t.fecha)}</td>
     <td style="max-width:460px">${esc(t.descripcion)}</td>
     <td class="num"><b>$${fmt(t.importe)}</b></td>
-    <td style="font-size:.8rem" class="muted">${esc(t.banco || '?')} · ${esc(t.cuenta || '?')}${mon && mon !== 'ARS' ? ` <span class="badge accent" style="font-size:.66rem">${mon}</span>` : ''}</td>
+    <td style="font-size:.8rem" class="muted">${esc(t.banco || '?')} · ${esc(t.cuenta || '?')}${mon && mon !== 'ARS' ? ` <span class="chip-mon sm">${mon}</span>` : ''}</td>
     ${corrige ? `<td class="actions" style="white-space:nowrap">
       <button class="btn ghost sm" onclick="corregirCuentaArchivo('${t.id}')" title="Está en la cuenta equivocada">✎</button>
       <button class="btn ghost sm" onclick="borrarDelArchivo('${t.id}')" title="Borrar del archivo">🗑</button>
@@ -7973,7 +8240,7 @@ window.borrarDelArchivo = function(id) {
         <input type="checkbox" id="bda-pend" checked style="width:auto;margin-top:3px">
         <span>Borrar también el movimiento de la lista de transferencias
         (está ahí como <b>${pend.realizada ? 'realizada' : 'pendiente'}</b>). Si hay varios idénticos se borra uno solo.</span></label>`
-      : `<p class="hint" style="margin-bottom:10px">En la lista de transferencias ya no está: o se purgó a los 5 días o se borró antes.</p>`}
+      : `<p class="hint" style="margin-bottom:10px">En la lista de transferencias ya no está: o se purgó a los ${DIAS_PURGA} días o se borró antes.</p>`}
       <div class="field"><label>Motivo</label>
         <input id="bda-motivo" placeholder="Ej.: el banco la informó dos veces" maxlength="200">
         <p class="hint">Queda registrado con tu usuario y la fecha, con la fila completa como estaba.</p></div>
@@ -10444,6 +10711,20 @@ if ($('#pt-tabla')) {
 // MODULO: TRANSFERENCIAS POR BANCO (importación masiva de extractos)
 // =================================================================
 const MONEDAS = { ARS: '$', USD: 'US$', UVI: 'UVI' };
+const MONEDA_NOMBRE = { ARS: 'pesos', USD: 'dólares', UVI: 'UVI' };
+
+// Sumar pesos con dólares da un número que no existe. Cuando hay más de una
+// moneda en juego el total se muestra separado, nunca junto.
+function totalPorMoneda(items, monedaDe) {
+  const por = {};
+  items.forEach(t => {
+    const m = monedaDe(t) || 'ARS';
+    por[m] = (por[m] || 0) + Number(t.importe || 0);
+  });
+  const orden = ['ARS', 'USD', 'UVI'];
+  return Object.keys(por).sort((a, b) => orden.indexOf(a) - orden.indexOf(b))
+    .map(m => `${MONEDAS[m] || m} ${fmt(por[m])}`).join(' · ') || '$ 0,00';
+}
 let _tbSel = new Set();
 
 async function loadBancosCuentas() {
@@ -10456,11 +10737,11 @@ async function loadCotizacionesUvi() {
   state.uvi = await fetchPaged('cotizaciones_uvi', q => q.order('fecha', { ascending: false }));
 }
 
-// Purga local: la app borra al entrar las realizadas hace más de 5 días.
+// Purga local: la app borra al entrar las realizadas hace más de DIAS_PURGA.
 // El cron de la base hace lo mismo por su cuenta; esto cubre el caso de que
 // pg_cron no esté habilitado.
 async function purgarRealizadas() {
-  const limite = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+  const limite = new Date(Date.now() - DIAS_PURGA * 24 * 60 * 60 * 1000).toISOString();
   const { error } = await sb.from('transferencias_banco')
     .delete().eq('realizada', true).lt('realizada_at', limite);
   if (error) console.warn('No se pudo purgar realizadas:', error.message);
@@ -10503,15 +10784,18 @@ function llenarSelectoresTB() {
   selC.innerHTML = ctas.length
     ? ctas.map(c => {
         const n = pendientesDeCuenta(c.id);
-        return `<option value="${c.id}" style="${n ? '' : VERDE_OK}">${esc(c.banco)} · ${esc(c.nombre)} (${c.moneda})${n ? ` · ${n}` : ' ✓'}</option>`;
+        const pre = c.moneda === 'ARS' ? '' : `${MONEDAS[c.moneda] || c.moneda} · `;
+        return `<option value="${c.id}" style="${n ? '' : VERDE_OK}">${pre}${esc(c.banco)} · ${esc(c.nombre)} (${c.moneda})${n ? ` · ${n}` : ' ✓'}</option>`;
       }).join('')
     : '<option value="">—</option>';
   if (ctaActual && ctas.some(c => c.id === ctaActual)) selC.value = ctaActual;
 
-  // El propio desplegable se tiñe si lo elegido no tiene pendientes, para
-  // verlo sin abrirlo.
+  // Dos señales distintas y que no se pisan: el FONDO verde dice que no
+  // quedan pendientes, el BORDE de color dice que la cuenta no es en pesos.
   selE.style.cssText = pendientesDeEmpresa(selE.value) ? '' : VERDE_OK;
   selC.style.cssText = pendientesDeCuenta(selC.value) ? '' : VERDE_OK;
+  const mSel = monedaDeCuentaId(selC.value);
+  selC.classList.toggle('en-moneda', !!mSel && mSel !== 'ARS');
 }
 
 function cuentaTBActual() {
@@ -10531,10 +10815,10 @@ function transfBancoFiltradas() {
   });
 }
 
-// Días que faltan para que se borre (5 desde que se marcó realizada)
+// Días que faltan para que se borre, desde que se marcó realizada
 function diasParaBorrado(t) {
   if (!t.realizada_at) return null;
-  const ms = new Date(t.realizada_at).getTime() + 5 * 864e5 - Date.now();
+  const ms = new Date(t.realizada_at).getTime() + DIAS_PURGA * 864e5 - Date.now();
   return Math.max(0, Math.ceil(ms / 864e5));
 }
 
@@ -10547,10 +10831,21 @@ function renderTransfBanco() {
   const vista = $('#tb-vista').value;
   const simb = cta ? MONEDAS[cta.moneda] : '$';
 
+  // Cuando la cuenta elegida no es en pesos se marca fuerte: sello al lado
+  // del título, borde de color en la card y los importes en ese color. Es
+  // el error más caro de esta pantalla (cargar dólares como pesos) y con el
+  // "US$" chiquito adelante del número no alcanzaba.
+  const otraMoneda = cta && cta.moneda !== 'ARS';
+  $('#tb-card')?.classList.toggle('en-moneda', !!otraMoneda);
+  const chip = $('#tb-chip-moneda');
+  if (chip) chip.innerHTML = otraMoneda
+    ? `<span class="chip-mon">${cta.moneda === 'UVI' ? 'cuenta en UVI'
+         : `${MONEDAS[cta.moneda]} cuenta en ${MONEDA_NOMBRE[cta.moneda] || cta.moneda}`}</span>` : '';
+
   const total = filt.reduce((a, t) => a + Number(t.importe || 0), 0);
   const pend = (state.transfBanco || []).filter(t => t.cuenta_id === cta?.id && !t.realizada).length;
   $('#tb-resumen').innerHTML = cta
-    ? `${filt.length} ${vista === 'realizadas' ? 'realizadas' : 'pendientes'} · ${simb} ${fmt(total)}` +
+    ? `${filt.length} ${vista === 'realizadas' ? 'realizadas' : 'pendientes'} · <span class="${otraMoneda ? 'mon-val' : ''}">${simb} ${fmt(total)}</span>` +
       (vista === 'realizadas' && pend ? ` — quedan ${pend} pendientes` : '')
     : 'Elegí una cuenta';
 
@@ -10579,7 +10874,7 @@ function renderTransfBanco() {
       <td><input type="checkbox" class="tb-chk" data-id="${t.id}" ${_tbSel.has(t.id) ? 'checked' : ''}></td>
       <td>${fmtFecha(t.fecha)}</td>
       <td style="max-width:420px">${esc(t.descripcion)} ${aviso}${avisoCoch}${avisoCes}</td>
-      <td class="num"><b>${simb} ${fmt(t.importe)}</b></td>
+      <td class="num"><b class="${otraMoneda ? 'mon-val' : ''}">${simb} ${fmt(t.importe)}</b></td>
       <td class="num">${t.cotiz_usd != null ? fmt(t.cotiz_usd) : '<span class="muted">—</span>'}</td>
       <td class="num">${t.cotiz_uvi != null ? fmt(t.cotiz_uvi) : '<span class="muted">—</span>'}</td>
       <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
@@ -12044,21 +12339,9 @@ function renderRetiros() {
 
   const todos = state.retiros || [];
 
-  // Alerta: retirados hace más de 5 días
-  const atrasados = todos.filter(r => r.estado === 'retirado' && diasDesdeFecha(r.fecha_retiro) > 5);
-  const cardAlerta = $('#retiros-alerta-card');
-  if (atrasados.length) {
-    cardAlerta.style.display = 'block';
-    $('#retiros-alerta-badge').textContent = atrasados.length;
-    $('#retiros-alerta-tabla tbody').innerHTML = atrasados.map(r => `<tr>
-      <td>${r.inmueble}</td>
-      <td>${r.persona_retira_nombre || '—'}</td>
-      <td>${fmtFecha(r.fecha_retiro)}</td>
-      <td><span class="badge warn">${diasDesdeFecha(r.fecha_retiro)} días</span></td>
-    </tr>`).join('');
-  } else {
-    cardAlerta.style.display = 'none';
-  }
+  // No hay alerta por días: es normal que la documentación esté afuera un
+  // buen rato, así que marcarla en rojo sólo enseñaba a ignorar el rojo.
+  // El dato de cuánto hace que salió queda igual, en la fila, en gris.
 
   // Filtrado tabla principal
   const filtrados = todos.filter(r => {
@@ -12084,12 +12367,11 @@ function renderRetiros() {
     if (r.documentos_otros) docs.push(`Otros: ${r.documentos_otros}`);
     const docsTxt = docs.length ? docs.join(', ') : '—';
 
+    const dias = r.estado === 'retirado' ? diasDesdeFecha(r.fecha_retiro) : null;
     const badgeEstado = r.estado === 'devuelto'
       ? `<span class="badge ok">✓ Devuelto</span><div class="muted" style="font-size:.72rem">${fmtFecha(r.fecha_devolucion)}</div>`
-      : `<span class="badge warn">Retirado</span>`;
-
-    const dias = r.estado === 'retirado' ? diasDesdeFecha(r.fecha_retiro) : null;
-    const diasBadge = dias !== null && dias > 5 ? ` <span class="badge" style="background:var(--err);color:#fff">${dias} días</span>` : '';
+      : `<span class="badge warn">Retirado</span>` +
+        `<div class="muted" style="font-size:.72rem">${dias === 0 ? 'hoy' : `hace ${dias} día${dias === 1 ? '' : 's'}`}</div>`;
 
     // Lo que informó Legales queda a la vista en la fila, no sólo en la card
     let verif = '';
@@ -12106,7 +12388,7 @@ function renderRetiros() {
       <td>${fmtFecha(r.fecha_retiro)}</td>
       <td><b>${r.inmueble}</b>${r.observaciones ? `<div class="muted" style="font-size:.75rem">${esc(r.observaciones)}</div>` : ''}${verif}</td>
       <td style="font-size:.85rem">${docsTxt}</td>
-      <td>${r.persona_retira_nombre || '—'}${diasBadge}</td>
+      <td>${r.persona_retira_nombre || '—'}</td>
       <td>${badgeEstado}</td>
       <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
         ${r.estado === 'retirado' ? `<button class="btn accent sm" onclick="retiroDevolver('${r.id}')">✓ Devolver</button>` : ''}
@@ -13441,7 +13723,14 @@ function exportarExcel(rows, nombre) {
 // =================================================================
 // RENDER ALL
 // =================================================================
+// Los textos que nombran los días de purga se llenan desde la constante,
+// así no quedan diciendo otra cosa si mañana cambia.
+function pintarDiasPurga() {
+  document.querySelectorAll('.js-dias-purga').forEach(el => { el.textContent = DIAS_PURGA; });
+}
+
 function renderAll() {
+  pintarDiasPurga();
   renderIccTabla();
   renderSellos();
   renderPosesiones();
