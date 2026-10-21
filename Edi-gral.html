@@ -129,6 +129,17 @@ aside.sidebar{
 .ti-graf:hover .ti-zoom{opacity:1}
 .ti-tit .ti-zoom:hover{background:var(--surface-2);color:var(--accent)}
 .modal.grafico{width:min(1120px,100%)}
+.aviso-user{background:var(--accent-soft);border:1px solid var(--accent);border-left-width:4px;
+  border-radius:var(--radius-lg);padding:16px 18px;margin-bottom:18px;display:flex;gap:14px;align-items:flex-start}
+.aviso-user .au-ico{font-size:1.4rem;line-height:1;flex-shrink:0}
+.aviso-user h4{margin:0 0 4px;font-family:'Bricolage Grotesque',sans-serif;font-size:1.02rem;color:var(--accent);text-transform:none;letter-spacing:-0.01em}
+.aviso-user p{margin:0;font-size:.88rem;color:var(--ink-2);line-height:1.5}
+.aviso-user ol{margin:10px 0 0;padding-left:20px;font-size:.86rem;color:var(--ink-2);line-height:1.65}
+.aviso-user ol b{color:var(--ink)}
+.aviso-user .au-acc{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
+.aviso-user .au-cerrar{background:none;border:none;color:var(--ink-3);font-size:1.2rem;line-height:1;
+  cursor:pointer;padding:2px 6px;border-radius:4px;margin-left:auto;flex-shrink:0}
+.aviso-user .au-cerrar:hover{background:var(--surface-2);color:var(--ink)}
 .ti-toggle{display:flex;align-items:center;gap:8px;background:none;border:none;
   padding:0;cursor:pointer;font:inherit;color:var(--ink);text-align:left}
 .ti-toggle #ti-toggle-txt{font-family:'Bricolage Grotesque',sans-serif;font-size:1.05rem;font-weight:600}
@@ -781,6 +792,9 @@ details[open] .ident-toggle{transform:rotate(180deg)}
   </aside>
 
   <main class="content">
+
+    <div id="aviso-usuario"></div>
+
 
     <!-- ICC TAB -->
     <section class="tab-content" id="tab-icc">
@@ -2508,6 +2522,70 @@ async function logout() {
   location.reload();
 }
 
+// =================================================================
+// AVISO · pasar del usuario compartido al propio
+//
+// Varias áreas entran con una cuenta compartida ("finanzas"), así que
+// todo lo que se hace queda firmado por esa cuenta: quién marcó una
+// transferencia, quién declaró un boleto, quién contactó a un cliente.
+// Con un usuario por persona esos registros pasan a servir de verdad.
+// =================================================================
+const USUARIOS_COMPARTIDOS = ['finanzas', 'legales', 'ventas', 'sac', 'cobranzas', 'administracion'];
+const AVISO_USER_CLAVE = 'aviso-usuario-propio';
+
+function esUsuarioCompartido() {
+  const u = String(state.profile?.usuario || '').trim().toLowerCase();
+  return USUARIOS_COMPARTIDOS.includes(u);
+}
+
+function renderAvisoUsuario() {
+  const cont = $('#aviso-usuario');
+  if (!cont) return;
+  // Se esconde sólo por esta sesión: la próxima vez que entren con la
+  // cuenta compartida vuelve a aparecer. Si se guardara para siempre,
+  // alcanzaría con cerrarlo una vez para no verlo nunca más.
+  let tapado = false;
+  try { tapado = sessionStorage.getItem(AVISO_USER_CLAVE) === '1'; } catch (e) {}
+  if (!esUsuarioCompartido() || tapado) { cont.innerHTML = ''; return; }
+
+  const quien = String(state.profile?.usuario || '').toLowerCase();
+  cont.innerHTML = `
+    <div class="aviso-user">
+      <div class="au-ico">👤</div>
+      <div style="min-width:0">
+        <h4>Ya podés tener tu propio usuario</h4>
+        <p>Hoy entran todos con la cuenta compartida <b>${esc(quien)}</b>. Si creás el tuyo no
+          compartís la contraseña con nadie, y de a poco voy adaptando la app a lo que hace cada uno.</p>
+        <ol>
+          <li>Cerrá la sesión con <b>Cerrar sesión</b>, abajo a la izquierda.</li>
+          <li>En la pantalla de entrada tocá <b>Registrate</b>.</li>
+          <li>Elegí tu usuario (por ejemplo <b>juanp</b>) y una contraseña de 6 caracteres o más.</li>
+          <li>En <b>Área</b> poné ${esc(quien === 'cobranzas' || quien === 'administracion' ? 'Finanzas' : quien.charAt(0).toUpperCase() + quien.slice(1))} y mandá la solicitud.</li>
+          <li>Avisame y te la activo. Desde ahí entrás con el tuyo.</li>
+        </ol>
+        <div class="au-acc">
+          <button class="btn accent sm" onclick="avisoCrearUsuario()">Crear el mío ahora</button>
+          <span class="sub">La cuenta compartida sigue funcionando mientras tanto.</span>
+        </div>
+      </div>
+      <button class="au-cerrar" onclick="avisoTapar()" title="Ocultar hasta la próxima vez que entres">&times;</button>
+    </div>`;
+}
+
+window.avisoTapar = function() {
+  try { sessionStorage.setItem(AVISO_USER_CLAVE, '1'); } catch (e) {}
+  renderAvisoUsuario();
+};
+
+// Cerrar sesión recarga la página, así que no se puede abrir el registro
+// en el mismo paso: se deja una marca y se abre apenas vuelve el login.
+window.avisoCrearUsuario = async function() {
+  if (!await confirmAction('Para crear tu usuario hay que cerrar esta sesión.\n\n' +
+      'Después de mandar la solicitud avisame y te la activo, y desde ahí entrás con el tuyo.\n\n¿Cerramos?')) return;
+  try { sessionStorage.setItem('abrir-registro', '1'); } catch (e) {}
+  logout();
+};
+
 async function initAuth() {
   const { data: { session } } = await sb.auth.getSession();
   if (session) await afterLogin();
@@ -2599,6 +2677,7 @@ async function afterLogin() {
   }
   // Aplicar permisos por área
   aplicarAccesos();
+  renderAvisoUsuario();
   await Promise.all([
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
@@ -4229,10 +4308,11 @@ function renderSellos() {
     const est = b.estado || 'pendiente';
     const tipoOp = TIPOS_OPERACION[b.tipo_operacion] || '—';
     // Una DDJJ declarada dos veces son dos declaraciones REALES ante el
-    // fisco. Apenas se marca, la fila se bloquea para todos menos el admin.
+    // fisco. Apenas se marca, los DATOS de la fila se bloquean para todos
+    // menos el admin. El estado de pago no: cobrar es otra cosa y sigue
+    // siendo trabajo de Cobranzas, esté declarado o no.
     const rEst = b.rentas_estado || 'no';
     const tomada = rEst !== 'no';
-    const puedeTocar = esAdmin || !tomada;
     return `<tr${tomada ? ' style="background:var(--surface-2)"' : ''}>
       <td>${fmtFecha(b.fecha)}</td><td>${b.propietario}</td><td>${b.unidad}</td>
       <td><span class="badge muted" style="font-size:.7rem">${tipoOp}</span></td>
@@ -4240,7 +4320,7 @@ function renderSellos() {
       <td class="num">$${fmt(b.importe_pagar)}</td>
       <td>${fmtFecha(b.fecha_vencimiento)}</td>
       <td>
-        <select onchange="cambiarEstadoBoleto('${b.id}', this.value)" ${puedeTocar ? '' : 'disabled title="Bloqueado: ya se mandó a declarar en Rentas"'} style="padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--surface);font-size:.78rem">
+        <select onchange="cambiarEstadoBoleto('${b.id}', this.value)" title="Cobrar es trabajo de todos los días: el estado de pago se cambia aunque el boleto ya esté declarado" style="padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--surface);font-size:.78rem">
           <option value="pendiente" ${est==='pendiente'?'selected':''}>Pendiente</option>
           <option value="generado" ${est==='generado'?'selected':''}>Generado</option>
           <option value="pagado" ${est==='pagado'?'selected':''}>Pagado</option>
@@ -15160,6 +15240,14 @@ function subscribeChanges() {
 // login manual como en la restauración de sesión.
 // Sin credenciales válidas no hay cliente: se queda en el aviso de config
 if (sb) initAuth();
+
+// Si venían de "Crear el mío ahora", se abre el registro solo
+try {
+  if (sessionStorage.getItem('abrir-registro') === '1') {
+    sessionStorage.removeItem('abrir-registro');
+    setTimeout(() => $('#signup-link')?.click(), 400);
+  }
+} catch (e) {}
 
 </script>
 </body>
