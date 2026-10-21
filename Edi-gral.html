@@ -4622,8 +4622,16 @@ window.desbloquearRentas = async function(id) {
 };
 
 window.cambiarEstadoBoleto = async function(id, nuevoEstado) {
-  const { error } = await sb.from('boletos').update({ estado: nuevoEstado }).eq('id', id);
-  if (error) { toast(error.message, 'err'); return; }
+  // Con .select() se sabe si realmente cambió algo: un UPDATE filtrado por
+  // RLS no da error, devuelve cero filas. Sin esto la app decía "estado
+  // actualizado" sin haber cambiado nada.
+  const { data, error } = await sb.from('boletos')
+    .update({ estado: nuevoEstado }).eq('id', id).select('id');
+  if (error) { toast(mensajeError(error), 'err'); await loadBoletos(); renderSellos(); return; }
+  if (!data || !data.length) {
+    toast('No se pudo cambiar el estado: la base no te dejó', 'err');
+    await loadBoletos(); renderSellos(); return;
+  }
   toast('Estado actualizado: ' + nuevoEstado, 'ok');
   await loadBoletos(); renderSellos();
 };
