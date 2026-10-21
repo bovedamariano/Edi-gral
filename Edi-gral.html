@@ -124,6 +124,17 @@ aside.sidebar{
 .ti-tit{font-size:.78rem;font-weight:700;color:var(--ink-2);text-transform:uppercase;
   letter-spacing:.04em;margin-bottom:4px}
 .ti-tit .ti-sub{font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)}
+.ti-tit .ti-zoom{background:none;border:none;cursor:pointer;color:var(--ink-3);font-size:.95rem;
+  line-height:1;padding:2px 5px;border-radius:4px;margin-left:4px;opacity:.5;transition:opacity .15s,background .15s}
+.ti-graf:hover .ti-zoom{opacity:1}
+.ti-tit .ti-zoom:hover{background:var(--surface-2);color:var(--accent)}
+.modal.grafico{width:min(1120px,100%)}
+.ti-toggle{display:flex;align-items:center;gap:8px;background:none;border:none;
+  padding:0;cursor:pointer;font:inherit;color:var(--ink);text-align:left}
+.ti-toggle #ti-toggle-txt{font-family:'Bricolage Grotesque',sans-serif;font-size:1.05rem;font-weight:600}
+.ti-toggle:hover #ti-toggle-txt{color:var(--accent)}
+.ti-toggle .ti-flecha{color:var(--ink-3);font-size:.8rem;transition:transform .15s}
+.ti-toggle[aria-expanded="true"] .ti-flecha{transform:rotate(90deg)}
 .ti-cont{position:relative;width:100%}
 .ti-cont svg{display:block;width:100%;height:auto;overflow:visible}
 .ti-bar{fill:var(--accent);transition:opacity .12s}
@@ -781,6 +792,14 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <button class="tab active" data-subtab="icc-actualizar">Calcular por boleto</button>
         <button class="tab" data-subtab="icc-historico">Histórico ICC</button>
         <button class="tab" data-subtab="icc-deuda" id="tab-btn-deuda" style="display:none">Cálculo de deuda</button>
+        <button class="tab" data-subtab="icc-cheques">💳 Simulador de cheques</button>
+      </div>
+
+      <div class="subtab-content" id="icc-cheques" style="display:none">
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px" id="chq-tasa-chip"></div>
+        <div id="chq-panel"></div>
+        <p class="hint" style="margin-top:14px">⚠ La cotización vale sólo para <b>E-Cheq</b>.
+          Para cheques físicos hay que consultar las condiciones con el área comercial.</p>
       </div>
 
       <div class="subtab-content" id="icc-actualizar">
@@ -1693,9 +1712,13 @@ details[open] .ident-toggle{transform:rotate(180deg)}
 
       <!-- ===== INDICADORES ===== -->
       <div class="card" id="tb-ind-card" style="margin-top:18px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;flex-wrap:wrap;gap:8px">
-          <h3 style="margin:0">Indicadores</h3>
-          <div style="display:flex;gap:6px;align-items:center">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <button class="ti-toggle" id="ti-toggle" onclick="tiPlegarIndicadores()" aria-expanded="false" aria-controls="tb-ind-body">
+            <span class="ti-flecha">▸</span>
+            <span id="ti-toggle-txt">Mostrar indicadores</span>
+            <span class="sub" style="font-weight:400;margin-left:2px">gráficos del archivo mensual</span>
+          </button>
+          <div id="ti-filtros" style="display:none;gap:6px;align-items:center;flex-wrap:wrap">
             <select id="ti-cuenta" style="width:auto;min-width:150px;padding:5px 8px;font-size:.82rem"></select>
             <select id="ti-meses" style="width:auto;padding:5px 8px;font-size:.82rem">
               <option value="6">Últimos 6 meses</option>
@@ -1704,17 +1727,21 @@ details[open] .ident-toggle{transform:rotate(180deg)}
             </select>
           </div>
         </div>
-        <p class="sub" style="margin-bottom:14px">Sobre el archivo mensual. Los dólares se pasan a pesos con el comprador del BNA del día.</p>
+
+        <div id="tb-ind-body" style="display:none">
+        <p class="sub" style="margin:10px 0 14px">Sobre el archivo mensual. Los dólares se pasan a pesos con el comprador del BNA del día.</p>
 
         <div id="ti-aviso" class="hint" style="margin-bottom:10px"></div>
 
         <!-- Evolución mes a mes: dos gráficos apilados para poder compararlos -->
         <div class="ti-graf">
-          <div class="ti-tit">Transferencias por mes</div>
+          <div class="ti-tit">Transferencias por mes
+            <button class="ti-zoom" onclick="tiAmpliar('ti-g-cant','Transferencias por mes')" title="Ver más grande">⤢</button></div>
           <div class="ti-cont" id="ti-g-cant"></div>
         </div>
         <div class="ti-graf">
-          <div class="ti-tit">Monto por mes <span class="ti-sub">en pesos</span></div>
+          <div class="ti-tit">Monto por mes <span class="ti-sub">en pesos</span>
+            <button class="ti-zoom" onclick="tiAmpliar('ti-g-monto','Monto por mes, en pesos')" title="Ver más grande">⤢</button></div>
           <div class="ti-cont" id="ti-g-monto"></div>
         </div>
 
@@ -1733,12 +1760,15 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           </div>
         </div>
         <div class="ti-graf">
-          <div class="ti-tit">Transferencias</div>
+          <div class="ti-tit">Transferencias
+            <button class="ti-zoom" onclick="tiAmpliar('ti-g-cant-mes','Transferencias dentro del mes')" title="Ver más grande">⤢</button></div>
           <div class="ti-cont" id="ti-g-cant-mes"></div>
         </div>
         <div class="ti-graf">
-          <div class="ti-tit">Monto <span class="ti-sub">en pesos</span></div>
+          <div class="ti-tit">Monto <span class="ti-sub">en pesos</span>
+            <button class="ti-zoom" onclick="tiAmpliar('ti-g-monto-mes','Monto dentro del mes, en pesos')" title="Ver más grande">⤢</button></div>
           <div class="ti-cont" id="ti-g-monto-mes"></div>
+        </div>
         </div>
       </div>
 
@@ -2507,6 +2537,11 @@ function aplicarAccesos() {
   });
   // La campanita solo para quien tenga acceso al tab de Tareas (finanzas y admin)
   $('#nav-campana').style.display = accesos.includes('tareas') ? 'flex' : 'none';
+  // El simulador de cheques vive adentro de ICC, que lo ven todas las áreas,
+  // pero muestra la tasa de descuento con la que cotiza la empresa. Así que
+  // la subpestaña queda para los mismos de siempre: finanzas y admin.
+  const btnChq = document.querySelector('.tab[data-subtab="icc-cheques"]');
+  if (btnChq) btnChq.style.display = puedeVerCheques() ? '' : 'none';
   // Ocultar secciones del sidebar que quedaron vacías
   document.querySelectorAll('.nav-section').forEach(sec => {
     let hasVisibleSibling = false;
@@ -2568,7 +2603,7 @@ async function afterLogin() {
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
     loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadBiblioteca(), loadBibAsignaciones(), loadCocheras(),
-    loadBancosCuentas(), loadTransferenciasBanco(), loadTransfArchivo(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(), loadMailReglas(), loadSugerencias(), loadSeguimiento(),
+    loadBancosCuentas(), loadTransferenciasBanco(), loadTransfArchivo(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(), loadMailReglas(), loadSugerencias(), loadSeguimiento(), loadSimTasas(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -2787,7 +2822,7 @@ function switchTab(tab) {
   if (tab === 'cocheras') renderCocheras();
   if (tab === 'transferencias') { llenarSelectoresTB(); renderTransfBanco(); renderDashTransf(); renderArchivoTransf(); renderIndicadores(); }
   if (tab === 'cotizacion') renderCotizDia();
-  if (tab === 'icc') { renderDeuda(); renderIccEnviadas(); }
+  if (tab === 'icc') { renderDeuda(); renderIccEnviadas(); renderSimuladores(); }
   if (tab === 'papeles') renderPapeles();
   if (tab === 'mails') renderMails();
   if (tab === 'sugerencias') renderSugerencias();
@@ -2819,6 +2854,7 @@ document.addEventListener('click', e => {
     // Triggers específicos al abrir subtab
     if (e.target.dataset.subtab === 'aj-personas-retiros') renderPersonasRetiros();
     if (e.target.dataset.subtab === 'ret-biblioteca') renderBiblioteca();
+    if (e.target.dataset.subtab === 'icc-cheques') renderSimuladores();
   }
 });
 
@@ -4296,10 +4332,18 @@ window.verDatosBoleto = function(id) {
       ${avisos}
       <div style="background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:10px 12px;font-size:.84rem;line-height:1.7;margin-bottom:12px">
         <div><b>${esc(b.propietario || '')}</b> · ${esc(b.unidad || '')}</div>
-        <div class="muted">Boleto del ${fmtFecha(b.fecha)} · ${b.moneda} ${fmt(b.monto)}
+        <div class="muted">${b.moneda} ${fmt(b.monto)}
           ${b.moneda !== 'ARS' && b.equivalente_ars ? ` · base imponible $${fmt(b.equivalente_ars)}` : ''}
-          · sello $${fmt(b.importe_pagar)}</div>
-        <div class="muted" style="font-size:.76rem">El importe y la fecha salen del cálculo y no se editan acá.</div>
+          · alícuota ${b.alicuota}% · sello $${fmt(b.importe_pagar)}
+          · vence ${fmtFecha(b.fecha_vencimiento)}</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px">
+          <label style="font-size:.76rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:600">Fecha del boleto</label>
+          <input type="date" id="vd-fecha" value="${esc(b.fecha || '')}" ${editable ? '' : 'disabled'}
+            onchange="vdFechaCambio('${id}')" style="width:auto;padding:6px 9px">
+        </div>
+        <div class="muted" style="font-size:.76rem">El monto no se edita acá. Si cambiás la fecha se recalculan
+          la alícuota, el vencimiento y el sello${b.moneda !== 'ARS' ? ', y se busca de nuevo la cotización del BNA' : ''}.</div>
+        <div id="vd-recalculo"></div>
       </div>
 
       <div class="grid-3">
@@ -4333,7 +4377,87 @@ window.verDatosBoleto = function(id) {
       <button class="btn ghost" onclick="closeModal()">${editable ? 'Cancelar' : 'Cerrar'}</button>
       ${editable ? `<button class="btn" id="vd-ok" onclick="guardarDatosBoleto('${id}')">Guardar cambios</button>` : ''}
     </div>`, { wide: true });
+  state.vdRecalculo = null;
   vdBarrioCambio();
+};
+
+// La fecha del boleto no es un dato suelto: de ella salen la alícuota del
+// mes, el vencimiento a 15 días hábiles y, en dólares, la cotización del
+// día hábil anterior. Cambiarla sin rehacer esa cuenta dejaría un sello
+// que no corresponde a la fecha que figura. Así que se rehace todo y se
+// muestra el antes y el después ANTES de guardar.
+window.vdFechaCambio = async function(id) {
+  const b = (state.boletos || []).find(x => x.id === id);
+  const caja = $('#vd-recalculo');
+  if (!b || !caja) return;
+  const f = $('#vd-fecha').value;
+  const btn = $('#vd-ok');
+
+  const frenar = (txt) => {
+    state.vdRecalculo = { error: true };
+    caja.innerHTML = `<div style="background:var(--warn-soft);border-left:3px solid var(--warn);border-radius:6px;
+      padding:8px 10px;margin-top:8px;font-size:.82rem;color:#92400e">⚠ ${txt}</div>`;
+    if (btn) btn.disabled = true;
+  };
+
+  if (!f) { return frenar('Poné una fecha.'); }
+  if (f === b.fecha) {
+    state.vdRecalculo = null; caja.innerHTML = '';
+    if (btn) btn.disabled = false;
+    return;
+  }
+  if (f > todayISO()) { return frenar('La fecha del boleto no puede ser futura.'); }
+
+  const alic = alicuotaOficial(f);
+  if (alic == null) {
+    return frenar(`No hay alícuota cargada con vigencia hasta ${f.slice(0, 4)}. Cargala en Ajustes → Alícuotas sellos.`);
+  }
+
+  caja.innerHTML = `<div class="hint" style="margin-top:8px">Recalculando…</div>`;
+  if (btn) btn.disabled = true;
+
+  const y = Number(f.slice(0, 4));
+  await loadFeriados(y); await loadFeriados(y + 1);
+  const venc = diasHabilesDesde(f, 15);
+
+  let tc = null, equiv;
+  if (b.moneda === 'ARS') {
+    equiv = Number(b.monto);
+  } else {
+    const cot = await fetchCotizacionFecha(f);
+    if (!cot) {
+      return frenar('No se encontró la cotización del BNA para el día hábil anterior a esa fecha. ' +
+                    'Sin eso no se puede recalcular el sello de un boleto en dólares.');
+    }
+    tc = cot.promedio;
+    equiv = Number(b.monto) * tc;
+  }
+  const importe = equiv * alic / 100;
+
+  state.vdRecalculo = {
+    fecha: f, alicuota: alic, equivalente_ars: equiv,
+    tipo_cambio_bna: tc, fecha_vencimiento: venc, importe_pagar: importe,
+  };
+  if (btn) btn.disabled = false;
+
+  const linea = (rot, antes, ahora) => `<tr><td style="padding:3px 8px 3px 0;color:var(--ink-3)">${rot}</td>
+    <td style="padding:3px 10px 3px 0;text-decoration:${antes === ahora ? 'none' : 'line-through'};color:var(--ink-3)">${antes}</td>
+    <td style="padding:3px 0"><b>${ahora}</b></td></tr>`;
+
+  caja.innerHTML = `<div style="background:var(--accent-soft);border-left:3px solid var(--accent);border-radius:6px;
+      padding:9px 11px;margin-top:8px;font-size:.82rem">
+      <b>Con la fecha nueva queda así:</b>
+      <table style="margin-top:5px;border-collapse:collapse;font-variant-numeric:tabular-nums">
+        ${linea('Alícuota', b.alicuota + '%', alic + '%')}
+        ${b.moneda !== 'ARS' ? linea('TC BNA', b.tipo_cambio_bna ? '$' + fmt(b.tipo_cambio_bna) : '—', '$' + fmt(tc)) : ''}
+        ${b.moneda !== 'ARS' ? linea('Base imponible', '$' + fmt(b.equivalente_ars), '$' + fmt(equiv)) : ''}
+        ${linea('Vencimiento', fmtFecha(b.fecha_vencimiento), fmtFecha(venc))}
+        ${linea('Sello a pagar', '$' + fmt(b.importe_pagar), '$' + fmt(importe))}
+      </table>
+      ${(b.rentas_estado || 'no') === 'declarado'
+        ? `<div style="margin-top:6px;color:var(--err)"><b>Ojo:</b> este boleto ya se declaró por
+           $${fmt(b.importe_pagar)}. Cambiarlo acá no rectifica nada en Rentas.</div>` : ''}
+    </div>`;
 };
 
 window.vdBarrioCambio = function() {
@@ -4374,6 +4498,26 @@ window.guardarDatosBoleto = async function(id) {
   const error = validarDDJJ(payload);
   if (error) { toast(error, 'warn'); return; }
 
+  // Si tocó la fecha, va junto con todo lo que se recalculó a partir de
+  // ella. Nunca la fecha sola: quedaría un sello que no es el de esa fecha.
+  const rec = state.vdRecalculo;
+  if (rec && rec.error) { toast('Arreglá primero lo de la fecha', 'warn'); return; }
+  if (rec) {
+    const difSello = Math.abs(Number(rec.importe_pagar) - Number(b.importe_pagar)) > 0.5;
+    if (!await confirmAction(
+      `Cambiar la fecha del boleto del ${fmtFecha(b.fecha)} al ${fmtFecha(rec.fecha)}.\n\n` +
+      (difSello ? `El sello pasa de $${fmt(b.importe_pagar)} a $${fmt(rec.importe_pagar)} ` +
+                  `y el vencimiento al ${fmtFecha(rec.fecha_vencimiento)}.\n\n` : '') +
+      ((b.rentas_estado || 'no') === 'declarado'
+        ? 'Este boleto YA SE DECLARÓ en Rentas: esto corrige la app, no la DDJJ presentada.\n\n' : '') +
+      '¿Guardo?')) return;
+    Object.assign(payload, {
+      fecha: rec.fecha, alicuota: rec.alicuota, equivalente_ars: rec.equivalente_ars,
+      tipo_cambio_bna: rec.tipo_cambio_bna, fecha_vencimiento: rec.fecha_vencimiento,
+      importe_pagar: rec.importe_pagar,
+    });
+  }
+
   const btn = $('#vd-ok');
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
   const { data, error: errBase } = await sb.from('boletos')
@@ -4388,7 +4532,8 @@ window.guardarDatosBoleto = async function(id) {
     await loadBoletos(); renderSellos(); return;
   }
   closeModal();
-  toast('Datos corregidos', 'ok');
+  state.vdRecalculo = null;
+  toast(rec ? 'Fecha y sello recalculados' : 'Datos corregidos', 'ok');
   await loadBoletos(); renderSellos();
 };
 
@@ -7844,7 +7989,7 @@ function dibujarBarras(contId, datos, opts = {}) {
     cont.innerHTML = `<div class="ti-vacio">${opts.vacio || 'Sin datos'}</div>`;
     return;
   }
-  const W = 820, H = 190, ML = 54, MR = 10, MT = 14, MB = 30;
+  const W = 820, H = opts.alto || 190, ML = 54, MR = 10, MT = 14, MB = 30;
   const ancho = W - ML - MR, alto = H - MT - MB;
   const max = Math.max(...datos.map(d => d.valor));
   const { techo, paso } = escalaLinda(max, 4, !!opts.entero);
@@ -7854,7 +7999,7 @@ function dibujarBarras(contId, datos, opts = {}) {
   // Barra de 24px como máximo: el resto de la banda queda como aire,
   // menos 2px de separación entre vecinas.
   const banda = ancho / datos.length;
-  const bw = Math.max(3, Math.min(24, banda - 2));
+  const bw = Math.max(3, Math.min(opts.barraMax || 24, banda - 2));
 
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.aria || 'Gráfico de barras')}">`;
 
@@ -7866,7 +8011,7 @@ function dibujarBarras(contId, datos, opts = {}) {
   const iMax = datos.indexOf(datos.find(d => d.valor === max));
   const umbral = umbralAtipico(datos.map(d => d.valor));
   // Con muchas barras se saltean etiquetas del eje para que no se pisen
-  const saltoX = datos.length > 16 ? Math.ceil(datos.length / 12) : 1;
+  const saltoX = opts.todasLasEtiquetas ? 1 : (datos.length > 16 ? Math.ceil(datos.length / 12) : 1);
 
   datos.forEach((d, i) => {
     const cx = ML + banda * i + banda / 2;
@@ -7931,12 +8076,38 @@ function dibujarBarras(contId, datos, opts = {}) {
   cont.addEventListener('mouseleave', () => tip.classList.remove('on'));
 }
 
+// Ver un gráfico en grande. Los de la pantalla entran en 190px de alto
+// para que los cuatro se puedan comparar de un vistazo; acá se dibuja el
+// mismo con más aire, barras más anchas y todas las etiquetas del eje.
+window.tiAmpliar = function(contId, titulo) {
+  const g = _tiDatos[contId];
+  if (!g || !g.datos.length || g.datos.every(d => !d.valor)) {
+    toast('Todavía no hay datos para mostrar en ese gráfico', 'warn'); return;
+  }
+  state.tiZoom = { contId, titulo };
+  showModal(`<div class="modal-head"><h3>${esc(titulo)}</h3>
+      <button class="modal-close" onclick="tiCerrarZoom()">&times;</button></div>
+    <div class="modal-body">
+      <div class="ti-cont" id="ti-zoom"></div>
+      <p class="hint" style="margin-top:10px">Pasá el mouse por una barra para ver el detalle${
+        g.opts.conCausa ? ', y tocala para ver qué transferencias la forman' : ''}.</p>
+    </div>
+    <div class="modal-foot"><button class="btn ghost" onclick="tiCerrarZoom()">Cerrar</button></div>`);
+  $('#modal').classList.add('grafico');
+  dibujarBarras('ti-zoom', g.datos, { ...g.opts, alto: 430, barraMax: 46, todasLasEtiquetas: true });
+};
+
+window.tiCerrarZoom = function() { state.tiZoom = null; closeModal(); };
+
 // Detalle de lo que hay detrás de una barra, de mayor a menor: la primera
 // fila suele ser la respuesta a "por qué este día fue tan alto".
 window.verDetalleBarra = function(contId, i) {
   const g = _tiDatos[contId];
   const d = g?.datos?.[i];
   if (!d || !d.items?.length) return;
+  // Si se entró desde el gráfico ampliado, el detalle le pisa la modal:
+  // hay que poder volver al gráfico en vez de quedarse sin nada.
+  const volverA = contId === 'ti-zoom' ? state.tiZoom : null;
 
   const items = [...d.items].sort((a, b) => b.pesos - a.pesos);
   const total = items.reduce((a, x) => a + x.pesos, 0);
@@ -7963,12 +8134,39 @@ window.verDetalleBarra = function(contId, i) {
       </table></div>
       ${items.length > 200 ? `<div class="hint" style="margin-top:8px">Mostrando las 200 más grandes de ${items.length}</div>` : ''}
     </div>
-    <div class="modal-foot"><button class="btn ghost" onclick="closeModal()">Cerrar</button></div>`);
+    <div class="modal-foot">
+      ${volverA ? `<button class="btn ghost" onclick="tiAmpliar('${volverA.contId}', '${escJsAttr(volverA.titulo)}')">← Volver al gráfico</button>` : ''}
+      <button class="btn ghost" onclick="tiCerrarZoom()">Cerrar</button></div>`);
 };
 
 // ---------- Orquestación ----------
+// Los indicadores arrancan plegados: son cuatro gráficos y la pantalla de
+// Transferencias ya tiene el repositorio, el tablero y el archivo. Se abren
+// cuando se piden, y la app se acuerda de cómo quedaron.
+const TI_CLAVE_PLEGADO = 'ti-indicadores-abierto';
+
+function tiAbiertos() {
+  try { return localStorage.getItem(TI_CLAVE_PLEGADO) === '1'; } catch (e) { return false; }
+}
+
+window.tiPlegarIndicadores = function(forzar) {
+  const abierto = forzar === undefined ? !tiAbiertos() : !!forzar;
+  try { localStorage.setItem(TI_CLAVE_PLEGADO, abierto ? '1' : '0'); } catch (e) {}
+  const cuerpo = $('#tb-ind-body'), btn = $('#ti-toggle'), txt = $('#ti-toggle-txt');
+  if (!cuerpo) return;
+  cuerpo.style.display = abierto ? 'block' : 'none';
+  // Los filtros viven arriba, en la línea del título, así que se esconden aparte
+  const filtros = $('#ti-filtros');
+  if (filtros) filtros.style.display = abierto ? 'flex' : 'none';
+  btn?.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+  if (txt) txt.textContent = abierto ? 'Ocultar indicadores' : 'Mostrar indicadores';
+  if (abierto) renderIndicadores();
+};
+
 function renderIndicadores() {
   if (!$('#ti-g-cant')) return;
+  // Plegado no se dibuja nada: son cuatro gráficos que nadie está mirando.
+  if (!tiAbiertos()) return;
 
   // Selectores: se llenan una vez y se respeta lo elegido
   const selC = $('#ti-cuenta');
@@ -8028,6 +8226,7 @@ function renderIndicadores() {
 if ($('#ti-g-cant')) {
   ['#ti-cuenta', '#ti-meses', '#ti-mes', '#ti-agrup'].forEach(s =>
     $(s).addEventListener('change', renderIndicadores));
+  tiPlegarIndicadores(tiAbiertos());
 }
 
 // =================================================================
@@ -14473,13 +14672,437 @@ async function segWspCopiar() {
 }
 
 // =================================================================
+// MODULO: SIMULADORES
+//
+// Por ahora uno solo: financiación con cheques a tasa fija. La pestaña
+// nació con subpestañas para que entre el siguiente al lado sin tocar
+// nada de esto.
+//
+// La tasa NO está escrita acá: sale de simulador_tasas (ver
+// migracion_simuladores.sql). El simulador original la traía clavada en
+// 29% y para cambiarla había que editar el archivo, así que cada copia
+// que circulaba podía tener una tasa distinta.
+// =================================================================
+
+async function loadSimTasas() {
+  const { data } = await sb.from('simulador_tasas').select('*')
+    .order('vigente_desde', { ascending: false });
+  state.simTasas = data || [];
+}
+
+// La vigente es la última con vigencia menor o igual a hoy: una tasa
+// cargada con fecha futura queda esperando y no cotiza nada todavía.
+function simTasaVigente(concepto = 'cheques') {
+  const hoy = todayISO();
+  return (state.simTasas || [])
+    .filter(t => t.concepto === concepto && t.vigente_desde <= hoy)
+    .sort((a, b) => b.vigente_desde.localeCompare(a.vigente_desde))[0] || null;
+}
+
+// ---------- Calculadora del campo importe ----------
+// El original resolvía "100000 * 0.30" con Function(), que ejecuta
+// cualquier cosa que se escriba. Adentro de una app compartida eso no va,
+// así que esto lee la cuenta a mano: números, + - * / y paréntesis.
+// Cualquier otra cosa devuelve null y no se toca el valor anterior.
+function simEvaluar(texto) {
+  const crudo = String(texto == null ? '' : texto).replace(/\s/g, '');
+  if (!crudo) return null;
+
+  // Sin signos de cuenta es un número escrito a la argentina: el punto
+  // separa miles y la coma los decimales. Así "1.000,50" vale mil y medio
+  // y no uno, que es lo que daba leyéndolo como expresión.
+  if (!/[+\-*/()]/.test(crudo)) {
+    if (!/^[0-9.,]+$/.test(crudo)) return null;
+    const n = parseFloat(crudo.replace(/\./g, '').replace(',', '.'));
+    return isFinite(n) && n >= 0 ? n : null;
+  }
+
+  // Con signos es una cuenta: ahí el punto es el decimal y la coma no va.
+  const s = crudo;
+  if (!/^[0-9.+\-*/()]+$/.test(s)) return null;
+  if (/\d*\.\d*\./.test(s)) return null;   // "1.000.000*2" es ambiguo: no se adivina
+  let i = 0;
+  const findeExpr = () => i >= s.length;
+  const ver = () => s[i];
+
+  function numero() {
+    if (ver() === '(') {
+      i++;
+      const v = suma();
+      if (ver() !== ')') throw 0;
+      i++;
+      return v;
+    }
+    if (ver() === '-') { i++; return -numero(); }
+    if (ver() === '+') { i++; return numero(); }
+    const desde = i;
+    while (!findeExpr() && /[0-9.]/.test(ver())) i++;
+    if (i === desde) throw 0;
+    const n = parseFloat(s.slice(desde, i));
+    if (!isFinite(n)) throw 0;
+    return n;
+  }
+  function producto() {
+    let v = numero();
+    while (!findeExpr() && (ver() === '*' || ver() === '/')) {
+      const op = ver(); i++;
+      const d = numero();
+      if (op === '/' && d === 0) throw 0;
+      v = op === '*' ? v * d : v / d;
+    }
+    return v;
+  }
+  function suma() {
+    let v = producto();
+    while (!findeExpr() && (ver() === '+' || ver() === '-')) {
+      const op = ver(); i++;
+      const d = producto();
+      v = op === '+' ? v + d : v - d;
+    }
+    return v;
+  }
+  try {
+    const v = suma();
+    if (!findeExpr()) return null;
+    return isFinite(v) && v >= 0 ? v : null;
+  } catch (e) { return null; }
+}
+
+// ---------- El cálculo, aparte de la pantalla ----------
+// Función pura: mismas entradas, mismo resultado, sin leer ni tocar el
+// DOM. Así la cuenta se puede verificar sola.
+//
+// La tasa que se carga es de DESCUENTO; para aplicarla sobre el capital
+// hay que pasarla a directa, que es lo que hace tnaDirecta.
+function simCalcular({ monto, tna, n, fecha, plazos = {}, fijos = {}, fijoValor = {} }) {
+  monto = Number(monto) || 0;
+  n = Math.max(1, Math.min(60, parseInt(n) || 1));
+  const tasaDesc = (Number(tna) || 0) / 100;
+  const tnaDirecta = tasaDesc / (1 - tasaDesc * 0.5);
+  const td = tnaDirecta / 365;                 // tasa diaria
+  const intervalo = Math.round(360 / n);
+  const capitalParejo = monto / n;
+
+  const dias = [];
+  for (let k = 1; k <= n; k++) dias.push(Number(plazos[k]) > 0 ? Number(plazos[k]) : k * intervalo);
+
+  const hayFijos = Object.keys(fijos).some(k => fijos[k]);
+  let capitalAuto = capitalParejo, sumaCapFijos = 0;
+  if (hayFijos) {
+    let autos = 0;
+    for (let k = 1; k <= n; k++) {
+      if (fijos[k]) {
+        const factor = 1 + td * dias[k - 1];
+        sumaCapFijos += factor > 0 ? (Number(fijoValor[k]) || 0) / factor : 0;
+      } else autos++;
+    }
+    capitalAuto = autos > 0 ? (monto - sumaCapFijos) / autos : 0;
+  }
+
+  const filas = [];
+  let totalCapital = 0, totalInteres = 0, totalCheques = 0;
+  for (let k = 1; k <= n; k++) {
+    const d = dias[k - 1];
+    let capital, cheque, interes;
+    if (fijos[k]) {
+      cheque = Number(fijoValor[k]) || 0;
+      capital = cheque / (1 + td * d);
+      interes = capital * td * d;
+    } else {
+      capital = hayFijos ? capitalAuto : capitalParejo;
+      interes = capital * td * d;
+      cheque = capital + interes;
+    }
+    totalCapital += capital; totalInteres += interes; totalCheques += cheque;
+    filas.push({ k, dias: d, fecha: simSumarDias(fecha, d), capital, interes, cheque, fijo: !!fijos[k] });
+  }
+
+  return {
+    filas, totalCapital, totalInteres, totalCheques,
+    capitalParejo, td, tnaDirecta, intervalo, n, monto,
+    // Si lo fijado se pasa del capital, la cuenta no cierra y hay que decirlo.
+    excedido: hayFijos && monto > 0 && sumaCapFijos - monto > 1 ? sumaCapFijos - monto : 0,
+  };
+}
+
+function simSumarDias(fechaISO, dias) {
+  const d = new Date(fechaISO + 'T00:00:00');
+  d.setDate(d.getDate() + dias);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// ---------- Pantalla ----------
+function simEstado() {
+  if (!state.sim) {
+    state.sim = { monto: 100000, n: 12, modoPlazos: false, modoMontos: false,
+                  plazos: {}, fijos: {}, fijoValor: {}, fecha: todayISO() };
+  }
+  return state.sim;
+}
+
+function puedeVerCheques() {
+  const p = state.profile;
+  return !!p && (p.rol === 'admin' || p.area === 'finanzas');
+}
+
+function renderSimuladores() {
+  if (!$('#chq-panel')) return;
+  if (!puedeVerCheques()) { $('#chq-panel').innerHTML = ''; $('#chq-tasa-chip').innerHTML = ''; return; }
+  const s = simEstado();
+  const t = simTasaVigente();
+  const esAdmin = state.profile?.rol === 'admin';
+
+  if (!t) {
+    $('#chq-panel').innerHTML = `<div class="card"><p class="empty">
+      No hay ninguna tasa cargada para los cheques.
+      ${esAdmin ? 'Cargala con el botón de arriba.' : 'Pedile al administrador que la cargue.'}</p></div>`;
+    $('#chq-tasa-chip').innerHTML = '';
+    return;
+  }
+
+  $('#chq-tasa-chip').innerHTML = `
+    <span class="badge accent" title="Vigente desde el ${fmtFecha(t.vigente_desde)}">
+      TNA de descuento ${fmt(t.tna)}%</span>
+    <span class="sub" style="margin-left:8px">desde el ${fmtFecha(t.vigente_desde)}</span>
+    ${esAdmin ? `<button class="btn ghost sm" style="margin-left:10px" onclick="simEditarTasa()">✎ Cambiar la tasa</button>` : ''}`;
+
+  const r = simCalcular({ monto: s.monto, tna: t.tna, n: s.n, fecha: s.fecha,
+                          plazos: s.plazos, fijos: s.fijos, fijoValor: s.fijoValor });
+
+  $('#chq-panel').innerHTML = `
+    <div class="card">
+      <h3>Parámetros de la operación</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px">
+        <div class="field"><label>Importe a financiar</label>
+          <input id="chq-monto" value="${esc(fmt(s.monto))}" inputmode="decimal" autocomplete="off">
+          <div class="hint">Se puede escribir una cuenta: <code>100000*0.30</code></div></div>
+        <div class="field"><label>Cantidad de cheques</label>
+          <input id="chq-n" type="number" min="1" max="60" step="1" value="${s.n}"></div>
+        <div class="field"><label>Fecha de la operación</label>
+          <input id="chq-fecha" type="date" value="${esc(s.fecha)}"></div>
+        <div class="field"><label>Tasa de descuento (TNA)</label>
+          <input value="${fmt(t.tna)} %" disabled>
+          <div class="hint">La carga el administrador</div></div>
+      </div>
+
+      <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:14px">
+        <label style="display:flex;align-items:center;gap:7px;font-size:.86rem">
+          <input type="checkbox" id="chq-modo-plazos" ${s.modoPlazos ? 'checked' : ''}> Editar los plazos</label>
+        <label style="display:flex;align-items:center;gap:7px;font-size:.86rem">
+          <input type="checkbox" id="chq-modo-montos" ${s.modoMontos ? 'checked' : ''}> Fijar importes por cheque</label>
+      </div>
+      ${r.excedido ? `<div style="background:var(--warn-soft);border-left:3px solid var(--warn);border-radius:6px;
+        padding:9px 11px;margin-top:12px;font-size:.84rem;color:#92400e">
+        ⚠ Los importes que fijaste se pasan del capital en $${fmt(r.excedido)}.</div>` : ''}
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px;margin-bottom:18px">
+      <div class="stat"><div class="lab">${r.filas.some(f => f.fijo) ? 'Capital total' : 'Capital por cheque'}</div>
+        <div class="val">$${fmt(r.filas.some(f => f.fijo) ? r.totalCapital : r.capitalParejo)}</div>
+        <div class="sub">${r.n} cheque${r.n > 1 ? 's' : ''}${r.filas.some(f => f.fijo) ? '' : ' iguales en capital'}</div></div>
+      <div class="stat"><div class="lab">Primer cheque</div>
+        <div class="val">$${fmt(r.filas[0]?.cheque || 0)}</div>
+        <div class="sub">a ${r.filas[0]?.dias || 0} días · ${fmtFecha(r.filas[0]?.fecha)}</div></div>
+      <div class="stat"><div class="lab">Intereses</div>
+        <div class="val">$${fmt(r.totalInteres)}</div>
+        <div class="sub">${r.monto > 0 ? fmt(r.totalInteres / r.monto * 100) + '% sobre el capital' : '—'}</div></div>
+      <div class="stat"><div class="lab">Total a pagar</div>
+        <div class="val">$${fmt(r.totalCheques)}</div>
+        <div class="sub">suma de los ${r.n} cheques</div></div>
+    </div>
+
+    <div class="card">
+      <h3 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Cronograma de cheques
+        <button class="btn ghost sm" onclick="simPDF()">📄 Generar PDF</button></h3>
+      <p class="sub" style="margin:-8px 0 12px">Tasa diaria ${(r.td * 100).toFixed(3)}% ·
+        un cheque cada ${r.intervalo} días ${s.modoPlazos ? '(plazos editados a mano)' : ''}</p>
+      <div class="tbl-wrap"><table class="tbl" id="chq-tabla">
+        <thead><tr><th>#</th><th>Fecha del cheque</th><th class="num">Capital</th><th class="num">Días</th>
+          <th class="num">Intereses</th><th class="num">Importe del cheque</th>
+          ${s.modoPlazos ? '<th class="num">Días a mano</th>' : ''}
+          ${s.modoMontos ? '<th class="num">Importe a mano</th>' : ''}</tr></thead>
+        <tbody>${r.filas.map(f => `<tr>
+          <td>${f.k}</td>
+          <td>${fmtFecha(f.fecha)}</td>
+          <td class="num">$${fmt(f.capital)}</td>
+          <td class="num">${f.dias}</td>
+          <td class="num">$${fmt(f.interes)}</td>
+          <td class="num"><b>$${fmt(f.cheque)}</b></td>
+          ${s.modoPlazos ? `<td class="num"><input type="number" min="1" max="3650" value="${f.dias}"
+            style="width:80px;text-align:right" onchange="simPlazo(${f.k}, this.value)"></td>` : ''}
+          ${s.modoMontos ? `<td class="num" style="white-space:nowrap">
+            ${f.fijo ? `<input type="number" min="0" step="0.01" value="${f.cheque.toFixed(2)}"
+                 style="width:120px;text-align:right" onchange="simImporte(${f.k}, this.value)">`
+                     : `<span class="sub">auto</span>`}
+            <button class="btn ghost sm" onclick="simFijar(${f.k})"
+              title="${f.fijo ? 'Volver a automático' : 'Fijar este importe'}">${f.fijo ? '🔓' : '🔒'}</button></td>` : ''}
+        </tr>`).join('')}</tbody>
+        <tfoot><tr style="background:var(--surface-2);font-weight:600">
+          <td colspan="2">TOTAL</td>
+          <td class="num">$${fmt(r.totalCapital)}</td>
+          <td></td>
+          <td class="num">$${fmt(r.totalInteres)}</td>
+          <td class="num"><b>$${fmt(r.totalCheques)}</b></td>
+          ${s.modoPlazos ? '<td></td>' : ''}${s.modoMontos ? '<td></td>' : ''}
+        </tr></tfoot>
+      </table></div>
+    </div>`;
+
+  // El importe acepta una cuenta escrita; se resuelve al salir del campo.
+  const mi = $('#chq-monto');
+  mi.addEventListener('focus', () => { mi.value = String(s.monto); });
+  mi.addEventListener('blur', () => {
+    const v = simEvaluar(mi.value);
+    if (v === null) { mi.value = fmt(s.monto); toast('No entendí ese importe', 'warn'); return; }
+    s.monto = v; renderSimuladores();
+  });
+  mi.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); mi.blur(); } });
+  $('#chq-n').addEventListener('change', e => {
+    s.n = Math.max(1, Math.min(60, parseInt(e.target.value) || 1));
+    s.plazos = {}; s.fijos = {}; s.fijoValor = {};   // los ajustes a mano eran de la otra cantidad
+    renderSimuladores();
+  });
+  $('#chq-fecha').addEventListener('change', e => { s.fecha = e.target.value || todayISO(); renderSimuladores(); });
+  $('#chq-modo-plazos').addEventListener('change', e => {
+    s.modoPlazos = e.target.checked; if (!s.modoPlazos) s.plazos = {}; renderSimuladores();
+  });
+  $('#chq-modo-montos').addEventListener('change', e => {
+    s.modoMontos = e.target.checked;
+    if (!s.modoMontos) { s.fijos = {}; s.fijoValor = {}; }
+    renderSimuladores();
+  });
+}
+
+function simPlazo(k, val) {
+  const s = simEstado();
+  const d = parseInt(val) || 0;
+  if (d > 0) s.plazos[k] = d; else delete s.plazos[k];
+  renderSimuladores();
+}
+function simImporte(k, val) {
+  const s = simEstado();
+  s.fijoValor[k] = parseFloat(val) || 0;
+  renderSimuladores();
+}
+function simFijar(k) {
+  const s = simEstado();
+  if (s.fijos[k]) { delete s.fijos[k]; delete s.fijoValor[k]; }
+  else {
+    // Al fijarlo arranca con el importe que tenía calculado, para que
+    // quede donde estaba y de ahí se mueva.
+    const t = simTasaVigente();
+    const r = simCalcular({ monto: s.monto, tna: t?.tna, n: s.n, fecha: s.fecha,
+                            plazos: s.plazos, fijos: s.fijos, fijoValor: s.fijoValor });
+    s.fijos[k] = true;
+    s.fijoValor[k] = r.filas[k - 1]?.cheque || 0;
+  }
+  renderSimuladores();
+}
+
+// ---------- La tasa (sólo admin) ----------
+function simEditarTasa() {
+  if (state.profile?.rol !== 'admin') { toast('Sólo el administrador cambia la tasa', 'warn'); return; }
+  const t = simTasaVigente();
+  const hist = (state.simTasas || []).filter(x => x.concepto === 'cheques').slice(0, 8);
+  showModal(`<div class="modal-head"><h3>Tasa de los cheques</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <p class="sub">Es la TNA de <b>descuento</b>. El simulador la pasa a directa para aplicarla sobre el capital.
+        Cambiarla acá la cambia para todos.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="field"><label>Nueva TNA (%)</label>
+          <input id="chqt-tna" type="number" step="0.1" min="0.1" max="999" value="${t ? t.tna : ''}" placeholder="29"></div>
+        <div class="field"><label>Vigente desde</label>
+          <input id="chqt-desde" type="date" value="${todayISO()}"></div>
+      </div>
+      <div class="field"><label>Nota (opcional)</label>
+        <input id="chqt-nota" placeholder="Por qué cambió"></div>
+      ${hist.length ? `<div class="tbl-wrap" style="margin-top:6px"><table class="tbl">
+        <thead><tr><th>Vigente desde</th><th class="num">TNA</th><th>Nota</th></tr></thead>
+        <tbody>${hist.map(x => `<tr${x.vigente_desde > todayISO() ? ' style="opacity:.55"' : ''}>
+          <td>${fmtFecha(x.vigente_desde)}${x.vigente_desde > todayISO() ? ' <span class="badge muted">futura</span>' : ''}</td>
+          <td class="num">${fmt(x.tna)}%</td><td>${esc(x.nota || '—')}</td></tr>`).join('')}
+        </tbody></table></div>` : ''}
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" onclick="simGuardarTasa()">Guardar</button>
+    </div>`, { wide: true });
+}
+
+async function simGuardarTasa() {
+  const tna = parseFloat($('#chqt-tna').value);
+  const desde = $('#chqt-desde').value;
+  if (!(tna > 0 && tna < 1000)) { toast('La tasa tiene que ser un número mayor a 0', 'warn'); return; }
+  if (!desde) { toast('Poné desde cuándo rige', 'warn'); return; }
+  const { data, error } = await sb.from('simulador_tasas').insert({
+    concepto: 'cheques', tna, vigente_desde: desde,
+    nota: $('#chqt-nota').value.trim() || null, created_by: state.user?.id,
+  }).select('id');
+  if (error) {
+    toast(/duplicate|unique/i.test(error.message)
+      ? 'Ya hay una tasa cargada con esa fecha de vigencia' : 'No se pudo guardar: ' + error.message, 'err');
+    return;
+  }
+  if (!data || !data.length) { toast('No se pudo guardar: la base no te dejó', 'err'); return; }
+  closeModal();
+  await loadSimTasas();
+  toast(desde > todayISO() ? 'Tasa cargada: empieza a regir el ' + fmtFecha(desde) : 'Tasa actualizada', 'ok');
+  renderSimuladores();
+}
+
+// ---------- PDF ----------
+function simPDF() {
+  const s = simEstado(), t = simTasaVigente();
+  if (!t) { toast('No hay tasa cargada', 'warn'); return; }
+  const r = simCalcular({ monto: s.monto, tna: t.tna, n: s.n, fecha: s.fecha,
+                          plazos: s.plazos, fijos: s.fijos, fijoValor: s.fijoValor });
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+
+  doc.setFillColor(26, 35, 50); doc.rect(0, 0, 297, 20, 'F');
+  doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+  doc.text('Financiación con cheques', 14, 13);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(200);
+  doc.text('Grupo Edisur · Área Finanzas', 283, 13, { align: 'right' });
+
+  doc.setTextColor(0); doc.setFontSize(9);
+  doc.text(`Importe a financiar: $${fmt(r.monto)}    ·    Cheques: ${r.n}    ·    ` +
+           `TNA de descuento: ${fmt(t.tna)}%    ·    Fecha de la operación: ${fmtFecha(s.fecha)}`, 14, 28);
+  doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+  doc.text(`Total a pagar: $${fmt(r.totalCheques)}   (intereses $${fmt(r.totalInteres)})`, 14, 35);
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(200, 80, 20);
+  doc.text('Cotización válida únicamente para E-Cheq. Para cheques físicos, consultar condiciones con el área comercial.', 14, 41);
+  doc.setTextColor(0);
+
+  doc.autoTable({
+    startY: 45,
+    head: [['#', 'Fecha del cheque', 'Capital', 'Días', 'Intereses', 'Importe del cheque']],
+    body: r.filas.map(f => [f.k, fmtFecha(f.fecha), '$' + fmt(f.capital), f.dias,
+                            '$' + fmt(f.interes), '$' + fmt(f.cheque)]),
+    foot: [['', 'TOTAL', '$' + fmt(r.totalCapital), '', '$' + fmt(r.totalInteres), '$' + fmt(r.totalCheques)]],
+    styles: { font: 'helvetica', fontSize: 9, cellPadding: 2, halign: 'right' },
+    columnStyles: { 0: { halign: 'center' }, 1: { halign: 'left' } },
+    headStyles: { fillColor: [26, 35, 50], halign: 'right' },
+    footStyles: { fillColor: [246, 244, 239], textColor: [26, 35, 50], fontStyle: 'bold', halign: 'right' },
+    margin: { left: 14, right: 14 },
+  });
+
+  const finalY = doc.lastAutoTable.finalY || 60;
+  doc.setFontSize(7); doc.setTextColor(140);
+  doc.text(`Generado: ${new Date().toLocaleString('es-AR')} · tasa diaria ${(r.td * 100).toFixed(3)}%`, 14, finalY + 6);
+  doc.save(`cheques-${s.fecha}-${r.n}x.pdf`);
+}
+
+// =================================================================
 // REAL-TIME SUBSCRIPTIONS
 // =================================================================
 let realtimeActivo = false;
 function subscribeChanges() {
   if (realtimeActivo) return;   // evita canales duplicados
   realtimeActivo = true;
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','transferencias_archivo','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches','mail_reglas','sugerencias','biblioteca_lugares','biblioteca_asignaciones','seguimiento_listas','seguimiento_clientes'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','transferencias_archivo','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches','mail_reglas','sugerencias','biblioteca_lugares','biblioteca_asignaciones','seguimiento_listas','seguimiento_clientes','simulador_tasas'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -14516,6 +15139,7 @@ function subscribeChanges() {
         if (tabla==='sugerencias') { await loadSugerencias(); renderSugerencias(); renderBadgeSugerencias(); }
         if (tabla==='retiros_personas') { await loadRetirosPersonas(); renderPersonasRetiros(); }
         if (tabla==='seguimiento_listas'||tabla==='seguimiento_clientes') { await loadSeguimiento(); renderSeguimiento(); }
+        if (tabla==='simulador_tasas') { await loadSimTasas(); renderSimuladores(); }
       })
       .subscribe();
   });
