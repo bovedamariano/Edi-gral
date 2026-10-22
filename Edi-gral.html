@@ -966,7 +966,13 @@ details[open] .ident-toggle{transform:rotate(180deg)}
 
     <!-- SELLOS TAB -->
     <section class="tab-content" id="tab-sellos" style="display:none">
-      <div class="page-head"><div><h1>Imp. Sellos</h1><p>Timbrado de boletos de compra-venta</p></div></div>
+      <div class="page-head">
+        <div><h1>Imp. Sellos</h1><p>Timbrado de boletos de compra-venta</p></div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span class="sub" id="sellos-visto"></span>
+          <button class="btn" id="sellos-actualizar" title="Volver a leer los boletos de la base, sin recargar la página">↻ Actualizar</button>
+        </div>
+      </div>
 
       <!-- Instructivo de workflow -->
       <div class="card workflow-info">
@@ -2702,6 +2708,7 @@ async function afterLogin() {
   renderBadgeSugerencias();
   renderDeuda();
   purgarRealizadas();   // borra las realizadas pasados DIAS_PURGA días
+  purgarPdfsRentas();   // deja en la app sólo los comprobantes recientes
   renderCampanita();
   // Recalcular cada 10 min para que el contador cruce la medianoche solo,
   // sin depender de que el usuario recargue la pestaña.
@@ -2904,6 +2911,7 @@ function switchTab(tab) {
   if (tab === 'icc') { renderDeuda(); renderIccEnviadas(); renderSimuladores(); }
   if (tab === 'papeles') renderPapeles();
   if (tab === 'mails') renderMails();
+  if (tab === 'sellos' && !state.sellosVistoAt) sellosVisto();
   if (tab === 'sugerencias') renderSugerencias();
   if (tab === 'seguimiento') renderSeguimiento();
   if (tab === 'ajustes') { renderBancosCuentas(); renderIdentEmpr(); renderSpeeches(); }
@@ -4340,6 +4348,9 @@ function renderSellos() {
   }).join('');
 }
 $('#sellos-search').addEventListener('input', renderSellos);
+// La flecha es a propósito: actualizarSellos se define más abajo en el
+// archivo y esta línea corre antes, así que se resuelve recién al tocarla.
+$('#sellos-actualizar')?.addEventListener('click', () => actualizarSellos());
 $('#sellos-fecha-desde').addEventListener('change', renderSellos);
 $('#sellos-fecha-hasta').addEventListener('change', renderSellos);
 $('#sellos-filtro-estado').addEventListener('change', renderSellos);
@@ -4635,6 +4646,8 @@ function chipRentas(b) {
       title="${b.rentas_at ? fmtFechaHora(b.rentas_at) : ''}">✓ declarado</span>` +
       (b.rentas_numero ? `<div class="muted" style="font-size:.72rem">N° ${esc(b.rentas_numero)}</div>` : '') +
       (pdfs.length ? `<div style="font-size:.72rem">↓ ${pdfs.join(' · ')}</div>` : '') +
+      (!pdfs.length && pdfsPurgados(b)
+        ? `<div class="muted" style="font-size:.7rem" title="En la app se guardan los comprobantes de los últimos ${MESES_PDF_EN_APP} meses. Los anteriores quedan en la carpeta de la máquina.">📁 comprobantes en la carpeta</div>` : '') +
       (b.rentas_error ? `<div style="font-size:.7rem;color:var(--warn)" title="${esc(b.rentas_error)}">⚠ sin comprobante</div>` : '');
   }
   return `<span class="badge" style="background:var(--err-soft);color:var(--err);font-size:.7rem"
@@ -4647,7 +4660,12 @@ window.bajarPdfRentas = async function(id, cual) {
   const b = (state.boletos || []).find(x => x.id === id);
   if (!b) return;
   const ruta = cual === 'cedulon' ? b.rentas_pdf_cedulon : b.rentas_pdf_djj;
-  if (!ruta) { toast('Ese comprobante todavía no está subido', 'warn'); return; }
+  if (!ruta) {
+    toast(pdfsPurgados(b)
+      ? `Ese comprobante ya no está en la app: en Supabase quedan los de los últimos ${MESES_PDF_EN_APP} meses. Buscalo en la carpeta de la máquina.`
+      : 'Ese comprobante todavía no está subido', 'warn');
+    return;
+  }
   try {
     const { data, error } = await sb.storage.from('cedulones')
       .createSignedUrl(ruta, 3600, { download: true });
@@ -4657,6 +4675,125 @@ window.bajarPdfRentas = async function(id, cual) {
     toast('No se pudo bajar el comprobante: ' + e.message, 'err');
   }
 };
+
+// Trae de nuevo los boletos sin recargar la página. Sirve sobre todo
+// mientras el bot declara: en vez de apretar F5 y esperar a que cargue
+// todo, esto lee sólo los boletos y dice qué cambió desde la última vez.
+window.actualizarSellos = async function() {
+  const btn = $('#sellos-actualizar');
+  if (btn) { btn.disabled = true; btn.textContent = 'Actualizando…'; }
+
+  // Foto de cómo estaba cada boleto, para poder contar los cambios
+  const antes = {};
+  (state.boletos || []).forEach(b => {
+    antes[b.id] = (b.rentas_estado || 'no') + '|' + (b.estado || '') + '|' + (b.rentas_numero || '');
+  });
+
+  try {
+    await loadBoletos();
+  } catch (e) {
+    toast('No se pudo actualizar: ' + e.message, 'err');
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Actualizar'; }
+    return;
+  }
+
+  let declarados = 0, conError = 0, nuevos = 0, otros = 0;
+  (state.boletos || []).forEach(b => {
+    const ahora = (b.rentas_estado || 'no') + '|' + (b.estado || '') + '|' + (b.rentas_numero || '');
+    if (!(b.id in antes)) { nuevos++; return; }
+    if (antes[b.id] === ahora) return;
+    const rAntes = antes[b.id].split('|')[0];
+    if (b.rentas_estado === 'declarado' && rAntes !== 'declarado') declarados++;
+    else if (b.rentas_estado === 'error' && rAntes !== 'error') conError++;
+    else otros++;
+  });
+
+  renderSellos();
+  sellosVisto();
+  if (btn) { btn.disabled = false; btn.textContent = '↻ Actualizar'; }
+
+  const partes = [];
+  if (declarados) partes.push(`${declarados} declarado${declarados === 1 ? '' : 's'} en Rentas`);
+  if (conError) partes.push(`${conError} con error`);
+  if (nuevos) partes.push(`${nuevos} boleto${nuevos === 1 ? '' : 's'} nuevo${nuevos === 1 ? '' : 's'}`);
+  if (otros) partes.push(`${otros} con cambios`);
+  toast(partes.length ? partes.join(' · ') : 'Sin novedades', partes.length ? 'ok' : 'info');
+};
+
+// Deja a la vista a qué hora se miró por última vez: si el bot está
+// trabajando, saber que lo que ves es de hace diez minutos importa.
+function sellosVisto() {
+  const el = $('#sellos-visto');
+  if (!el) return;
+  state.sellosVistoAt = new Date();
+  el.textContent = 'Actualizado ' + state.sellosVistoAt.toLocaleTimeString('es-AR',
+    { hour: '2-digit', minute: '2-digit' });
+}
+
+// ---------- Los PDF sólo de los últimos meses ----------
+// Los comprobantes de Rentas ocupan casi todo el espacio de Supabase, y el
+// bot ya guarda una copia de cada uno en la carpeta de la máquina. Así que
+// en la app quedan los de los últimos MESES_PDF_EN_APP meses y los
+// anteriores se borran del bucket.
+//
+// Se borra SÓLO el archivo: el boleto, el número de DJ, la fecha y todos
+// los datos de la declaración quedan intactos. Lo único que se pierde es
+// el botón para bajarlo desde acá.
+const MESES_PDF_EN_APP = 2;
+
+function limitePdfRentas() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - MESES_PDF_EN_APP);
+  return d.toISOString();
+}
+
+// Un boleto declarado hace más de ese tiempo y sin PDF guardados: el
+// comprobante está en la carpeta, no en la app.
+function pdfsPurgados(b) {
+  return (b.rentas_estado === 'declarado') && !b.rentas_pdf_djj && !b.rentas_pdf_cedulon
+         && !!b.rentas_at && b.rentas_at < limitePdfRentas();
+}
+
+async function purgarPdfsRentas() {
+  // Borrar del bucket es sólo del admin (ver migracion_rentas_bot.sql),
+  // así que la limpieza corre cuando entra el administrador.
+  if (state.profile?.rol !== 'admin') return;
+
+  const limite = limitePdfRentas();
+  const { data, error } = await sb.from('boletos')
+    .select('id,rentas_pdf_djj,rentas_pdf_cedulon')
+    .eq('rentas_estado', 'declarado')
+    .lt('rentas_at', limite)
+    .or('rentas_pdf_djj.not.is.null,rentas_pdf_cedulon.not.is.null');
+  if (error) { console.warn('No se pudieron buscar PDF viejos:', error.message); return; }
+  if (!data || !data.length) return;
+
+  const rutas = [];
+  data.forEach(b => {
+    if (b.rentas_pdf_djj) rutas.push(b.rentas_pdf_djj);
+    if (b.rentas_pdf_cedulon) rutas.push(b.rentas_pdf_cedulon);
+  });
+
+  // De a tandas: borrar cientos de archivos en una sola llamada falla.
+  let borrados = 0;
+  for (let i = 0; i < rutas.length; i += 100) {
+    const tanda = rutas.slice(i, i + 100);
+    const { error: eDel } = await sb.storage.from('cedulones').remove(tanda);
+    if (eDel) { console.warn('No se pudieron borrar comprobantes:', eDel.message); return; }
+    borrados += tanda.length;
+  }
+
+  // Recién con los archivos borrados se limpian las rutas, para no dejar
+  // botones que apunten a algo que ya no está.
+  const { error: eUpd } = await sb.from('boletos')
+    .update({ rentas_pdf_djj: null, rentas_pdf_cedulon: null })
+    .in('id', data.map(b => b.id));
+  if (eUpd) { console.warn('Se borraron los archivos pero no se limpiaron las rutas:', eUpd.message); return; }
+
+  await loadBoletos(); renderSellos();
+  toast(`${borrados} comprobante${borrados === 1 ? '' : 's'} de más de ${MESES_PDF_EN_APP} meses ` +
+        `${borrados === 1 ? 'se borró' : 'se borraron'} de la app. Siguen en la carpeta.`, 'ok');
+}
 
 window.declararEnRentas = async function(id) {
   const b = (state.boletos || []).find(x => x.id === id);
