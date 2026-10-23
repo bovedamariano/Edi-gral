@@ -1054,8 +1054,14 @@ details[open] .ident-toggle{transform:rotate(180deg)}
                   </div>
                 </div>
                 <div class="field">
-                  <label>Mail responsable <span style="color:var(--err)">*</span></label>
-                  <input type="email" id="ddjj-mail" placeholder="responsable@grupoedisur.com.ar">
+                  <label>Responsable <span style="color:var(--err)">*</span></label>
+                  <select id="ddjj-resp">
+                    <option value="">— Seleccionar —</option>
+                  </select>
+                  <div class="hint" id="ddjj-resp-hint" style="margin-top:4px"></div>
+                  <div id="ddjj-mail-wrap" style="display:none;margin-top:6px">
+                    <input type="email" id="ddjj-mail" placeholder="responsable@grupoedisur.com.ar">
+                  </div>
                 </div>
               </div>
 
@@ -2235,6 +2241,28 @@ details[open] .ident-toggle{transform:rotate(180deg)}
       </div>
       <div class="subtab-content" id="aj-cuentas-rentas" style="display:none">
         <div class="card">
+          <h3>Responsables de la DDJJ de sellos</h3>
+          <p class="sub">Quién puede figurar como responsable al cargar un Imp. de Sellos, con su mail.
+            Al cargar el boleto se elige la persona y el mail lo pone la app. Es una lista propia de sellos:
+            no es la de Responsables de Tareas.</p>
+          <div style="display:flex;gap:8px;align-items:end;margin-bottom:14px;flex-wrap:wrap">
+            <div class="field" style="flex:1;margin-bottom:0;min-width:180px">
+              <label>Nombre</label>
+              <input type="text" id="rs-nuevo-nombre" placeholder="Ej: Marcos Scotto">
+            </div>
+            <div class="field" style="flex:1;margin-bottom:0;min-width:220px">
+              <label>Mail</label>
+              <input type="email" id="rs-nuevo-mail" placeholder="mscotto@grupoedisur.com.ar">
+            </div>
+            <button class="btn" id="rs-add">+ Agregar</button>
+          </div>
+          <div class="tbl-wrap"><table class="tbl" id="rs-tabla">
+            <thead><tr><th>Nombre</th><th>Mail</th><th>Estado</th><th class="actions"></th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+
+        <div class="card">
           <h3>Cuentas de Rentas Córdoba por barrio</h3>
           <p class="sub">Asociación entre cada barrio y su N° de cuenta de 12 dígitos. Se usa al cargar el Imp. de Sellos para que el Excel DDJJ lleve el número correcto automáticamente.</p>
           <div style="display:flex;gap:8px;align-items:end;margin-bottom:14px;flex-wrap:wrap">
@@ -2689,7 +2717,7 @@ async function afterLogin() {
   await Promise.all([
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
-    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadBiblioteca(), loadBibAsignaciones(), loadCocheras(),
+    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadResponsablesSellos(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadBiblioteca(), loadBibAsignaciones(), loadCocheras(),
     loadBancosCuentas(), loadTransferenciasBanco(), loadTransfArchivo(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(), loadMailReglas(), loadSugerencias(), loadSeguimiento(), loadSimTasas(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
@@ -2916,7 +2944,7 @@ function switchTab(tab) {
   if (tab === 'sellos' && !state.sellosVistoAt) sellosVisto();
   if (tab === 'sugerencias') renderSugerencias();
   if (tab === 'seguimiento') renderSeguimiento();
-  if (tab === 'ajustes') { renderBancosCuentas(); renderIdentEmpr(); renderSpeeches(); }
+  if (tab === 'ajustes') { renderBancosCuentas(); renderIdentEmpr(); renderSpeeches(); renderRespSellos(); }
   if (tab === 'transferencias') llenarSelectsEmpr();
 }
 
@@ -3027,6 +3055,10 @@ async function loadEmprendimientos() {
 }
 async function loadIdentificadores() {
   state.identificadores = await fetchPaged('identificadores_transf', q => q.order('nombre_transfiere'));
+}
+async function loadResponsablesSellos() {
+  const { data } = await sb.from('responsables_sellos').select('*').order('orden').order('nombre');
+  state.respSellos = data || [];
 }
 async function loadCuentasRentas() {
   const { data } = await sb.from('cuentas_rentas').select('*').order('orden').order('barrio');
@@ -3777,7 +3809,7 @@ function leerDDJJ() {
   return {
     tipo_contrato: $('#ddjj-tipo-contrato').value || null,
     num_cuenta: numCuenta,
-    mail_responsable: $('#ddjj-mail').value.trim() || null,
+    mail_responsable: mailRespDDJJ(),
     ...partes('ddjj-compradores', 'c'),
     ...partes('ddjj-vendedores', 'v')
   };
@@ -3875,6 +3907,48 @@ function poblarBarriosDDJJ() {
     '<option value="otra">Otra (ingresar manualmente)</option>';
   if (valActual) sel.value = valActual;
 }
+// El mail no se escribe más a mano: se elige la persona y la app pone su
+// mail. Queda "Otro" para los casos sueltos, igual que en el barrio.
+function poblarResponsablesDDJJ() {
+  const sel = $('#ddjj-resp');
+  if (!sel) return;
+  const actual = sel.value;
+  sel.innerHTML = '<option value="">— Seleccionar —</option>' +
+    (state.respSellos || []).filter(r => r.activo).map(r =>
+      `<option value="${esc(r.id)}">${esc(r.nombre)}</option>`
+    ).join('') +
+    '<option value="otro">Otro (escribir el mail)</option>';
+  if (actual) sel.value = actual;
+  pintarRespDDJJ();
+}
+
+function pintarRespDDJJ() {
+  const sel = $('#ddjj-resp'); if (!sel) return;
+  const hint = $('#ddjj-resp-hint'), wrap = $('#ddjj-mail-wrap');
+  const v = sel.value;
+  if (v === 'otro') {
+    hint.innerHTML = '';
+    wrap.style.display = 'block';
+  } else if (v) {
+    const r = (state.respSellos || []).find(x => x.id === v);
+    hint.innerHTML = r ? `Mail: <b>${esc(r.mail)}</b>` : '<span style="color:var(--err)">Responsable sin mail cargado</span>';
+    wrap.style.display = 'none';
+  } else {
+    hint.innerHTML = '';
+    wrap.style.display = 'none';
+  }
+}
+
+// El mail que corresponde a lo elegido, sea de la lista o escrito a mano.
+function mailRespDDJJ() {
+  const sel = $('#ddjj-resp'); if (!sel) return null;
+  if (sel.value === 'otro') return $('#ddjj-mail').value.trim() || null;
+  const r = (state.respSellos || []).find(x => x.id === sel.value);
+  return r ? r.mail : null;
+}
+
+$('#ddjj-resp')?.addEventListener('change', pintarRespDDJJ);
+
 $('#ddjj-barrio').addEventListener('change', () => {
   const v = $('#ddjj-barrio').value;
   const hint = $('#ddjj-num-cuenta-hint');
@@ -3899,6 +3973,7 @@ function limpiarDDJJ() {
   $('#ddjj-otra-wrap').style.display = 'none';
   $('#ddjj-num-cuenta-otra').value = '';
   $('#ddjj-mail').value = '';
+  if ($('#ddjj-resp')) { $('#ddjj-resp').value = ''; pintarRespDDJJ(); }
   $('#ddjj-compradores').innerHTML = '';
   $('#ddjj-vendedores').innerHTML = '';
   addParteRow('ddjj-compradores');
@@ -3906,6 +3981,97 @@ function limpiarDDJJ() {
 }
 
 // === Admin: gestión de cuentas Rentas por barrio ===
+// ---------- Responsables de sellos (ABM del admin) ----------
+const MAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function renderRespSellos() {
+  const tb = $('#rs-tabla tbody');
+  if (!tb) return;
+  const filas = state.respSellos || [];
+  if (!filas.length) {
+    tb.innerHTML = '<tr><td colspan="4" class="empty">Sin responsables cargados</td></tr>';
+    return;
+  }
+  tb.innerHTML = filas.map(r => `<tr${r.activo ? '' : ' style="opacity:.6"'}>
+    <td><b>${esc(r.nombre)}</b></td>
+    <td style="font-size:.84rem">${esc(r.mail)}</td>
+    <td><span class="badge ${r.activo ? 'ok' : 'muted'}">${r.activo ? 'Activo' : 'Inactivo'}</span></td>
+    <td class="actions">
+      <button class="btn ghost sm" onclick="editRespSello('${r.id}')" title="Editar">✎</button>
+      <button class="btn ghost sm" onclick="toggleRespSello('${r.id}',${!r.activo})">${r.activo ? 'Desactivar' : 'Activar'}</button>
+      <button class="btn ghost sm" onclick="borrarRespSello('${r.id}')" title="Eliminar">×</button>
+    </td></tr>`).join('');
+}
+
+async function guardarRespSello(id, nombre, mail) {
+  nombre = (nombre || '').trim();
+  mail = (mail || '').trim().toLowerCase();
+  if (!nombre) { toast('Poné el nombre', 'warn'); return false; }
+  if (!MAIL_OK.test(mail)) { toast('Ese mail no es válido', 'warn'); return false; }
+  const r = id
+    ? await sb.from('responsables_sellos').update({ nombre, mail }).eq('id', id).select('id')
+    : await sb.from('responsables_sellos').insert({ nombre, mail, created_by: state.user?.id }).select('id');
+  if (r.error) {
+    toast(/duplicate|unique/i.test(r.error.message)
+      ? 'Ya hay un responsable con ese nombre' : mensajeError(r.error), 'err');
+    return false;
+  }
+  if (!r.data || !r.data.length) { toast('No se pudo guardar: la base no te dejó', 'err'); return false; }
+  await loadResponsablesSellos();
+  renderRespSellos(); poblarResponsablesDDJJ();
+  return true;
+}
+
+$('#rs-add')?.addEventListener('click', async () => {
+  if (await guardarRespSello(null, $('#rs-nuevo-nombre').value, $('#rs-nuevo-mail').value)) {
+    $('#rs-nuevo-nombre').value = ''; $('#rs-nuevo-mail').value = '';
+    toast('Responsable agregado', 'ok');
+  }
+});
+
+window.editRespSello = function(id) {
+  const r = (state.respSellos || []).find(x => x.id === id); if (!r) return;
+  showModal(`<div class="modal-head"><h3>Editar responsable</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Nombre</label><input id="rs-ed-nombre" value="${esc(r.nombre)}"></div>
+      <div class="field"><label>Mail</label><input id="rs-ed-mail" type="email" value="${esc(r.mail)}"></div>
+      <p class="hint">Cambiar el mail acá no toca los boletos ya cargados: ahí quedó el que tenían.</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn accent" onclick="guardarEdRespSello('${id}')">Guardar</button>
+    </div>`);
+};
+
+window.guardarEdRespSello = async function(id) {
+  if (await guardarRespSello(id, $('#rs-ed-nombre').value, $('#rs-ed-mail').value)) {
+    closeModal(); toast('Responsable guardado', 'ok');
+  }
+};
+
+window.toggleRespSello = async function(id, activo) {
+  const { data, error } = await sb.from('responsables_sellos')
+    .update({ activo }).eq('id', id).select('id');
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  if (!data || !data.length) { toast('No se pudo cambiar: la base no te dejó', 'err'); return; }
+  await loadResponsablesSellos();
+  renderRespSellos(); poblarResponsablesDDJJ();
+  toast(activo ? 'Activado' : 'Desactivado', 'ok');
+};
+
+window.borrarRespSello = async function(id) {
+  const r = (state.respSellos || []).find(x => x.id === id); if (!r) return;
+  if (!await confirmAction(`¿Eliminar a ${r.nombre} de la lista?\n\n` +
+    'Los boletos ya cargados con su mail no se tocan. Si sólo querés que deje de ' +
+    'aparecer al cargar, conviene desactivarlo en vez de borrarlo.')) return;
+  const { error } = await sb.from('responsables_sellos').delete().eq('id', id);
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  await loadResponsablesSellos();
+  renderRespSellos(); poblarResponsablesDDJJ();
+  toast('Eliminado', 'ok');
+};
+
 function renderCuentasRentas() {
   const q = ($('#cr-search')?.value || '').toLowerCase();
   const tb = $('#cr-tabla tbody');
@@ -4401,6 +4567,16 @@ window.verDatosBoleto = function(id) {
   const editable = bPuedeEditar(b);
   const rEst = b.rentas_estado || 'no';
 
+  // El responsable guardado puede ya no estar en la lista (se dio de baja,
+  // o el boleto es viejo): en ese caso cae en "Otro" con el mail a la vista.
+  const mailB = (b.mail_responsable || '').trim().toLowerCase();
+  const respActual = (state.respSellos || []).find(r => (r.mail || '').toLowerCase() === mailB);
+  const opcionesResp = '<option value="">— Seleccionar —</option>' +
+    (state.respSellos || []).filter(r => r.activo || r.id === respActual?.id).map(r =>
+      `<option value="${esc(r.id)}" ${respActual && respActual.id === r.id ? 'selected' : ''}>${esc(r.nombre)}</option>`
+    ).join('') +
+    `<option value="otro" ${!respActual && mailB ? 'selected' : ''}>Otro (escribir el mail)</option>`;
+
   const barrios = (state.cuentasRentas || []).filter(c => c.activo);
   const barrioActual = barrios.find(c => c.num_cuenta === b.num_cuenta);
   const opcionesBarrio = '<option value="">— Seleccionar —</option>' +
@@ -4452,8 +4628,12 @@ window.verDatosBoleto = function(id) {
           <input id="vd-cuenta-otra" maxlength="12" placeholder="12 dígitos"
             value="${!barrioActual && b.num_cuenta ? esc(b.num_cuenta) : ''}"
             style="margin-top:6px;display:${!barrioActual && b.num_cuenta ? 'block' : 'none'}" ${editable ? '' : 'disabled'}></div>
-        <div class="field"><label>Mail responsable</label>
-          <input id="vd-mail" type="email" value="${esc(b.mail_responsable || '').replace(/"/g, '&quot;')}" ${editable ? '' : 'disabled'}></div>
+        <div class="field"><label>Responsable</label>
+          <select id="vd-resp" ${editable ? '' : 'disabled'} onchange="vdRespCambio()">${opcionesResp}</select>
+          <div class="hint" id="vd-resp-hint"></div>
+          <input id="vd-mail" type="email" value="${esc(b.mail_responsable || '').replace(/"/g, '&quot;')}"
+            placeholder="responsable@grupoedisur.com.ar"
+            style="margin-top:6px;display:${respActual ? 'none' : 'block'}" ${editable ? '' : 'disabled'}></div>
       </div>
 
       <div class="ddjj-bloque" style="margin-top:4px">
@@ -4472,6 +4652,7 @@ window.verDatosBoleto = function(id) {
     </div>`, { wide: true });
   state.vdRecalculo = null;
   vdBarrioCambio();
+  vdRespCambio();
 };
 
 // La fecha del boleto no es un dato suelto: de ella salen la alícuota del
@@ -4553,6 +4734,22 @@ window.vdFechaCambio = async function(id) {
     </div>`;
 };
 
+window.vdRespCambio = function() {
+  const sel = $('#vd-resp'); if (!sel) return;
+  const hint = $('#vd-resp-hint'), campo = $('#vd-mail');
+  if (sel.value === 'otro') {
+    hint.innerHTML = '';
+    campo.style.display = 'block';
+  } else if (sel.value) {
+    const r = (state.respSellos || []).find(x => x.id === sel.value);
+    hint.innerHTML = r ? `Mail: <b>${esc(r.mail)}</b>` : '';
+    campo.style.display = 'none';
+  } else {
+    hint.innerHTML = '';
+    campo.style.display = 'none';
+  }
+};
+
 window.vdBarrioCambio = function() {
   const sel = $('#vd-barrio'); if (!sel) return;
   const otra = $('#vd-cuenta-otra'), hint = $('#vd-cuenta-hint');
@@ -4575,7 +4772,12 @@ window.guardarDatosBoleto = async function(id) {
   const payload = {
     tipo_contrato:    $('#vd-tipo-contrato').value || null,
     num_cuenta:       cuenta || null,
-    mail_responsable: $('#vd-mail').value.trim() || null,
+    mail_responsable: (() => {
+      const sel = $('#vd-resp');
+      if (!sel || sel.value === 'otro') return $('#vd-mail').value.trim() || null;
+      const r = (state.respSellos || []).find(x => x.id === sel.value);
+      return r ? r.mail : null;
+    })(),
   };
   ['c', 'v'].forEach(p => {
     for (let i = 1; i <= 4; i++) {
@@ -14199,6 +14401,7 @@ function renderAll() {
   renderTransferencias();
   renderIdentLista();
   poblarBarriosDDJJ();
+  poblarResponsablesDDJJ();
   renderInstructivos();
   aplicarPermisosTesoreria();
   if (state.profile?.rol === 'admin') {
@@ -15337,7 +15540,7 @@ let realtimeActivo = false;
 function subscribeChanges() {
   if (realtimeActivo) return;   // evita canales duplicados
   realtimeActivo = true;
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','transferencias_archivo','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches','mail_reglas','sugerencias','biblioteca_lugares','biblioteca_asignaciones','seguimiento_listas','seguimiento_clientes','simulador_tasas'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','responsables_sellos','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','transferencias_archivo','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches','mail_reglas','sugerencias','biblioteca_lugares','biblioteca_asignaciones','seguimiento_listas','seguimiento_clientes','simulador_tasas'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -15351,6 +15554,7 @@ function subscribeChanges() {
         if (tabla==='transferencias') { await loadTransferencias(); renderTransferencias(); }
         if (tabla==='identificadores_transf') { await loadIdentificadores(); renderIdentLista(); }
         if (tabla==='cuentas_rentas') { await loadCuentasRentas(); poblarBarriosDDJJ(); if(state.profile?.rol==='admin') renderCuentasRentas(); }
+        if (tabla==='responsables_sellos') { await loadResponsablesSellos(); poblarResponsablesDDJJ(); if(state.profile?.rol==='admin') renderRespSellos(); }
         if (tabla==='instructivos') { await loadInstructivos(); renderInstructivos(); }
         if (tabla==='emprendimientos') { await loadEmprendimientos(); if(state.profile?.rol==='admin') renderEmprAdmin(); }
         if (tabla==='icc_valores') { await loadIcc(); renderIccTabla(); initConceptosMesRef(); renderConceptos(); renderIccAlerta(); }
