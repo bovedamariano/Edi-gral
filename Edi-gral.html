@@ -150,8 +150,15 @@ aside.sidebar{
 .ti-cont svg{display:block;width:100%;height:auto;overflow:visible}
 .ti-bar{fill:var(--accent);transition:opacity .12s}
 .ti-cont:hover .ti-bar{opacity:.55}
-.ti-cont .ti-bar:hover,.ti-cont .ti-hit:hover + .ti-bar{opacity:1}
+/* Se resalta desde la zona sensible, que es la que ahora recibe el mouse.
+   El ".ti-bar:hover" que habia aca ya no se dispara nunca. */
+.ti-cont .ti-hit:hover + .ti-bar{opacity:1}
 .ti-hit{fill:transparent;cursor:default}
+/* Todo lo dibujado va DESPUES de la zona sensible, asi que le tapaba el
+   click: apuntarle a la barra —lo que cualquiera hace— no hacia nada, y
+   solo respondia el aire de arriba. Nada de esto necesita recibir el
+   mouse; que pase de largo hasta el rectangulo invisible. */
+.ti-bar,.ti-out,.ti-val,.ti-ax,.ti-grid{pointer-events:none}
 .ti-grid{stroke:var(--line);stroke-width:1;shape-rendering:crispEdges}
 .ti-ax{font-size:10px;fill:var(--ink-3);font-family:var(--font)}
 .ti-val{font-size:10px;fill:var(--ink-2);font-weight:700;font-family:var(--font)}
@@ -8468,7 +8475,9 @@ function dibujarBarras(contId, datos, opts = {}) {
     const extra = causa
       ? `${causa.nombre} · $${fmt(causa.t.pesos)} (${Math.round(causa.peso * 100)}% del total)`
       : (d.items && d.items.length > 1 ? `repartido entre ${d.items.length} transferencias` : '');
-    svg += `<rect class="ti-hit" x="${(cx - banda / 2).toFixed(1)}" y="${MT}" width="${banda.toFixed(1)}" height="${alto}"`
+    // Alto completo de la banda, no solo el area del grafico: tambien se
+    // puede tocar la etiqueta del mes, que es donde mira el ojo.
+    svg += `<rect class="ti-hit" x="${(cx - banda / 2).toFixed(1)}" y="0" width="${banda.toFixed(1)}" height="${H - 4}"`
          + ` data-i="${i}" data-tip="${esc(d.detalle)}|${esc(d.texto)}|${esc(extra)}"`
          + ` data-cx="${(cx / W * 100).toFixed(2)}" data-cy="${(yv / H * 100).toFixed(2)}"></rect>`;
     if (path) svg += `<path class="ti-bar" d="${path}"></path>`;
@@ -11077,6 +11086,7 @@ function renderPapeles() {
                title="${pago ? `Cobrado el ${fmtFechaHora(pago.pagado_at)}` : `Marcar ${MESES[mes-1]} ${anio} como cobrado`}"></td>
       <td class="actions" style="display:flex;gap:5px;justify-content:flex-end">
         <button class="btn accent sm" onclick="ptMail('${p.id}')" title="Preparar el mail del mes"${mails.length && m != null ? '' : ' disabled'}>✉</button>
+        <button class="btn ghost sm" onclick="ptMora('${p.id}')" title="Pedirle que pague antes del ${DIA_LIMITE_PAGO} de cada mes"${mails.length ? '' : ' disabled'}>⏰ Recordatorio</button>
         <button class="btn ghost sm" onclick="ptEditar('${p.id}')">Editar</button>
       </td></tr>`;
   }).join('');
@@ -11238,30 +11248,35 @@ Saludos cordiales,
 Grupo Edisur`;
 }
 
+// Recordatorio de pago. Va al mismo cliente y a los mismos mails que el
+// aviso del mes, pero no lleva importe ni adjunto: es un pedido general
+// de que paguen antes del 20, no una liquidación.
+const DIA_LIMITE_PAGO = 20;
+
+function textoMailMora(p) {
+  // Se saluda por el nombre de pila: "Hola CIRES PABLO NELSON!" no se le
+  // escribe a nadie. Si no lo reconoce, usa el nombre tal cual está.
+  const pila = (segNombrePila(p.propietario || '').pila || p.propietario || '').trim();
+  return `Hola ${pila}! ¡Buen día! 😊 Desde el Equipo de Cobranzas de Grupo Edisur
+
+Te pedimos, por favor, que siempre que sea posible, realices los pagos por transferencia hasta el día ${DIA_LIMITE_PAGO} de cada mes. 📅
+
+De esta manera, podemos organizar mejor la cobranza y brindarte una mejor atención. 🤝
+
+Contar con la información de los pagos con mayor anticipación nos permite enviar los recibos a tiempo. 🧾
+
+¡Muchas gracias! 😊
+Sector Cobranzas – Grupo Edisur`;
+}
+
 function b64Chunks(b64) {
   return (b64.match(/.{1,76}/g) || []).join('\r\n');
 }
 
-async function armarEml(p, mes, anio, monto, cuenta) {
-  // El encabezado To: de un mail separa con coma, sea cual sea el separador
-  // con el que se hayan cargado.
-  const para = parseMails(p.emails).join(', ');
-  const asunto = `Aporte mensual ${MESES[mes - 1]} ${anio} · ${p.inmueble}`;
-  const cuerpo = textoMailPapel(p, mes, anio, monto);
+// Arma el archivo .eml que Outlook abre listo para enviar. Lo usan los dos
+// mails de Papeles: el del aporte del mes y el recordatorio de pago.
+function emlDesde(para, asunto, cuerpo, adjunto) {
   const lim = '----=_EdiGral_' + Date.now();
-
-  let adjunto = null;
-  if (cuenta?.comprobante_path) {
-    const { data, error } = await sb.storage.from('cuentas-comprobantes').download(cuenta.comprobante_path);
-    if (error) { toast('No se pudo bajar el PDF de la cuenta: ' + error.message, 'warn'); }
-    else {
-      const buf = new Uint8Array(await data.arrayBuffer());
-      let bin = '';
-      for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
-      adjunto = { nombre: `Cuenta-${cuenta.banco.replace(/\s+/g, '-')}.pdf`, b64: btoa(bin) };
-    }
-  }
-
   // Asunto y nombres en UTF-8 codificados en base64 (RFC 2047), si no los
   // acentos llegan rotos.
   const enc = t => '=?UTF-8?B?' + btoa(unescape(encodeURIComponent(t))) + '?=';
@@ -11289,7 +11304,42 @@ async function armarEml(p, mes, anio, monto, cuenta) {
     );
   }
   partes.push(`--${lim}--`, '');
-  return { eml: partes.join('\r\n'), asunto, cuerpo, para, conAdjunto: !!adjunto };
+  return partes.join('\r\n');
+}
+
+// Baja el archivo para que Outlook lo abra como mensaje nuevo.
+function bajarEml(eml, nombre) {
+  const blob = new Blob([eml], { type: 'message/rfc822' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+const nombreArchivo = t => String(t || '').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+
+async function armarEml(p, mes, anio, monto, cuenta) {
+  // El encabezado To: de un mail separa con coma, sea cual sea el separador
+  // con el que se hayan cargado.
+  const para = parseMails(p.emails).join(', ');
+  const asunto = `Aporte mensual ${MESES[mes - 1]} ${anio} · ${p.inmueble}`;
+  const cuerpo = textoMailPapel(p, mes, anio, monto);
+
+  let adjunto = null;
+  if (cuenta?.comprobante_path) {
+    const { data, error } = await sb.storage.from('cuentas-comprobantes').download(cuenta.comprobante_path);
+    if (error) { toast('No se pudo bajar el PDF de la cuenta: ' + error.message, 'warn'); }
+    else {
+      const buf = new Uint8Array(await data.arrayBuffer());
+      let bin = '';
+      for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+      adjunto = { nombre: `Cuenta-${cuenta.banco.replace(/\s+/g, '-')}.pdf`, b64: btoa(bin) };
+    }
+  }
+
+  return { eml: emlDesde(para, asunto, cuerpo, adjunto), asunto, cuerpo, para, conAdjunto: !!adjunto };
 }
 
 window.ptMail = async function(id) {
@@ -11327,13 +11377,39 @@ window.ptMail = async function(id) {
       b64Chunks(btoa(unescape(encodeURIComponent(r2.cuerpo)))),
       b64Chunks(btoa(unescape(encodeURIComponent(editado))))
     );
-    const blob = new Blob([eml], { type: 'message/rfc822' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Aporte-${MESES[mes - 1]}-${anio}-${p.propietario.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-')}.eml`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    bajarEml(eml, `Aporte-${MESES[mes - 1]}-${anio}-${nombreArchivo(p.propietario)}.eml`);
+    closeModal();
+    toast('Archivo generado: abrilo y Outlook lo muestra listo para enviar', 'ok');
+  });
+};
+
+window.ptMora = async function(id) {
+  const p = (state.papeles || []).find(x => x.id === id);
+  if (!p) return;
+  const para = parseMails(p.emails).join(', ');
+  if (!para) { toast('Ese cliente no tiene mails cargados', 'warn'); return; }
+
+  const asunto = `Recordatorio de pago · ${p.inmueble}`;
+  const cuerpo = textoMailMora(p);
+
+  showModal(`<div class="modal-head"><h3>⏰ Recordatorio de pago</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <div class="hint" style="margin-bottom:8px"><b>Para:</b> ${esc(para)}<br><b>Asunto:</b> ${esc(asunto)}</div>
+      <textarea id="pt-mora-cuerpo" rows="14" style="width:100%;font-family:inherit;font-size:.86rem">${esc(cuerpo)}</textarea>
+      <div class="hint" style="margin-top:6px">Va a los mismos mails que el aviso del mes.
+        Revisá el nombre del saludo antes de mandarlo: sale del titular y puede no ser el de pila.</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn ghost" id="pt-mora-copiar">⎘ Copiar texto</button>
+      <button class="btn accent" id="pt-mora-abrir">Abrir en Outlook</button>
+    </div>`);
+
+  $('#pt-mora-copiar').addEventListener('click', () => copyToClipboard($('#pt-mora-cuerpo').value));
+  $('#pt-mora-abrir').addEventListener('click', () => {
+    bajarEml(emlDesde(para, asunto, $('#pt-mora-cuerpo').value, null),
+             `Recordatorio-${nombreArchivo(p.propietario)}.eml`);
     closeModal();
     toast('Archivo generado: abrilo y Outlook lo muestra listo para enviar', 'ok');
   });
