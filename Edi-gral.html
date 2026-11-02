@@ -11549,8 +11549,14 @@ window.ptBorrar = async function(id) {
 // Se arma un archivo .eml con el PDF de la cuenta adentro. Al abrirlo,
 // Outlook lo muestra como mensaje listo para enviar (por la cabecera
 // X-Unsent) con el adjunto ya puesto. Un mailto: no puede llevar adjuntos.
+// El texto arranca con un renglon en blanco a proposito. Outlook le mete al
+// mensaje nuevo la firma que tenga configurada, arriba de todo, y si el
+// cuerpo arranca con texto la pega contra la primera linea
+// ("Firma corporativaESTIMADO:"). Con el renglon en blanco queda separada y
+// se borra de una, que ademas Outlook la deja seleccionada.
 function textoMailPapel(p, mes, anio, monto) {
-  return `ESTIMADO:
+  return `
+ESTIMADO:
 ${p.propietario}
 
 Nos dirigimos a Ud. en su calidad de cliente de Grupo Edisur, con la finalidad de informarle el monto del aporte mensual correspondiente al mes de ${MESES[mes - 1]} ${anio} es de:
@@ -11574,7 +11580,10 @@ function textoMailMora(p) {
   // Se saluda por el nombre de pila: "Hola CIRES PABLO NELSON!" no se le
   // escribe a nadie. Si no lo reconoce, usa el nombre tal cual está.
   const pila = (segNombrePila(p.propietario || '').pila || p.propietario || '').trim();
-  return `Hola ${pila}! ¡Buen día! 😊 Desde el Equipo de Cobranzas de Grupo Edisur
+  // Mismo motivo que en textoMailPapel: el renglon en blanco es para que la
+  // firma que agrega Outlook no quede pegada al saludo.
+  return `
+Hola ${pila}! ¡Buen día! 😊 Desde el Equipo de Cobranzas de Grupo Edisur
 
 Te pedimos, por favor, que siempre que sea posible, realices los pagos por transferencia hasta el día ${DIA_LIMITE_PAGO} de cada mes. 📅
 
@@ -11590,38 +11599,87 @@ function b64Chunks(b64) {
   return (b64.match(/.{1,76}/g) || []).join('\r\n');
 }
 
+// El texto del mail pasado a HTML.
+//
+// El mail va en HTML y no en texto plano por la firma: Outlook le agrega al
+// mensaje nuevo la firma de la empresa, y si el cuerpo es texto plano no
+// puede dibujarla y deja escrito "Firma corporativa" arriba de todo. En HTML
+// la dibuja como corresponde, con el logo.
+//
+// Se escribe y se edita en texto plano igual que antes; la conversión se hace
+// recién al generar el archivo. Primero se escapa, así un "&" o un "<" en el
+// nombre de un cliente no rompe el mensaje.
+function htmlDesdeTexto(txt) {
+  const cuerpo = String(txt || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .split('\n')
+    .map(l => l.trim() === '' ? '<div>&nbsp;</div>' : `<div>${l}</div>`)
+    .join('');
+  // Calibri 11 es la tipografía con la que Outlook escribe por defecto: así
+  // el texto no desentona al lado de la firma.
+  return `<html><body><div style="font-family:Calibri,'Segoe UI',sans-serif;font-size:11pt;color:#000">${cuerpo}</div></body></html>`;
+}
+
 // Arma el archivo .eml que Outlook abre listo para enviar. Lo usan los dos
 // mails de Papeles: el del aporte del mes y el recordatorio de pago.
+//
+// Va en multipart/alternative: la misma carta en texto y en HTML. El que abra
+// con algo que no entienda HTML igual lee el mensaje completo.
 function emlDesde(para, asunto, cuerpo, adjunto) {
-  const lim = '----=_EdiGral_' + Date.now();
+  const sello = Date.now();
+  const mix = '----=_EdiGralMix_' + sello;   // el sobre: cuerpo + adjunto
+  const alt = '----=_EdiGralAlt_' + sello;   // las dos versiones del cuerpo
   // Asunto y nombres en UTF-8 codificados en base64 (RFC 2047), si no los
   // acentos llegan rotos.
   const enc = t => '=?UTF-8?B?' + btoa(unescape(encodeURIComponent(t))) + '?=';
-  const partes = [
-    'MIME-Version: 1.0',
-    `To: ${para}`,
-    `Subject: ${enc(asunto)}`,
-    'X-Unsent: 1',                       // Outlook lo abre como mensaje a enviar
-    `Content-Type: multipart/mixed; boundary="${lim}"`,
+  const b64 = t => b64Chunks(btoa(unescape(encodeURIComponent(t))));
+
+  const cuerpoPartes = [
+    `Content-Type: multipart/alternative; boundary="${alt}"`,
     '',
-    `--${lim}`,
+    `--${alt}`,
     'Content-Type: text/plain; charset=UTF-8',
     'Content-Transfer-Encoding: base64',
     '',
-    b64Chunks(btoa(unescape(encodeURIComponent(cuerpo)))),
+    b64(cuerpo),
+    `--${alt}`,
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    b64(htmlDesdeTexto(cuerpo)),
+    `--${alt}--`,
+    '',
   ];
-  if (adjunto) {
-    partes.push(
-      `--${lim}`,
-      `Content-Type: application/pdf; name="${adjunto.nombre}"`,
-      'Content-Transfer-Encoding: base64',
-      `Content-Disposition: attachment; filename="${adjunto.nombre}"`,
-      '',
-      b64Chunks(adjunto.b64),
-    );
+
+  // Sin adjunto no hace falta el sobre de afuera: el mail es sólo el cuerpo.
+  if (!adjunto) {
+    return [
+      'MIME-Version: 1.0',
+      `To: ${para}`,
+      `Subject: ${enc(asunto)}`,
+      'X-Unsent: 1',                     // Outlook lo abre como mensaje a enviar
+      ...cuerpoPartes,
+    ].join('\r\n');
   }
-  partes.push(`--${lim}--`, '');
-  return partes.join('\r\n');
+
+  return [
+    'MIME-Version: 1.0',
+    `To: ${para}`,
+    `Subject: ${enc(asunto)}`,
+    'X-Unsent: 1',
+    `Content-Type: multipart/mixed; boundary="${mix}"`,
+    '',
+    `--${mix}`,
+    ...cuerpoPartes,
+    `--${mix}`,
+    `Content-Type: application/pdf; name="${adjunto.nombre}"`,
+    'Content-Transfer-Encoding: base64',
+    `Content-Disposition: attachment; filename="${adjunto.nombre}"`,
+    '',
+    b64Chunks(adjunto.b64),
+    `--${mix}--`,
+    '',
+  ].join('\r\n');
 }
 
 // Baja el archivo para que Outlook lo abra como mensaje nuevo.
