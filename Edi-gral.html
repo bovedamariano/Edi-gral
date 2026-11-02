@@ -6814,6 +6814,9 @@ function tareasPorVencer() {
   const out = (state.tareas || []).filter(t => {
     if (t.finalizada) return false;
     if (!t.fecha_objetivo) return false;
+    // Una tarea dada de baja no vence: ya no hay que hacerla.
+    if (t.tipo === 'mensual' && t.mes && t.anio
+        && tareaDadaDeBaja(t.titulo, t.mes, t.anio)) return false;
     const d = diasHastaFecha(t.fecha_objetivo);
     return d !== null && d <= 1;
   });
@@ -7021,6 +7024,11 @@ function renderTareas() {
 
   const mensuales = state.tareas.filter(t =>
     t.tipo === 'mensual' && t.mes === mes && t.anio === anio && matchaEstado(t)
+    // Una dada de baja que todavia quedo cargada no se muestra como pendiente:
+    // el borrado pudo haber quedado a medias, o el navegador de otro la
+    // replico antes de enterarse de la baja. Las finalizadas si se ven: son
+    // el historial de lo que se hizo.
+    && !(tareaDadaDeBaja(t.titulo, t.mes, t.anio) && !t.finalizada)
   );
   const excepcionales = state.tareas.filter(t => {
     if (t.tipo !== 'excepcional') return false;
@@ -7179,9 +7187,24 @@ window.deleteTarea = async function(id) {
   // Una mensual se replica sola desde el mes anterior, así que borrarla de un
   // mes no la saca: vuelve en cuanto alguien abre la app. Hay que preguntar
   // cuál de las dos cosas quiere.
-  const futuras = state.tareas.filter(x =>
-    x.tipo === 'mensual' && tituloNorm(x.titulo) === tituloNorm(t.titulo)
-    && (x.anio * 12 + x.mes) > (t.anio * 12 + t.mes) && !x.finalizada);
+  //
+  // Si no va más, no va más en ningún lado donde todavía esté PARA HACER, no
+  // sólo de este mes en adelante: una pendiente de un mes anterior sigue
+  // apareciendo en la lista de ese mes y en la campanita de por vencer. Las
+  // que ya están finalizadas no se tocan nunca: son el historial de lo que se
+  // hizo, y borrarlas seria mentir sobre el mes pasado.
+  const mismas = state.tareas.filter(x =>
+    x.tipo === 'mensual' && x.mes && x.anio
+    && tituloNorm(x.titulo) === tituloNorm(t.titulo));
+  const pendientes = mismas.filter(x => !x.finalizada);
+  const hechas     = mismas.filter(x => x.finalizada);
+
+  // La baja arranca en el mes más viejo que todavía está sin hacer, o en el
+  // mes que se está mirando si ese es anterior.
+  const desde = pendientes.reduce(
+    (min, x) => (x.anio * 12 + x.mes) < min ? (x.anio * 12 + x.mes) : min,
+    t.anio * 12 + t.mes);
+  const dMes = ((desde - 1) % 12) + 1, dAnio = Math.floor((desde - 1) / 12);
 
   showModal(`<div class="modal-head"><h3>Eliminar “${esc(t.titulo)}”</h3>
       <button class="modal-close" onclick="closeModal()">&times;</button></div>
@@ -7199,13 +7222,11 @@ window.deleteTarea = async function(id) {
         <label class="t-del-opt">
           <input type="radio" name="t-del-modo" value="baja">
           <span><b>No va más</b><br>
-            <span class="sub">Se da de baja de ${MESES[t.mes - 1]} ${t.anio} en adelante y deja de copiarse.
-            ${futuras.length === 1
-              ? 'También se borra la que ya está cargada en un mes posterior.'
-              : futuras.length
-                ? `También se borran las <b>${futuras.length}</b> que ya están cargadas en meses posteriores.`
-                : ''}
-            Los meses anteriores quedan como están.</span></span>
+            <span class="sub">Deja de copiarse y se borra de todos los meses donde quedó
+            <b>sin hacer</b>${pendientes.length > 1 ? ` (${pendientes.length} en total, desde ${MESES[dMes - 1]} ${dAnio})` : ''}.
+            ${hechas.length
+              ? `Las <b>${hechas.length}</b> que ya ${hechas.length === 1 ? 'está finalizada queda' : 'están finalizadas quedan'} como ${hechas.length === 1 ? 'está' : 'están'}: es el historial.`
+              : ''}</span></span>
         </label>
       </div>
       <div class="field" id="t-del-motivo-wrap" style="display:none;margin-top:4px">
@@ -7232,7 +7253,7 @@ window.deleteTarea = async function(id) {
       // Primero la baja: si falla, no se borra nada y la tarea sigue entera.
       // Al revés quedaría borrada y volviendo a aparecer cada mes.
       const { error: eB } = await sb.from('tareas_baja').upsert({
-        titulo: t.titulo.trim(), desde_mes: t.mes, desde_anio: t.anio,
+        titulo: t.titulo.trim(), desde_mes: dMes, desde_anio: dAnio,
         motivo, created_by: state.user.id,
       }, { onConflict: 'titulo_norm' }).select('id');
       if (eB) {
@@ -7242,7 +7263,9 @@ window.deleteTarea = async function(id) {
       }
     }
 
-    const ids = modo === 'baja' ? [id, ...futuras.map(x => x.id)] : [id];
+    const ids = modo === 'baja'
+      ? [...new Set([id, ...pendientes.map(x => x.id)])]
+      : [id];
     const { data, error } = await sb.from('tareas').delete().in('id', ids).select('id');
     if (error) {
       btn.disabled = false; btn.textContent = 'Eliminar';
@@ -7259,7 +7282,7 @@ window.deleteTarea = async function(id) {
     await Promise.all([loadTareas(), loadTareasBaja()]);
     renderTareas();
     toast(modo === 'baja'
-      ? `“${t.titulo}” no va más desde ${MESES[t.mes - 1]} ${t.anio}` + (data.length > 1 ? ` · ${data.length} eliminadas` : '')
+      ? `“${t.titulo}” no va más` + (data.length > 1 ? ` · ${data.length} pendientes eliminadas` : '')
       : 'Eliminada de este mes', 'ok');
   });
 };
