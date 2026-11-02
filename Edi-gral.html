@@ -173,6 +173,16 @@ aside.sidebar{
 .ti-tip-pie{font-size:.65rem;opacity:.6;margin-top:3px}
 .ti-vacio{text-align:center;padding:26px 10px;color:var(--ink-3);font-size:.84rem}
 
+/* Las dos opciones al borrar una tarea mensual. Van adentro de un .field,
+   que pone las etiquetas en mayusculas: aca es texto para leer, no un
+   rotulo de campo, asi que se le saca. */
+.field label.t-del-opt{display:flex;gap:9px;align-items:flex-start;cursor:pointer;
+  text-transform:none;letter-spacing:normal;font-weight:400;font-size:.9rem;
+  color:var(--ink);line-height:1.5;margin-bottom:0}
+.field .t-del-opt input{width:auto;margin:3px 0 0;flex:0 0 auto}
+.t-del-opt b{font-weight:600}
+.t-del-opt .sub{display:block;font-size:.82rem;color:var(--ink-2);margin-top:2px}
+
 /* Lotes cancelados (Papeles de trabajo). Plegado por defecto: esta ahi para
    el que lo quiera mirar, sin ocupar la pantalla todos los dias. La flechita
    es lo unico que avisa que se abre, asi que no se saca. */
@@ -1524,6 +1534,24 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <div class="hint" style="margin-bottom:10px">Tareas únicas con fecha objetivo en el mes seleccionado</div>
         <div id="tareas-excepcionales"></div>
       </div>
+
+      <details class="card" id="tareas-baja-card" style="margin-top:14px;display:none">
+        <summary class="pt-canc-sum">
+          <span class="pt-canc-flecha">▸</span>
+          <span id="tareas-baja-tit"></span>
+          <span class="sub" style="font-weight:400;margin-left:6px">no se copian más de un mes al otro</span>
+        </summary>
+        <div style="padding-top:12px">
+          <div class="tbl-wrap"><table class="tbl" id="tareas-baja-tabla">
+            <thead><tr>
+              <th>Tarea</th><th>No va más desde</th><th>Por qué</th><th class="actions"></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table></div>
+          <p class="hint" style="margin-top:8px">Los meses anteriores a la baja quedan como estaban.
+            Con <b>Reactivar</b> vuelve a copiarse.</p>
+        </div>
+      </details>
     </section>
 
     <!-- INSTRUCTIVOS TAB -->
@@ -2445,6 +2473,7 @@ const state = {
   cotizaciones: [],
   conceptos: [],
   tareas: [],
+  tareasBaja: [],
   responsables: [],
   transferencias: [],
   emprendimientos: [],
@@ -2755,7 +2784,7 @@ async function afterLogin() {
   await Promise.all([
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
-    loadTareas(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadResponsablesSellos(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadBiblioteca(), loadBibAsignaciones(), loadCocheras(),
+    loadTareas(), loadTareasBaja(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadResponsablesSellos(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadBiblioteca(), loadBibAsignaciones(), loadCocheras(),
     loadBancosCuentas(), loadTransferenciasBanco(), loadTransfArchivo(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(), loadMailReglas(), loadSugerencias(), loadSeguimiento(), loadSimTasas(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
@@ -3079,6 +3108,12 @@ async function loadGastosConceptos() {
 }
 async function loadTareas() {
   state.tareas = await fetchPaged('tareas', q => q.order('fecha_objetivo', { ascending: true, nullsFirst: false }));
+}
+// Tareas mensuales que no van mas. Es chica y la lee la replicacion, asi
+// que se carga junto con las tareas.
+async function loadTareasBaja() {
+  const { data } = await sb.from('tareas_baja').select('*').order('titulo');
+  state.tareasBaja = data || [];
 }
 async function loadResponsables() {
   const { data } = await sb.from('tareas_responsables').select('*').order('orden').order('nombre');
@@ -6886,6 +6921,20 @@ function badgeFecha(fechaISO) {
   return `<span class="fecha">⏰ ${fmtd} (en ${d}d)</span>`;
 }
 
+// El título con el que compara la replicación. Tiene que dar lo mismo que
+// titulo_norm en la base, si no una tarea dada de baja vuelve igual.
+const tituloNorm = t => String(t || '').trim().toLowerCase();
+
+// ¿Esta tarea está dada de baja para este mes?
+//
+// La baja guarda el mes a partir del cual no va más. Los meses anteriores a
+// ese no se tocan: lo que se hizo quedó hecho, y el historial se mantiene.
+function tareaDadaDeBaja(titulo, mes, anio) {
+  const b = (state.tareasBaja || []).find(x => x.titulo_norm === tituloNorm(titulo));
+  if (!b) return false;
+  return (anio * 12 + mes) >= (b.desde_anio * 12 + b.desde_mes);
+}
+
 // Replica las tareas mensuales del mes anterior más cercano si el mes actual está vacío.
 // Solo replica hacia adelante (no para meses pasados). Devuelve true si replicó.
 let _replicandoTareas = false;
@@ -6908,9 +6957,14 @@ async function replicarMensualesSiNecesario(mes, anio) {
     const tareasAnt = state.tareas.filter(t => t.tipo === 'mensual' && t.mes === mAnt && t.anio === aAnt);
     if (!tareasAnt.length) continue;
 
-    // Filtrar las del mes anterior que NO están todavía en el mes actual (por título)
+    // Filtrar las del mes anterior que NO están todavía en el mes actual (por
+    // título) y que no estén dadas de baja. Sin ese segundo filtro una tarea
+    // que ya no va vuelve sola: se la borra de este mes y la próxima vez que
+    // alguien abre la app la replicación la encuentra en el mes anterior y la
+    // copia de nuevo.
     const faltantes = tareasAnt.filter(t =>
       !titulosActuales.has((t.titulo || '').trim().toLowerCase())
+      && !tareaDadaDeBaja(t.titulo, mes, anio)
     );
     if (!faltantes.length) return false; // ya están todas
 
@@ -6994,7 +7048,34 @@ function renderTareas() {
   const pend = todas.filter(t => !t.en_proceso && !t.finalizada).length;
   $('#tareas-resumen').innerHTML = `${pend} pendientes · ${proc} en proceso · ${fin} finalizadas`;
 
+  renderTareasBaja();
   renderCampanita();
+}
+
+// Las tareas que no van más. Va plegada abajo de todo: no es algo que se
+// mire todos los días, pero tiene que estar a mano. Si una tarea dejó de
+// aparecer y no se puede ver por qué, el que la esperaba la carga de nuevo
+// a mano y volvemos al principio.
+function renderTareasBaja() {
+  const card = $('#tareas-baja-card');
+  if (!card) return;
+  const bajas = (state.tareasBaja || []).slice()
+    .sort((a, b) => (b.desde_anio * 12 + b.desde_mes) - (a.desde_anio * 12 + a.desde_mes));
+
+  if (!bajas.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  $('#tareas-baja-tit').textContent =
+    `🚫 ${bajas.length} ${bajas.length === 1 ? 'tarea dada de baja' : 'tareas dadas de baja'}`;
+
+  const esAdmin = state.profile?.rol === 'admin';
+  $('#tareas-baja-tabla tbody').innerHTML = bajas.map(b => `<tr>
+      <td><b>${esc(b.titulo)}</b></td>
+      <td>${MESES[b.desde_mes - 1]} ${b.desde_anio}</td>
+      <td>${b.motivo ? esc(b.motivo) : '<span class="muted">—</span>'}</td>
+      <td class="actions">${esAdmin
+        ? `<button class="btn ghost sm" onclick="reactivarTarea('${b.id}')">Reactivar</button>`
+        : ''}</td>
+    </tr>`).join('');
 }
 
 function renderTareaItem(t) {
@@ -7084,10 +7165,117 @@ window.toggleTareaCampo = async function(id, campo, val) {
 };
 
 window.deleteTarea = async function(id) {
-  if (!await confirmAction('¿Eliminar esta tarea?')) return;
-  const { error } = await sb.from('tareas').delete().eq('id', id);
-  if (error) { toast(error.message, 'err'); return; }
-  await loadTareas(); renderTareas(); toast('Eliminada', 'ok');
+  const t = state.tareas.find(x => x.id === id);
+
+  // Una tarea excepcional es de una sola vez: borrarla la borra y listo.
+  if (!t || t.tipo !== 'mensual') {
+    if (!await confirmAction('¿Eliminar esta tarea?')) return;
+    const { error } = await sb.from('tareas').delete().eq('id', id);
+    if (error) { toast(error.message, 'err'); return; }
+    await loadTareas(); renderTareas(); toast('Eliminada', 'ok');
+    return;
+  }
+
+  // Una mensual se replica sola desde el mes anterior, así que borrarla de un
+  // mes no la saca: vuelve en cuanto alguien abre la app. Hay que preguntar
+  // cuál de las dos cosas quiere.
+  const futuras = state.tareas.filter(x =>
+    x.tipo === 'mensual' && tituloNorm(x.titulo) === tituloNorm(t.titulo)
+    && (x.anio * 12 + x.mes) > (t.anio * 12 + t.mes) && !x.finalizada);
+
+  showModal(`<div class="modal-head"><h3>Eliminar “${esc(t.titulo)}”</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <p class="hint" style="margin-bottom:14px">Es una tarea mensual: se copia sola de un mes
+        al siguiente. Si la borrás de ${MESES[t.mes - 1]} ${t.anio} nomás, vuelve a aparecer.</p>
+      <div class="field">
+        <label class="t-del-opt">
+          <input type="radio" name="t-del-modo" value="mes" checked>
+          <span><b>Sólo este mes</b><br>
+            <span class="sub">Este mes no va, pero el que viene sí. Es lo que hacía el botón hasta ahora.</span></span>
+        </label>
+      </div>
+      <div class="field" style="margin-top:4px">
+        <label class="t-del-opt">
+          <input type="radio" name="t-del-modo" value="baja">
+          <span><b>No va más</b><br>
+            <span class="sub">Se da de baja de ${MESES[t.mes - 1]} ${t.anio} en adelante y deja de copiarse.
+            ${futuras.length === 1
+              ? 'También se borra la que ya está cargada en un mes posterior.'
+              : futuras.length
+                ? `También se borran las <b>${futuras.length}</b> que ya están cargadas en meses posteriores.`
+                : ''}
+            Los meses anteriores quedan como están.</span></span>
+        </label>
+      </div>
+      <div class="field" id="t-del-motivo-wrap" style="display:none;margin-top:4px">
+        <label>Por qué no va más <span class="sub" style="font-weight:400">(opcional)</span></label>
+        <input type="text" id="t-del-motivo" placeholder="Ej.: pasó a hacerlo Tesorería">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn danger" id="t-del-ok">Eliminar</button>
+    </div>`);
+
+  $$('input[name="t-del-modo"]').forEach(r => r.addEventListener('change', () => {
+    $('#t-del-motivo-wrap').style.display =
+      $('input[name="t-del-modo"]:checked').value === 'baja' ? '' : 'none';
+  }));
+
+  $('#t-del-ok').addEventListener('click', async () => {
+    const modo = $('input[name="t-del-modo"]:checked').value;
+    const motivo = ($('#t-del-motivo')?.value || '').trim() || null;
+    const btn = $('#t-del-ok'); btn.disabled = true; btn.textContent = 'Eliminando…';
+
+    if (modo === 'baja') {
+      // Primero la baja: si falla, no se borra nada y la tarea sigue entera.
+      // Al revés quedaría borrada y volviendo a aparecer cada mes.
+      const { error: eB } = await sb.from('tareas_baja').upsert({
+        titulo: t.titulo.trim(), desde_mes: t.mes, desde_anio: t.anio,
+        motivo, created_by: state.user.id,
+      }, { onConflict: 'titulo_norm' }).select('id');
+      if (eB) {
+        btn.disabled = false; btn.textContent = 'Eliminar';
+        mensajeError('No se pudo dar de baja la tarea', eB);
+        return;
+      }
+    }
+
+    const ids = modo === 'baja' ? [id, ...futuras.map(x => x.id)] : [id];
+    const { data, error } = await sb.from('tareas').delete().in('id', ids).select('id');
+    if (error) {
+      btn.disabled = false; btn.textContent = 'Eliminar';
+      mensajeError('No se pudo eliminar', error);
+      return;
+    }
+    if (!data?.length) {
+      btn.disabled = false; btn.textContent = 'Eliminar';
+      toast('No se eliminó ninguna tarea: puede que no tengas permiso', 'err');
+      return;
+    }
+
+    closeModal();
+    await Promise.all([loadTareas(), loadTareasBaja()]);
+    renderTareas();
+    toast(modo === 'baja'
+      ? `“${t.titulo}” no va más desde ${MESES[t.mes - 1]} ${t.anio}` + (data.length > 1 ? ` · ${data.length} eliminadas` : '')
+      : 'Eliminada de este mes', 'ok');
+  });
+};
+
+// Vuelve a habilitar una tarea dada de baja. No la crea: la próxima
+// replicación la trae sola desde el mes anterior que la tenga, o se la carga
+// a mano si ya no quedó en ninguno.
+window.reactivarTarea = async function(bajaId) {
+  const b = (state.tareasBaja || []).find(x => x.id === bajaId);
+  if (!b) return;
+  if (!await confirmAction(`“${b.titulo}” vuelve a estar activa. Si todavía figura en algún mes anterior, se va a volver a copiar sola. ¿Seguir?`)) return;
+  const { data, error } = await sb.from('tareas_baja').delete().eq('id', bajaId).select('id');
+  if (error) { mensajeError('No se pudo reactivar', error); return; }
+  if (!data?.length) { toast('No se reactivó: puede que no tengas permiso', 'err'); return; }
+  await loadTareasBaja(); renderTareas();
+  toast(`“${b.titulo}” volvió a estar activa`, 'ok');
 };
 
 window.editTarea = function(id) {
@@ -7214,6 +7402,17 @@ window.saveTarea = async function(id) {
 
   let mensajeExtra = '';
 
+  // Si esta tarea estaba dada de baja y la vuelven a cargar, la baja se cae:
+  // guardarla de nuevo es decir que vuelve. Si no, quedaría cargada en este
+  // mes pero sin copiarse a los siguientes, que es lo más confuso posible.
+  let avisoBaja = '';
+  const baja = (state.tareasBaja || []).find(x => x.titulo_norm === tituloNorm(payload.titulo));
+  if (tipo === 'mensual' && baja) {
+    const { error: eB } = await sb.from('tareas_baja').delete().eq('id', baja.id).select('id');
+    if (eB) avisoBaja = ' · ojo: sigue dada de baja, no se pudo reactivar';
+    else { await loadTareasBaja(); avisoBaja = ' · volvió a estar activa'; }
+  }
+
   // EDICIÓN: si se tildó "aplicar a los meses siguientes", se propaga la regla
   // (dia_vencimiento) a las otras filas de la MISMA tarea en meses posteriores
   // y se recalcula su fecha_objetivo. Las finalizadas no se tocan: ya se
@@ -7273,7 +7472,7 @@ window.saveTarea = async function(id) {
   }
 
   closeModal();
-  toast('Guardado' + mensajeExtra, 'ok');
+  toast('Guardado' + mensajeExtra + avisoBaja, 'ok');
   await loadTareas(); renderTareas();
 };
 
@@ -15720,7 +15919,7 @@ let realtimeActivo = false;
 function subscribeChanges() {
   if (realtimeActivo) return;   // evita canales duplicados
   realtimeActivo = true;
-  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','responsables_sellos','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','transferencias_archivo','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches','mail_reglas','sugerencias','biblioteca_lugares','biblioteca_asignaciones','seguimiento_listas','seguimiento_clientes','simulador_tasas'].forEach(tabla => {
+  ['boletos','posesiones','cesiones','cotizaciones','cuentas_bancarias','empresas','gastos_conceptos','tareas','tareas_baja','tareas_responsables','transferencias','identificadores_transf','cuentas_rentas','responsables_sellos','emprendimientos','instructivos','icc_valores','sellos_alicuotas','retiros_documentacion','retiros_personas','cocheras','transferencias_banco','transferencias_archivo','bancos_cuentas','cotizaciones_uvi','identif_emprendimientos','deuda_calculos','badlar_valores','papeles_trabajo','papeles_pagos','icc_cotizaciones_enviadas','speeches','mail_reglas','sugerencias','biblioteca_lugares','biblioteca_asignaciones','seguimiento_listas','seguimiento_clientes','simulador_tasas'].forEach(tabla => {
     sb.channel('rt-'+tabla)
       .on('postgres_changes', { event:'*', schema:'public', table:tabla }, async () => {
         if (tabla==='boletos') { await loadBoletos(); renderSellos(); }
@@ -15730,6 +15929,7 @@ function subscribeChanges() {
         if (tabla==='cuentas_bancarias'||tabla==='empresas') { await loadCuentas(); renderCuentas(); if(state.profile?.rol==='admin'){renderEmpresas();renderCuentasAdmin();} }
         if (tabla==='gastos_conceptos') { await loadGastosConceptos(); renderConceptos(); }
         if (tabla==='tareas') { await loadTareas(); renderTareas(); renderCampanita(); }
+        if (tabla==='tareas_baja') { await loadTareasBaja(); renderTareas(); }
         if (tabla==='tareas_responsables') { await loadResponsables(); if(state.profile?.rol==='admin') renderResponsables(); }
         if (tabla==='transferencias') { await loadTransferencias(); renderTransferencias(); }
         if (tabla==='identificadores_transf') { await loadIdentificadores(); renderIdentLista(); }
