@@ -172,6 +172,16 @@ aside.sidebar{
   font-size:.7rem;opacity:.92;max-width:270px;white-space:normal}
 .ti-tip-pie{font-size:.65rem;opacity:.6;margin-top:3px}
 .ti-vacio{text-align:center;padding:26px 10px;color:var(--ink-3);font-size:.84rem}
+
+/* Lotes cancelados (Papeles de trabajo). Plegado por defecto: esta ahi para
+   el que lo quiera mirar, sin ocupar la pantalla todos los dias. La flechita
+   es lo unico que avisa que se abre, asi que no se saca. */
+.pt-canc-sum{cursor:pointer;font-weight:600;list-style:none;display:flex;
+  align-items:center;gap:7px;user-select:none}
+.pt-canc-sum::-webkit-details-marker{display:none}
+.pt-canc-sum:hover{color:var(--accent)}
+.pt-canc-flecha{color:var(--ink-3);font-size:.8rem;transition:transform .15s;display:inline-block}
+#pt-cancelados-card[open] .pt-canc-flecha{transform:rotate(90deg)}
 /* ===== Plano de la biblioteca ===== */
 #bib-plano svg{display:block;min-width:720px;width:100%;height:auto;font-family:var(--font)}
 .bib-piso{fill:var(--bg);stroke:var(--line-2)}
@@ -2024,6 +2034,27 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <tbody></tbody>
         </table></div>
       </div>
+
+      <!-- Los que terminaron de pagar. Plegado: no es trabajo pendiente,
+           pero hace falta poder mirar quién canceló y cuándo. -->
+      <details class="card" id="pt-cancelados-card" style="margin-top:14px;display:none">
+        <summary class="pt-canc-sum">
+          <span class="pt-canc-flecha">▸</span>
+          <span id="pt-cancelados-tit"></span>
+          <span class="sub" style="font-weight:400;margin-left:6px">terminaron de pagar la financiación</span>
+        </summary>
+        <div style="padding-top:12px">
+          <div class="tbl-wrap"><table class="tbl" id="pt-cancelados-tabla">
+            <thead><tr>
+              <th>Cliente</th><th>Propietario</th><th>Inmueble</th>
+              <th class="num">Monto base</th><th>Última cuota</th><th class="actions"></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table></div>
+          <p class="hint" style="margin-top:8px">Salen de la lista de arriba y no suman al total del mes.
+            Si alguno quedó en cero por error, con <b>Editar</b> le ponés las cuotas que faltan y vuelve.</p>
+        </div>
+      </details>
     </section>
 
     <section class="tab-content" id="tab-cocheras" style="display:none">
@@ -11002,12 +11033,44 @@ function montoActualizado(p, mes, anio) {
   return Number(p.monto_base) * (dest / base);
 }
 
+// Terminó de pagar: le quedan 0 cuotas. Si cuotas_restantes es null no
+// se le lleva la cuenta, así que ese no cuenta como cancelado.
+//
+// Se queda en la lista de arriba el mes en que pagó la última, para que
+// la cobranza de ese mes se siga viendo completa; recién al mes siguiente
+// pasa al archivo.
+function papelCancelado(p, mes, anio) {
+  return p.cuotas_restantes === 0 && !pagoDe(p.id, mes, anio);
+}
+
+// La última cuota que pagó, para saber cuándo terminó.
+function ultimoPagoDe(id) {
+  return (state.papelesPagos || [])
+    .filter(x => x.papel_id === id)
+    .sort((a, b) => (b.anio * 12 + b.mes) - (a.anio * 12 + a.mes))[0] || null;
+}
+
+function papelesCancelados() {
+  const { mes, anio } = ptMesDestino();
+  const q = ($('#pt-buscar')?.value || '').toLowerCase().trim();
+  return (state.papeles || [])
+    .filter(p => papelCancelado(p, mes, anio))
+    .filter(p => !q || `${p.cliente} ${p.propietario} ${p.inmueble}`.toLowerCase().includes(q))
+    .sort((a, b) => {
+      const ua = ultimoPagoDe(a.id), ub = ultimoPagoDe(b.id);
+      const ka = ua ? ua.anio * 12 + ua.mes : -1, kb = ub ? ub.anio * 12 + ub.mes : -1;
+      return kb - ka;   // los que terminaron hace menos, primero
+    });
+}
+
 function papelesFiltrados() {
   const q = ($('#pt-buscar')?.value || '').toLowerCase().trim();
   const est = $('#pt-estado')?.value ?? 'activos';
   const cobro = $('#pt-cobro')?.value || '';
   const { mes, anio } = ptMesDestino();
   return (state.papeles || []).filter(p => {
+    // Los cancelados tienen su propia lista abajo
+    if (papelCancelado(p, mes, anio)) return false;
     if (est === 'activos' && !p.activo) return false;
     if (est === 'inactivos' && p.activo) return false;
     if (cobro === 'pagados' && !pagoDe(p.id, mes, anio)) return false;
@@ -11057,8 +11120,15 @@ function renderPapeles() {
       : (totales.total > 0.005 ? ' · <b style="color:var(--ok)">todo cobrado</b>' : '')) +
     (totales.sinIcc ? ` · <span style="color:var(--warn)">${totales.sinIcc} sin ICC base</span>` : '');
 
+  renderPapelesCancelados();
+
   const tb = $('#pt-tabla tbody');
-  if (!filt.length) { tb.innerHTML = '<tr><td colspan="10" class="empty">Sin clientes cargados</td></tr>'; return; }
+  if (!filt.length) {
+    tb.innerHTML = `<tr><td colspan="10" class="empty">${
+      papelesCancelados().length ? 'No queda nadie con cuotas pendientes' : 'Sin clientes cargados'
+    }</td></tr>`;
+    return;
+  }
 
   tb.innerHTML = filt.map(p => {
     const m = montoActualizado(p, mes, anio);
@@ -11089,6 +11159,31 @@ function renderPapeles() {
         <button class="btn ghost sm" onclick="ptMora('${p.id}')" title="Pedirle que pague antes del ${DIA_LIMITE_PAGO} de cada mes"${mails.length ? '' : ' disabled'}>⏰ Recordatorio</button>
         <button class="btn ghost sm" onclick="ptEditar('${p.id}')">Editar</button>
       </td></tr>`;
+  }).join('');
+}
+
+function renderPapelesCancelados() {
+  const card = $('#pt-cancelados-card');
+  if (!card) return;
+  const filas = papelesCancelados();
+  if (!filas.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  $('#pt-cancelados-tit').textContent =
+    `🏁 ${filas.length} ${filas.length === 1 ? 'lote cancelado' : 'lotes cancelados'}`;
+
+  $('#pt-cancelados-tabla tbody').innerHTML = filas.map(p => {
+    const u = ultimoPagoDe(p.id);
+    return `<tr${p.activo ? '' : ' style="opacity:.55"'}>
+      <td class="mono">${esc(p.cliente)}</td>
+      <td>${esc(p.propietario)}</td>
+      <td>${esc(p.inmueble)}</td>
+      <td class="num">$${fmt(p.monto_base)}</td>
+      <td>${u
+        ? `${MESES[u.mes - 1]} ${u.anio}` +
+          (u.pagado_at ? `<div class="muted" style="font-size:.73rem">cobrada el ${fmtFecha(String(u.pagado_at).slice(0, 10))}</div>` : '')
+        : '<span class="muted">sin cobros registrados</span>'}</td>
+      <td class="actions"><button class="btn ghost sm" onclick="ptEditar('${p.id}')">Editar</button></td>
+    </tr>`;
   }).join('');
 }
 
