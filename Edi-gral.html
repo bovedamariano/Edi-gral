@@ -11415,11 +11415,20 @@ function bajarEml(eml, nombre) {
 
 const nombreArchivo = t => String(t || '').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
 
+// El numero de cliente al final del asunto. Es el dato con el que Cobranzas
+// busca en el sistema, asi que tenerlo en el asunto evita abrir el mail para
+// saber de quien es. Si el cliente no tiene numero cargado no se inventa nada:
+// el asunto queda como estaba.
+function conNroCliente(asunto, p) {
+  const nro = String(p?.cliente || '').trim();
+  return nro ? `${asunto} ${nro}` : asunto;
+}
+
 async function armarEml(p, mes, anio, monto, cuenta) {
   // El encabezado To: de un mail separa con coma, sea cual sea el separador
   // con el que se hayan cargado.
   const para = parseMails(p.emails).join(', ');
-  const asunto = `Aporte mensual ${MESES[mes - 1]} ${anio} · ${p.inmueble}`;
+  const asunto = conNroCliente(`Aporte mensual ${MESES[mes - 1]} ${anio} · ${p.inmueble}`, p);
   const cuerpo = textoMailPapel(p, mes, anio, monto);
 
   let adjunto = null;
@@ -11484,7 +11493,7 @@ window.ptMora = async function(id) {
   const para = parseMails(p.emails).join(', ');
   if (!para) { toast('Ese cliente no tiene mails cargados', 'warn'); return; }
 
-  const asunto = `Recordatorio de pago · ${p.inmueble}`;
+  const asunto = conNroCliente(`Recordatorio de pago · ${p.inmueble}`, p);
   const cuerpo = textoMailMora(p);
 
   showModal(`<div class="modal-head"><h3>⏰ Recordatorio de pago</h3>
