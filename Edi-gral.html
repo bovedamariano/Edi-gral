@@ -7258,7 +7258,7 @@ window.deleteTarea = async function(id) {
       }, { onConflict: 'titulo_norm' }).select('id');
       if (eB) {
         btn.disabled = false; btn.textContent = 'Eliminar';
-        mensajeError('No se pudo dar de baja la tarea', eB);
+        toast('No se pudo dar de baja la tarea: ' + mensajeError(eB), 'err');
         return;
       }
     }
@@ -7269,7 +7269,7 @@ window.deleteTarea = async function(id) {
     const { data, error } = await sb.from('tareas').delete().in('id', ids).select('id');
     if (error) {
       btn.disabled = false; btn.textContent = 'Eliminar';
-      mensajeError('No se pudo eliminar', error);
+      toast('No se pudo eliminar: ' + mensajeError(error), 'err');
       return;
     }
     if (!data?.length) {
@@ -7295,7 +7295,7 @@ window.reactivarTarea = async function(bajaId) {
   if (!b) return;
   if (!await confirmAction(`“${b.titulo}” vuelve a estar activa. Si todavía figura en algún mes anterior, se va a volver a copiar sola. ¿Seguir?`)) return;
   const { data, error } = await sb.from('tareas_baja').delete().eq('id', bajaId).select('id');
-  if (error) { mensajeError('No se pudo reactivar', error); return; }
+  if (error) { toast('No se pudo reactivar: ' + mensajeError(error), 'err'); return; }
   if (!data?.length) { toast('No se reactivó: puede que no tengas permiso', 'err'); return; }
   await loadTareasBaja(); renderTareas();
   toast(`“${b.titulo}” volvió a estar activa`, 'ok');
@@ -10952,12 +10952,26 @@ function pdfDeuda(modo) {
 }
 
 // ---------- Guardar y consultar ----------
+
+// Con qué se reconoce que dos cálculos son del mismo cliente.
+//
+// El número de cliente es lo que manda: es único y no se escribe de dos
+// formas distintas. Si no está cargado, se cae al nombre. El emprendimiento
+// va aparte porque una misma persona puede tener plan en más de uno, y esos
+// sí son dos deudas distintas.
+function ddClave(cliente, nombre, empr) {
+  const c = String(cliente || '').trim();
+  const e = String(empr || '').trim().toLowerCase();
+  return (c ? 'c:' + c : 'n:' + String(nombre || '').trim().toLowerCase()) + '|' + e;
+}
+
 async function guardarCalculoDeuda() {
   const r = _ddUltimo;
   if (!r) { toast('Calculá primero', 'warn'); return; }
   if (!r.nombre) { toast('Poné el nombre de la persona', 'warn'); $('#dd-nombre').focus(); return; }
   if (r.cliente && !/^\d{7}$/.test(r.cliente)) { toast('El cliente debe tener 7 dígitos', 'warn'); return; }
-  const { error } = await sb.from('deuda_calculos').insert({
+
+  const datos = {
     cliente: r.cliente || null,
     nombre: r.nombre,
     emprendimiento: r.emprendimiento,
@@ -10972,9 +10986,45 @@ async function guardarCalculoDeuda() {
     total_capital: Math.round(r.totalCapital * 100) / 100,
     total_simple: Math.round(r.totalSimple * 100) / 100,
     total_compuesto: Math.round(r.totalComp * 100) / 100,
-    created_by: state.user.id,
-  });
-  if (error) { toast(error.message, 'err'); return; }
+  };
+
+  // ¿Este cliente ya está guardado? Entonces se pisa el cálculo viejo en vez
+  // de dejar dos filas del mismo. Revisar una deuda es volver a mirar la
+  // misma, no empezar otra.
+  const clave = ddClave(r.cliente, r.nombre, r.emprendimiento);
+  const ya = (state.deudaCalculos || [])
+    .find(c => ddClave(c.cliente, c.nombre, c.emprendimiento) === clave);
+
+  if (ya) {
+    // Un número de cliente mal tipeado cae justo en la ficha de otro. Si el
+    // nombre no es el mismo, se pregunta antes de pisarla.
+    const mismoNombre = String(ya.nombre || '').trim().toLowerCase()
+                     === String(r.nombre || '').trim().toLowerCase();
+    if (!mismoNombre && !await confirmAction(
+          `El cliente ${r.cliente} ya está guardado como ${ya.nombre}, y vos pusiste ${r.nombre}. ` +
+          `Si guardás, se pisa el cálculo de ${ya.nombre} del ${fmtFecha(ya.fecha_calculo)}. ¿Es el mismo cliente?`)) {
+      return;
+    }
+
+    const { data, error } = await sb.from('deuda_calculos').update({
+      ...datos,
+      actualizado_at: new Date().toISOString(),
+      actualizado_por: state.user.id,
+    }).eq('id', ya.id).select('id');
+    if (error) { toast(mensajeError(error), 'err'); return; }
+    if (!data?.length) { toast('No se guardó: puede que no tengas permiso', 'err'); return; }
+
+    const dif = datos.total_simple - Number(ya.total_simple || 0);
+    toast(`${r.nombre}: se actualizó el cálculo guardado` +
+          (Math.abs(dif) > 0.5 ? ` · ${dif > 0 ? 'creció' : 'bajó'} $${fmt(Math.abs(dif))}` : ''), 'ok');
+    await loadDeudaCalculos(); renderDeudaGuardados();
+    return;
+  }
+
+  const { data, error } = await sb.from('deuda_calculos')
+    .insert({ ...datos, created_by: state.user.id }).select('id');
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  if (!data?.length) { toast('No se guardó: puede que no tengas permiso', 'err'); return; }
   toast('Cálculo guardado', 'ok');
   await loadDeudaCalculos(); renderDeudaGuardados();
 }
