@@ -861,6 +861,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <div class="av" id="user-av">?</div>
         <div class="meta"><b id="user-name">—</b><span id="user-role">—</span></div>
       </div>
+      <button class="btn-logout" id="btn-clave" style="margin-bottom:6px">🔑 Cambiar mi contraseña</button>
       <button class="btn-logout" id="btn-logout">Cerrar sesión</button>
     </div>
   </aside>
@@ -2676,6 +2677,186 @@ async function logout() {
 }
 
 // =================================================================
+// CONTRASEÑAS · cambiar la propia y blanquear la de otro
+// =================================================================
+const CLAVE_MIN = 8;
+
+// Lo mínimo que tiene sentido exigir. No es una política de seguridad
+// completa: es evitar "123456" y el nombre del usuario.
+function problemaDeClave(c, usuario) {
+  if (!c || c.length < CLAVE_MIN) return `Tiene que tener al menos ${CLAVE_MIN} caracteres`;
+  if (!/[a-zA-Z]/.test(c) || !/\d/.test(c)) return 'Tiene que tener letras y números';
+  if (/^(.)\1+$/.test(c)) return 'No puede ser el mismo caracter repetido';
+  if (/^(0123456789|1234567890|12345678|contrasena|password|qwertyui)/i.test(c)) {
+    return 'Esa es de las primeras que alguien probaría';
+  }
+  const u = String(usuario || '').trim().toLowerCase();
+  if (u.length >= 3 && c.toLowerCase().includes(u)) return 'No puede contener tu nombre de usuario';
+  return null;
+}
+
+// Cambiar la propia.
+//
+// Pide la actual aunque Supabase no la necesite para cambiarla: si alguien
+// se levanta de la máquina con la sesión abierta, sin esto le cambia la
+// clave y lo deja afuera de su propia cuenta.
+//
+// Tres situaciones:
+//   'normal'    · lo pidió él, puede cancelar
+//   'obligado'  · le blanquearon la clave: sabe la provisoria y no puede
+//                 cerrar el modal hasta poner una suya
+//   'recupero'  · volvió del mail de recuperación: NO sabe ninguna, así que
+//                 no se le puede pedir la actual. El link del mail es la
+//                 prueba de que es él.
+window.cambiarMiClave = function(modo) {
+  if (modo === true) modo = 'obligado';
+  if (!modo) modo = 'normal';
+  const cerrable = modo === 'normal';
+  const pideActual = modo !== 'recupero';
+  const usuario = state.profile?.usuario || '';
+  showModal(`<div class="modal-head">
+      <h3>${cerrable ? 'Cambiar mi contraseña' : 'Poné tu contraseña'}</h3>
+      ${cerrable ? '<button class="modal-close" onclick="closeModal()">&times;</button>' : ''}</div>
+    <div class="modal-body">
+      ${modo === 'obligado'
+        ? `<div class="badge warn" style="display:block;padding:10px 12px;margin-bottom:14px;line-height:1.45">
+             Estás usando una contraseña provisoria que te pasaron. Poné una tuya para seguir.</div>`
+        : modo === 'recupero'
+        ? `<div class="badge warn" style="display:block;padding:10px 12px;margin-bottom:14px;line-height:1.45">
+             Entraste desde el link del mail. Poné tu contraseña nueva.</div>`
+        : ''}
+      ${pideActual ? `<div class="field"><label>Contraseña actual</label>
+        <input type="password" id="cl-actual" autocomplete="current-password"></div>` : ''}
+      <div class="field"><label>Nueva contraseña</label>
+        <input type="password" id="cl-nueva" autocomplete="new-password">
+        <div class="hint" style="margin-top:4px">Mínimo ${CLAVE_MIN} caracteres, con letras y números.</div></div>
+      <div class="field"><label>Repetir la nueva</label>
+        <input type="password" id="cl-nueva2" autocomplete="new-password"></div>
+      <div class="err" id="cl-err" style="display:none;margin-top:4px"></div>
+    </div>
+    <div class="modal-foot">
+      ${cerrable ? '<button class="btn ghost" onclick="closeModal()">Cancelar</button>' : ''}
+      <button class="btn accent" id="cl-ok">Cambiar</button>
+    </div>`);
+
+  const err = t => {
+    const e = $('#cl-err');
+    e.textContent = t; e.style.display = t ? 'block' : 'none';
+  };
+  ['#cl-actual', '#cl-nueva', '#cl-nueva2'].forEach(sel =>
+    $(sel)?.addEventListener('keydown', e => { if (e.key === 'Enter') $('#cl-ok').click(); }));
+  setTimeout(() => ($('#cl-actual') || $('#cl-nueva'))?.focus(), 80);
+
+  $('#cl-ok').addEventListener('click', async () => {
+    const actual = pideActual ? $('#cl-actual').value : null;
+    const nueva  = $('#cl-nueva').value;
+    const nueva2 = $('#cl-nueva2').value;
+    err('');
+    if (pideActual && !actual) { err('Falta la contraseña actual'); return; }
+    if (nueva !== nueva2) { err('Las dos nuevas no coinciden'); return; }
+    if (pideActual && nueva === actual) { err('La nueva tiene que ser distinta de la actual'); return; }
+    const mal = problemaDeClave(nueva, usuario);
+    if (mal) { err(mal); return; }
+
+    const btn = $('#cl-ok');
+    btn.disabled = true; btn.textContent = 'Cambiando…';
+
+    // Primero se comprueba la actual. Si está mal, no se toca nada.
+    // En 'recupero' no se puede: el que llegó por el mail no sabe ninguna,
+    // y el link ya es la prueba de que la casilla es suya.
+    if (pideActual) {
+      const { error: eLogin } = await sb.auth.signInWithPassword({
+        email: state.user?.email, password: actual,
+      });
+      if (eLogin) {
+        btn.disabled = false; btn.textContent = 'Cambiar';
+        err(/invalid login credentials/i.test(eLogin.message || '')
+          ? 'La contraseña actual no es esa'
+          : mensajeError(eLogin));
+        return;
+      }
+    }
+
+    const { error } = await sb.auth.updateUser({ password: nueva });
+    if (error) {
+      btn.disabled = false; btn.textContent = 'Cambiar';
+      err(/should be different|same as the old/i.test(error.message || '')
+        ? 'La nueva tiene que ser distinta de la actual'
+        : mensajeError(error));
+      return;
+    }
+
+    // Se saca la marca de clave provisoria. La base deja sacarla sólo si la
+    // contraseña realmente cambió, así que esto no es el control: es anotarlo.
+    if (state.profile?.debe_cambiar_clave && state.user?.id) {
+      const { error: eM } = await sb.from('profiles')
+        .update({ debe_cambiar_clave: false }).eq('id', state.user.id);
+      if (!eM) state.profile.debe_cambiar_clave = false;
+    }
+
+    closeModal();
+    toast('Listo, tu contraseña quedó cambiada', 'ok');
+    // El que viene del mail todavía no entró a la app: se recarga para que
+    // arranque como una sesión normal, sin el # del link en la URL.
+    if (modo === 'recupero') setTimeout(() => location.replace(location.pathname), 900);
+  });
+};
+
+// Blanquear la de otro. La clave la genera el servidor y vuelve una sola
+// vez: no queda guardada en ningún lado.
+window.blanquearClave = async function(id, nombre) {
+  if (state.profile?.rol !== 'admin') { toast('Solo un administrador puede blanquear claves', 'err'); return; }
+  if (id === state.user.id) { toast('La tuya se cambia desde "Cambiar mi contraseña"', 'warn'); return; }
+  if (!await confirmAction(
+        `Se le va a generar una contraseña provisoria a ${nombre}. La de ahora deja de servir en el momento, ` +
+        `así que avisale antes. ¿Seguir?`)) return;
+
+  toast('Blanqueando…', 'info');
+  const { data, error } = await sb.functions.invoke('blanquear-clave', { body: { user_id: id } });
+
+  if (error || !data?.ok) {
+    // El cuerpo del error trae el motivo de verdad; el error suelto dice
+    // "non-2xx status code" y no ayuda a nadie.
+    let motivo = data?.error || '';
+    if (!motivo && error?.context?.json) { try { motivo = (await error.context.json())?.error || ''; } catch {} }
+    if (!motivo && /Failed to send|Function not found|404/i.test(error?.message || '')) {
+      motivo = 'La función blanquear-clave no está publicada en Supabase';
+    }
+    toast('No se pudo blanquear: ' + (motivo || mensajeError(error) || 'error desconocido'), 'err');
+    return;
+  }
+
+  await loadUsers(); renderUsers();
+  mostrarClaveProvisoria(data.usuario || nombre, data.clave, data.debe_cambiar);
+};
+
+function mostrarClaveProvisoria(usuario, clave, obliga) {
+  showModal(`<div class="modal-head"><h3>Clave provisoria de ${esc(usuario)}</h3>
+      <button class="modal-close" onclick="closeModal()">&times;</button></div>
+    <div class="modal-body">
+      <p class="hint" style="margin-bottom:12px">Se muestra una sola vez: no queda guardada en ningún lado.
+        Copiala y pasásela ahora.</p>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="bl-clave" readonly value="${esc(clave)}"
+               style="font-family:ui-monospace,monospace;font-size:1.05rem;letter-spacing:.04em">
+        <button class="btn accent" id="bl-copiar" style="white-space:nowrap">⎘ Copiar</button>
+      </div>
+      <p class="hint" style="margin-top:12px">${obliga
+        ? 'Cuando entre, la app no lo va a dejar hacer nada hasta que ponga una suya.'
+        : '<b>Ojo:</b> no se pudo marcar que tiene que cambiarla. Pedile que la cambie desde “Cambiar mi contraseña”.'}</p>
+    </div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Listo</button></div>`);
+  // Se copia sin pasar por copyToClipboard() a propósito: ese muestra un
+  // toast con el texto copiado, y una clave no tiene por qué quedar flotando
+  // 3 segundos en pantalla cuando ya está acá arriba.
+  $('#bl-copiar').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(clave); $('#bl-copiar').textContent = '✓ Copiada'; }
+    catch { $('#bl-clave').select(); $('#bl-copiar').textContent = 'Copiala a mano'; }
+  });
+  setTimeout(() => { $('#bl-clave').select(); }, 80);
+}
+
+// =================================================================
 // AVISO · pasar del usuario compartido al propio
 //
 // Varias áreas entran con una cuenta compartida ("finanzas"), así que
@@ -2805,6 +2986,12 @@ async function afterLogin() {
   }
   $('#login-screen').style.display = 'none';
   $('#app').classList.add('active');
+
+  // Si entra con una clave provisoria, no hace nada hasta cambiarla. El
+  // modal no se puede cerrar: la provisoria viajó por WhatsApp o se dictó
+  // por teléfono y no puede quedar siendo la definitiva.
+  if (prof.debe_cambiar_clave) setTimeout(() => cambiarMiClave('obligado'), 300);
+
   $('#user-name').textContent = prof.nombre || state.user.email;
   $('#user-role').textContent = prof.area ? `${prof.rol} · ${prof.area}` : prof.rol;
   $('#user-av').textContent = (prof.nombre || state.user.email).slice(0,2).toUpperCase();
@@ -2919,21 +3106,40 @@ $('#login-btn').addEventListener('click', async () => {
     $('#login-btn').disabled = false;
   }
 });
+$('#btn-clave').addEventListener('click', () => cambiarMiClave('normal'));
 $('#login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') $('#login-btn').click(); });
 $('#login-email').addEventListener('keydown', e => { if (e.key === 'Enter') $('#login-pass').focus(); });
 
+// Los usuarios entran como "finanzas", "mariano", y por dentro eso se
+// convierte en usuario@edigral.local, que es un dominio inventado: no hay
+// casilla donde llegue nada. Mandar el mail de recuperación ahí no falla,
+// simplemente no llega nunca, y la persona se queda esperando.
+//
+// Para esos, el camino es que un administrador le blanquee la clave desde
+// Ajustes → Usuarios. Para los pocos que se registraron con un mail de
+// verdad, el mail sí sirve.
 $('#forgot-link').addEventListener('click', async e => {
   e.preventDefault();
   const userInput = $('#login-email').value.trim();
   if (!userInput) { toast('Escribí tu usuario primero', 'warn'); return; }
-  // Solo tiene sentido si es un email real (con dominio)
-  if (!userInput.includes('@')) {
-    toast('Pedile a un admin que te cambie la clave', 'warn');
+  const mail = userToEmail(userInput);
+  if (mail.endsWith('@edigral.local')) {
+    toast('Tu usuario no tiene mail, así que no se puede mandar nada. Pedile a un administrador que te la blanquee.', 'warn');
     return;
   }
-  const { error } = await sb.auth.resetPasswordForEmail(userInput);
+  const { error } = await sb.auth.resetPasswordForEmail(mail, { redirectTo: location.href.split('#')[0] });
   if (error) toast('Error: ' + error.message, 'err');
-  else toast('Te enviamos un mail para resetear', 'ok');
+  else toast('Te mandamos un mail con el link para cambiarla', 'ok');
+});
+
+// El que vuelve desde ese mail cae acá con una sesión de recuperación. Sin
+// esto entraba a la app y nunca le pedía la clave nueva, que es lo único
+// que fue a hacer.
+sb.auth.onAuthStateChange((evento) => {
+  if (evento === 'PASSWORD_RECOVERY') {
+    $('#login-screen').style.display = 'none';
+    setTimeout(() => cambiarMiClave('recupero'), 200);
+  }
 });
 
 // ===== Signup (registro público con aprobación admin) =====
@@ -14810,11 +15016,16 @@ function renderUsers() {
     <td><b>${esc(u.usuario || u.nombre || '—')}</b><div class="muted" style="font-size:.78rem">${u.id.slice(0,8)}</div></td>
     <td>${u.area||'—'}</td>
     <td><span class="badge ${u.rol==='admin'?'accent':'muted'}">${u.rol}</span></td>
-    <td><span class="badge ok">Activo</span></td>
+    <td>${u.debe_cambiar_clave
+      ? '<span class="badge warn" title="Le blanquearon la clave y todavía usa la provisoria">clave provisoria</span>'
+      : '<span class="badge ok">Activo</span>'}</td>
     <td>${fmtUltimoAcceso(u.ultimo_acceso)}</td>
     <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
       <button class="btn ghost sm" onclick="editUser('${u.id}')">Editar</button>
-      ${u.id !== state.user.id ? `<button class="btn ghost sm" onclick="eliminarUsuario('${u.id}', '${escJsAttr(u.usuario||u.nombre||'')}')" style="color:var(--err)">🗑</button>` : ''}
+      ${u.id !== state.user.id
+        ? `<button class="btn ghost sm" onclick="blanquearClave('${u.id}', '${escJsAttr(u.usuario||u.nombre||'')}')" title="Darle una clave provisoria">🔑 Blanquear</button>
+           <button class="btn ghost sm" onclick="eliminarUsuario('${u.id}', '${escJsAttr(u.usuario||u.nombre||'')}')" style="color:var(--err)">🗑</button>`
+        : ''}
     </td>
   </tr>`).join('');
 }
