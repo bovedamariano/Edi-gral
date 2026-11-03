@@ -1263,6 +1263,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
         <div class="tbl-wrap"><table class="tbl" id="sellos-tabla">
           <thead><tr><th>Fecha</th><th>Propietario</th><th>Unidad</th><th>Operación</th><th class="num">Monto</th><th>Moneda</th><th class="num">A pagar</th><th>Vence</th><th>Estado</th><th>Rentas</th><th class="actions"></th></tr></thead>
           <tbody></tbody>
+          <tfoot id="sellos-total"></tfoot>
         </table></div>
 
         <div class="pager" id="sellos-pager" style="display:none">
@@ -4906,6 +4907,8 @@ function renderSellos() {
   if (!filt.length) {
     tb.innerHTML = '<tr><td colspan="11" class="empty">Sin boletos que coincidan con los filtros</td></tr>';
     if (pager) pager.style.display = 'none';
+    const tfv = $('#sellos-total');
+    if (tfv) tfv.innerHTML = '';
     renderSellosIndic();
     return;
   }
@@ -4919,6 +4922,31 @@ function renderSellos() {
   const desde = porPag ? (_sellosPag - 1) * porPag : 0;
   const hasta = porPag ? Math.min(desde + porPag, filt.length) : filt.length;
   const pagina = filt.slice(desde, hasta);
+
+  // El total suma TODO lo filtrado, no la página que se está viendo: la
+  // pregunta es cuánto hay que pagar, no cuánto suman estos 30.
+  //
+  // importe_pagar siempre está en pesos: el sello se calcula sobre la base
+  // ya convertida a ARS, así que se pueden sumar boletos en dólares y en
+  // pesos sin mezclar monedas.
+  const tf = $('#sellos-total');
+  if (tf) {
+    const sum = (arr) => arr.reduce((a, b) => a + (Number(b.importe_pagar) || 0), 0);
+    const total = sum(filt);
+    const sinPagar = filt.filter(b => (b.estado || 'pendiente') !== 'pagado');
+    const pagados = filt.filter(b => b.estado === 'pagado');
+    const detalle = [
+      sinPagar.length ? `<span style="color:var(--warn)">sin pagar $${fmt(sum(sinPagar))}</span> <span class="muted">(${fmtInt(sinPagar.length)})</span>` : '',
+      pagados.length ? `<span style="color:var(--ok)">pagado $${fmt(sum(pagados))}</span> <span class="muted">(${fmtInt(pagados.length)})</span>` : '',
+    ].filter(Boolean).join(' · ');
+    tf.innerHTML = `<tr>
+      <td colspan="6"><b>Total a pagar</b>
+        <span class="sub" style="font-weight:400">${fmtInt(filt.length)} boleto${filt.length === 1 ? '' : 's'}${
+          filt.length !== state.boletos.length ? ', filtrados' : ''}</span></td>
+      <td class="num"><b>$${fmt(total)}</b></td>
+      <td colspan="4" style="font-size:.8rem">${detalle}</td>
+    </tr>`;
+  }
 
   if (pager) {
     pager.style.display = (filt.length > 30 || porPag === 0) ? 'flex' : 'none';
