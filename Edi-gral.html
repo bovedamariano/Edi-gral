@@ -2180,6 +2180,26 @@ details[open] .ident-toggle{transform:rotate(180deg)}
 
       <!-- Los que terminaron de pagar. Plegado: no es trabajo pendiente,
            pero hace falta poder mirar quién canceló y cuándo. -->
+      <details class="card" id="pt-futuros-card" style="margin-top:14px;display:none">
+        <summary class="pt-canc-sum">
+          <span class="pt-canc-flecha">▸</span>
+          <span id="pt-futuros-tit"></span>
+          <span class="sub" style="font-weight:400;margin-left:6px">todavía no les toca pagar</span>
+        </summary>
+        <div style="padding-top:12px">
+          <div class="tbl-wrap"><table class="tbl" id="pt-futuros-tabla">
+            <thead><tr>
+              <th>Cliente</th><th>Propietario</th><th>Inmueble</th>
+              <th class="num">Monto base</th><th>Base</th><th>Empieza</th><th class="actions"></th>
+            </tr></thead>
+            <tbody></tbody>
+          </table></div>
+          <p class="hint" style="margin-top:8px">No suman al total del mes ni les llega el mail.
+            El mes que les toca entran solos a la lista de arriba, con el monto ya actualizado por ICC
+            desde su mes base.</p>
+        </div>
+      </details>
+
       <details class="card" id="pt-cancelados-card" style="margin-top:14px;display:none">
         <summary class="pt-canc-sum">
           <span class="pt-canc-flecha">▸</span>
@@ -12364,6 +12384,28 @@ function papelesCancelados() {
     });
 }
 
+// Hay clientes que entran ahora pero arrancan a pagar más adelante. Hasta
+// que les toca no van en la liquidación del mes: no suman al total, no les
+// llega el mail ni el recordatorio.
+//
+// Esto NO toca la actualización: el mes base sigue siendo el mes base, así
+// que el importe del primer mes sale igual que el de todos.
+function papelEmpiezaDespues(p, mes, anio) {
+  if (!p.cobra_desde_mes || !p.cobra_desde_anio) return false;
+  return (p.cobra_desde_anio * 12 + p.cobra_desde_mes) > (anio * 12 + mes);
+}
+
+// Los que todavía no empezaron, para la lista de abajo.
+function papelesFuturos() {
+  const { mes, anio } = ptMesDestino();
+  const q = ($('#pt-buscar')?.value || '').toLowerCase().trim();
+  return (state.papeles || [])
+    .filter(p => p.activo && papelEmpiezaDespues(p, mes, anio))
+    .filter(p => !q || `${p.cliente} ${p.propietario} ${p.inmueble}`.toLowerCase().includes(q))
+    .sort((a, b) => (a.cobra_desde_anio * 12 + a.cobra_desde_mes)
+                  - (b.cobra_desde_anio * 12 + b.cobra_desde_mes));
+}
+
 function papelesFiltrados() {
   const q = ($('#pt-buscar')?.value || '').toLowerCase().trim();
   const est = $('#pt-estado')?.value ?? 'activos';
@@ -12372,6 +12414,8 @@ function papelesFiltrados() {
   return (state.papeles || []).filter(p => {
     // Los cancelados tienen su propia lista abajo
     if (papelCancelado(p, mes, anio)) return false;
+    // Los que todavía no arrancaron, también
+    if (papelEmpiezaDespues(p, mes, anio)) return false;
     if (est === 'activos' && !p.activo) return false;
     if (est === 'inactivos' && p.activo) return false;
     if (cobro === 'pagados' && !pagoDe(p.id, mes, anio)) return false;
@@ -12412,7 +12456,7 @@ function renderPapeles() {
   }, { n: 0, total: 0, sinIcc: 0, nCob: 0, cobrado: 0 });
   const pendiente = totales.total - totales.cobrado;
   $('#pt-resumen').innerHTML =
-    `<b>${totales.n}</b> clientes · total <b>$${fmt(totales.total)}</b> · ` +
+    `<b>${totales.n}</b> cliente${totales.n === 1 ? '' : 's'} · total <b>$${fmt(totales.total)}</b> · ` +
     `<span style="color:var(--ok)">cobrado ${totales.nCob} · $${fmt(totales.cobrado)}</span>` +
     // "Todo cobrado" sólo si realmente hay algo que cobrar: sin ICC el total
     // da cero y decirlo sería engañoso.
@@ -12421,6 +12465,7 @@ function renderPapeles() {
       : (totales.total > 0.005 ? ' · <b style="color:var(--ok)">todo cobrado</b>' : '')) +
     (totales.sinIcc ? ` · <span style="color:var(--warn)">${totales.sinIcc} sin ICC base</span>` : '');
 
+  renderPapelesFuturos();
   renderPapelesCancelados();
 
   const tb = $('#pt-tabla tbody');
@@ -12461,6 +12506,29 @@ function renderPapeles() {
         <button class="btn ghost sm" onclick="ptEditar('${p.id}')">Editar</button>
       </td></tr>`;
   }).join('');
+}
+
+// Los que arrancan más adelante. Plegado abajo: no ensucian el mes en
+// curso, pero algo que desaparece dos meses de la vista es algo de lo que
+// nadie se acuerda, y después aparece sin que nadie lo haya visto venir.
+function renderPapelesFuturos() {
+  const card = $('#pt-futuros-card');
+  if (!card) return;
+  const filas = papelesFuturos();
+  if (!filas.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  $('#pt-futuros-tit').textContent =
+    `📅 ${filas.length} ${filas.length === 1 ? 'empieza' : 'empiezan'} más adelante`;
+
+  $('#pt-futuros-tabla tbody').innerHTML = filas.map(p => `<tr>
+      <td class="mono">${esc(p.cliente || '—')}</td>
+      <td><b>${esc(p.propietario)}</b></td>
+      <td>${esc(p.inmueble)}</td>
+      <td class="num">$${fmt(p.monto_base)}</td>
+      <td><span class="muted">${MESES[p.mes_base - 1]} ${p.anio_base}</span></td>
+      <td><span class="badge accent">${MESES[p.cobra_desde_mes - 1]} ${p.cobra_desde_anio}</span></td>
+      <td class="actions"><button class="btn ghost sm" onclick="ptEditar('${p.id}')">Editar</button></td>
+    </tr>`).join('');
 }
 
 function renderPapelesCancelados() {
@@ -12561,6 +12629,21 @@ window.ptEditar = function(id) {
         <div class="field" style="max-width:150px"><label>Cuotas restantes</label>
           <input type="number" id="pt-cuotas" min="0" value="${p.cuotas_restantes ?? ''}"></div>
       </div>
+      <div class="field-row">
+        <div class="field" style="max-width:290px">
+          <label>Cobrar desde <span class="sub" style="font-weight:400">(opcional)</span></label>
+          <div style="display:flex;gap:6px">
+            <select id="pt-desde-mes" style="flex:1">
+              <option value="">— desde ya —</option>
+              ${MESES.map((m, i) => `<option value="${i + 1}" ${p.cobra_desde_mes === i + 1 ? 'selected' : ''}>${m}</option>`).join('')}
+            </select>
+            <input type="number" id="pt-desde-anio" style="max-width:88px" placeholder="Año"
+                   value="${p.cobra_desde_anio ?? ''}">
+          </div>
+          <div class="hint" style="margin-top:4px">Si arranca más adelante, no aparece en la liquidación
+            hasta ese mes. El monto se sigue actualizando desde el mes base.</div>
+        </div>
+      </div>
       <div class="field"><label>Observaciones</label><input type="text" id="pt-obs" value="${esc(p.observaciones || '')}"></div>
       ${nuevo ? '' : `<div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400">
         <input type="checkbox" id="pt-activo" style="width:auto;margin:0" ${p.activo !== false ? 'checked' : ''}><span>Activo</span></label></div>`}
@@ -12597,6 +12680,23 @@ window.ptGuardar = async function(id) {
     cuotas_restantes: $('#pt-cuotas').value !== '' ? Number($('#pt-cuotas').value) : null,
     observaciones: $('#pt-obs').value.trim() || null,
   };
+
+  // "Cobrar desde": van el mes y el año juntos o ninguno. Media fecha no
+  // sirve para decidir nada, y la base tampoco la acepta.
+  const dMes = Number($('#pt-desde-mes').value) || null;
+  const dAnio = Number($('#pt-desde-anio').value) || null;
+  if ((dMes && !dAnio) || (!dMes && dAnio)) {
+    toast('En "Cobrar desde" van el mes y el año, o ninguno de los dos', 'warn'); return;
+  }
+  if (dMes && (dAnio < 2020 || dAnio > 2100)) { toast('El año de "Cobrar desde" no parece válido', 'warn'); return; }
+  // Empezar a cobrar antes del mes base daría un coeficiente menor a 1, o
+  // sea un descuento. Casi siempre es un error de carga, así que se avisa.
+  if (dMes && (dAnio * 12 + dMes) < (anioBase * 12 + mesBase)) {
+    toast(`Ojo: empieza a cobrarse antes de su mes base (${MESES[mesBase - 1]} ${anioBase})`, 'warn');
+  }
+  payload.cobra_desde_mes = dMes;
+  payload.cobra_desde_anio = dAnio;
+
   if (id) payload.activo = $('#pt-activo').checked;
 
   const btn = $('#pt-save');
