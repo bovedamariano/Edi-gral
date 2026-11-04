@@ -190,6 +190,13 @@ aside.sidebar{
 .pager button[disabled]{opacity:.4;cursor:default}
 .pager #sellos-pag-txt{min-width:220px}
 
+/* La diferencia de Papeles: es un numero para copiar y facturar, asi que
+   se nota que se puede tocar. */
+.pt-dif{cursor:pointer;border-bottom:1px dashed var(--line);white-space:nowrap}
+.pt-dif:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.pt-dif .cp-ic{font-size:.72rem;opacity:.45}
+.pt-dif:hover .cp-ic{opacity:1}
+
 /* Capturas de una tarea. Las miniaturas son chicas a proposito: la lista de
    tareas se escanea de arriba a abajo y una imagen grande la corta. La que
    importa se agranda con un clic. */
@@ -2172,6 +2179,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <thead><tr>
             <th>Cliente</th><th>Propietario</th><th>Inmueble</th>
             <th class="num">Monto base</th><th>Base</th><th class="num">Actualizado</th>
+            <th class="num">Diferencia</th>
             <th class="num">Cuotas</th><th>Cuenta</th><th style="text-align:center">Cobrado</th><th class="actions"></th>
           </tr></thead>
           <tbody></tbody>
@@ -8958,6 +8966,111 @@ function buscarPorNombre(crudo, lista, getNombre) {
   return { seguro: false, item: mismoApellido[0], coincide: nt, porApellido: true };
 }
 
+// ¿Este número de cliente está en Papeles de trabajo?
+//
+// El identificador de la transferencia trae el número de cliente, y en
+// Papeles ese número es la clave. Si coincide, el que está mirando el
+// extracto sabe que esa plata puede ser del aporte mensual, sin tener que
+// acordarse de memoria ni abrir la otra pestaña.
+//
+// Puede haber más de uno: la misma persona con dos lotes.
+// La UVI del día, o la del último día hábil anterior: los sábados y
+// domingos no se publica y la transferencia sí puede ser de un lunes
+// feriado.
+function uviParaFecha(fecha) {
+  if (!fecha) return null;
+  const exacta = (state.uvi || []).find(u => u.fecha === fecha);
+  if (exacta) return Number(exacta.valor);
+  const previa = (state.uvi || []).filter(u => u.fecha <= fecha)
+    .sort((a, b) => a.fecha < b.fecha ? 1 : -1)[0];
+  return previa ? Number(previa.valor) : null;
+}
+
+// Cuántas UVIs cancela una transferencia.
+//
+// Sólo tiene sentido si el importe está en PESOS: dividir pesos por "pesos
+// que vale una UVI" da UVIs. Si la cuenta ya es en UVI el importe viene en
+// UVIs y dividirlo otra vez sería un disparate; si es en dólares, la cuenta
+// no cierra con una cotización que está en pesos.
+function uvisQueCancela(t, cta) {
+  const moneda = cta?.moneda || 'ARS';
+  if (moneda !== 'ARS') return null;
+  const u = t.cotiz_uvi != null ? Number(t.cotiz_uvi) : uviParaFecha(t.fecha);
+  if (!u || u <= 0) return null;
+  return { uvis: Number(t.importe) / u, cotiz: u, delDia: t.cotiz_uvi == null };
+}
+
+function papelesDeCliente(nc) {
+  const n = String(nc || '').trim();
+  if (!n) return [];
+  return (state.papeles || []).filter(p => p.activo !== false && String(p.cliente || '').trim() === n);
+}
+
+// Cuánto puede diferir el importe del aporte y seguir considerándose el
+// mismo pago. Diez pesos cubre el redondeo y los centavos que se pierden en
+// el camino, sin llegar a emparejar dos cosas distintas.
+const PAPELES_TOLERANCIA = 10;
+
+// Busca a qué papel de trabajo corresponde una transferencia, por dos
+// caminos a la vez:
+//
+//   nombre · el identificador del extracto trae el número de cliente y ese
+//            número está en Papeles. Es el camino fuerte.
+//   monto  · el importe coincide con el aporte del mes (±$10). Sirve cuando
+//            paga un familiar, el titular de otra cuenta o alguien que no
+//            está en los identificadores: ahí el nombre no dice nada pero el
+//            monto canta.
+//
+// Cada coincidencia queda marcada con cómo se encontró, porque no valen lo
+// mismo: el nombre identifica, el monto sugiere.
+function papelesDeTransferencia(t) {
+  const desc = typeof t === 'string' ? t : t?.descripcion;
+  const ident = identificarTransferencia(desc);
+  const porNombre = ident?.nc ? papelesDeCliente(ident.nc) : [];
+
+  // El aporte se compara contra el mes de la transferencia.
+  const importe = typeof t === 'string' ? null : Number(t?.importe);
+  let mes = null, anio = null;
+  if (importe && t?.fecha) {
+    const f = new Date(t.fecha + 'T12:00:00');
+    mes = f.getMonth() + 1; anio = f.getFullYear();
+  }
+
+  const vistos = new Map();
+  porNombre.forEach(p => vistos.set(p.id, { p, nombre: true, monto: false, aporte: null, dif: null }));
+
+  if (importe && mes) {
+    (state.papeles || []).forEach(p => {
+      if (p.activo === false) return;
+      const m = montoActualizado(p, mes, anio);
+      if (m == null) return;
+      const dif = importe - m;
+      if (Math.abs(dif) > PAPELES_TOLERANCIA) return;
+      const y = vistos.get(p.id);
+      if (y) { y.monto = true; y.aporte = m; y.dif = dif; }
+      else vistos.set(p.id, { p, nombre: false, monto: true, aporte: m, dif });
+    });
+  }
+
+  // Al que coincidió por nombre también se le calcula el aporte, para poder
+  // mostrar la diferencia aunque el monto no haya entrado en la tolerancia.
+  if (mes) {
+    vistos.forEach(v => {
+      if (v.aporte == null) {
+        v.aporte = montoActualizado(v.p, mes, anio);
+        v.dif = (importe && v.aporte != null) ? importe - v.aporte : null;
+      }
+    });
+  }
+
+  // Primero los que coinciden por las dos cosas, después por nombre, al
+  // final los que sólo pegan por monto.
+  const papeles = [...vistos.values()].sort((a, b) =>
+    (b.nombre + b.monto) - (a.nombre + a.monto) || (b.nombre - a.nombre));
+
+  return { papeles, ident, mes, anio };
+}
+
 function identificarTransferencia(desc) {
   const crudo = nombreDeDescripcion(desc);
   const r = buscarPorNombre(crudo, state.identificadores || [], i => i.nombre_transfiere);
@@ -10494,6 +10607,68 @@ window.verCocheraDeTransf = function(id) {
     <div class="modal-foot">
       <button class="btn ghost" onclick="closeModal()">Cerrar</button>
       <button class="btn accent" onclick="closeModal(); switchTab('cocheras'); setTimeout(()=>editCochera('${c.id}'),150)">Abrir cochera</button>
+    </div>`);
+};
+
+// El detalle de lo que tiene ese cliente en Papeles de trabajo, con el
+// aporte del mes al lado de lo que transfirió: la comparación es el motivo
+// por el que alguien abre esto.
+window.verPapelesDeTransf = function(id) {
+  const t = (state.transfBanco || []).find(x => x.id === id);
+  if (!t) return;
+  const { papeles, ident, mes, anio } = papelesDeTransferencia(t);
+  if (!papeles.length) { toast('No hay nada en Papeles de trabajo que coincida', 'warn'); return; }
+
+  const soloMonto = !papeles.some(x => x.nombre);
+
+  showModal(`<div class="modal-head"><h3>📋 ${soloMonto ? 'Coincide con un aporte de Papeles' : 'Este cliente está en Papeles de trabajo'}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      ${ident
+        ? `<div class="badge ${ident.seguro ? 'ok' : 'warn'}" style="margin-bottom:10px">
+             ${ident.seguro ? '✓ Identificada como' : '≈ Se parece a'} <b>${esc(ident.titular)}</b>${ident.nc ? ` · cliente ${esc(ident.nc)}` : ''}
+           </div>`
+        : `<div class="badge warn" style="margin-bottom:10px">
+             Sin identificador para <b>${esc(nombreDeDescripcion(t.descripcion) || '—')}</b>: esto salió sólo por el importe
+           </div>`}
+      <div class="tbl-wrap"><table class="tbl"><thead><tr>
+        <th>Inmueble</th><th class="num">Aporte de ${MESES[mes - 1]} ${anio}</th>
+        <th class="num">Intereses</th>
+        <th class="num">Transferido</th><th>Diferencia</th><th>Coincide por</th><th>Cobrado</th>
+      </tr></thead><tbody>
+      ${papeles.map(x => {
+        const p = x.p, m = x.aporte, dif = x.dif;
+        const pago = pagoDe(p.id, mes, anio);
+        const via = [x.nombre ? 'nombre' : '', x.monto ? 'monto' : ''].filter(Boolean).join(' y ');
+        return `<tr>
+          <td><b>${esc(p.inmueble)}</b><div class="muted" style="font-size:.75rem">${esc(p.propietario)} · ${esc(p.cliente || '')}</div></td>
+          <td class="num">${m != null ? `<b>$${fmt(m)}</b>` : '<span style="color:var(--warn)">sin ICC</span>'}</td>
+          <td class="num">${m != null
+            ? `<span class="pt-dif" title="Diferencia por ICC a facturar · clic para copiar"
+                     onclick="copiarNumero(${m - Number(p.monto_base || 0)})">$${fmt(m - Number(p.monto_base || 0))} <span class="cp-ic">⎘</span></span>`
+            : '<span class="muted">—</span>'}</td>
+          <td class="num">$${fmt(t.importe)}</td>
+          <td>${dif === null ? '<span class="muted">—</span>'
+            : Math.abs(dif) < 0.01 ? '<span class="badge ok">exacto</span>'
+            : Math.abs(dif) <= PAPELES_TOLERANCIA
+              ? `<span class="badge ok">${dif > 0 ? '+' : '−'}$${fmt(Math.abs(dif))}</span>`
+              : `<span style="color:var(--warn)">${dif > 0 ? '+' : ''}$${fmt(dif)}</span>`}</td>
+          <td><span class="badge ${x.nombre && x.monto ? 'ok' : x.nombre ? 'accent' : 'warn'}" style="font-size:.68rem">${via}</span></td>
+          <td><button class="btn ${pago ? 'ghost' : 'accent'} sm"
+                onclick="cobrarDesdeTransf('${p.id}','${t.id}').then(()=>verPapelesDeTransf('${t.id}'))"
+                title="${pago ? `Cobrado en ${MESES[mes - 1]} ${anio} · volver a impago` : `Marcar ${MESES[mes - 1]} ${anio} como cobrado`}">${pago ? '✓ cobrado' : 'Marcar cobrado'}</button></td>
+        </tr>`;
+      }).join('')}
+      </tbody></table></div>
+      <p class="hint" style="margin-top:8px">
+        ${papeles.length > 1 ? 'Hay más de uno: fijate cuál corresponde antes de imputar. ' : ''}
+        Los que coinciden sólo por <b>monto</b> son una pista, no una identificación:
+        puede ser otro cliente que paga lo mismo. Se toman como iguales hasta $${fmt(PAPELES_TOLERANCIA)} de diferencia.
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cerrar</button>
+      <button class="btn accent" onclick="closeModal(); switchTab('papeles')">Abrir papeles de trabajo</button>
     </div>`);
 };
 
@@ -12470,7 +12645,7 @@ function renderPapeles() {
 
   const tb = $('#pt-tabla tbody');
   if (!filt.length) {
-    tb.innerHTML = `<tr><td colspan="10" class="empty">${
+    tb.innerHTML = `<tr><td colspan="11" class="empty">${
       papelesCancelados().length ? 'No queda nadie con cuotas pendientes' : 'Sin clientes cargados'
     }</td></tr>`;
     return;
@@ -12478,6 +12653,9 @@ function renderPapeles() {
 
   tb.innerHTML = filt.map(p => {
     const m = montoActualizado(p, mes, anio);
+    // Lo que subió por ICC respecto del monto base. Es lo que se factura
+    // aparte, así que se puede copiar con un clic en vez de restarlo a mano.
+    const dif = m != null ? m - Number(p.monto_base || 0) : null;
     const cta = (state.cuentas || []).find(c => c.id === p.cuenta_id);
     const mails = parseMails(p.emails);
     const pocas = p.cuotas_restantes != null && p.cuotas_restantes <= 3;
@@ -12492,6 +12670,10 @@ function renderPapeles() {
       <td class="num">$${fmt(p.monto_base)}</td>
       <td class="muted" style="font-size:.78rem">${MESES[p.mes_base - 1].slice(0,3)} ${p.anio_base}</td>
       <td class="num">${m != null ? `<b>$${fmt(m)}</b>` : '<span style="color:var(--warn)">sin ICC</span>'}</td>
+      <td class="num">${dif != null
+        ? `<span class="pt-dif" title="Actualizado menos monto base · clic para copiar"
+                 onclick="copiarNumero(${dif})">$${fmt(dif)} <span class="cp-ic">⎘</span></span>`
+        : '<span class="muted">—</span>'}</td>
       <td class="num">${p.cuotas_restantes != null
         ? `<span class="badge ${p.cuotas_restantes === 0 ? 'err' : pocas ? 'warn' : 'muted'}">${p.cuotas_restantes}</span>`
         : '<span class="muted">—</span>'}</td>
@@ -12558,10 +12740,23 @@ function renderPapelesCancelados() {
 
 // Marcar el cobro descuenta una cuota; desmarcarlo la devuelve. Como el
 // cobro se guarda por mes, no hay forma de descontar dos veces el mismo.
-window.ptTogglePago = async function(id) {
+// Copia un número sin separadores de miles ni símbolo, para pegarlo en el
+// sistema de facturación: ahí "1.234,56" no entra, 1234.56 sí.
+window.copiarNumero = async function(n) {
+  const txt = (Math.round(Number(n) * 100) / 100).toFixed(2);
+  try { await navigator.clipboard.writeText(txt); toast(`Copiado: ${txt}`, 'ok'); }
+  catch { toast('No se pudo copiar', 'err'); }
+};
+
+// mesForzado/anioForzado los manda Transferencias: ahí lo que corresponde es
+// el mes de la transferencia, no el que esté elegido en Papeles. Sin eso,
+// marcar cobrado desde el extracto imputaba el pago al mes equivocado.
+window.ptTogglePago = async function(id, mesForzado, anioForzado) {
   const p = (state.papeles || []).find(x => x.id === id);
   if (!p) return;
-  const { mes, anio } = ptMesDestino();
+  const { mes, anio } = (mesForzado && anioForzado)
+    ? { mes: Number(mesForzado), anio: Number(anioForzado) }
+    : ptMesDestino();
   const ya = pagoDe(id, mes, anio);
   const tieneCuotas = p.cuotas_restantes != null;
 
@@ -12592,6 +12787,22 @@ window.ptTogglePago = async function(id) {
           restan === 0 && tieneCuotas ? 'warn' : 'ok');
   }
   await loadPapeles(); await loadPapelesPagos(); renderPapeles();
+  // Si se marcó desde el extracto, esa pantalla también tiene que reflejarlo.
+  // El flotante lo repinta su propio botón, que sabe en qué fila está.
+  if (mesForzado) renderTransfBanco();
+};
+
+// Marca cobrado desde Transferencias, para el mes de la transferencia.
+window.cobrarDesdeTransf = async function(papelId, transfId) {
+  const t = (state.transfBanco || []).find(x => x.id === transfId);
+  const p = (state.papeles || []).find(x => x.id === papelId);
+  if (!t || !p) return;
+  const f = new Date(t.fecha + 'T12:00:00');
+  const mes = f.getMonth() + 1, anio = f.getFullYear();
+  const ya = pagoDe(papelId, mes, anio);
+  if (ya && !await confirmAction(
+        `${p.propietario} ya figura cobrado en ${MESES[mes - 1]} ${anio}. ¿Lo volvés a poner impago?`)) return;
+  await ptTogglePago(papelId, mes, anio);
 };
 
 // ---------- Alta y edición ----------
@@ -12989,6 +13200,8 @@ if ($('#pt-tabla')) {
       'Monto base': Number(p.monto_base),
       'Mes base': `${MESES[p.mes_base - 1]} ${p.anio_base}`,
       Actualizado: montoActualizado(p, mes, anio) ?? '',
+      Diferencia: (() => { const m = montoActualizado(p, mes, anio);
+        return m != null ? m - Number(p.monto_base || 0) : ''; })(),
       'Cuotas restantes': p.cuotas_restantes ?? '',
       Cobrado: pagoDe(p.id, mes, anio) ? 'SI' : '',
       Mails: p.emails || '',
@@ -13156,6 +13369,15 @@ function renderTransfBanco() {
     const avisoCoch = coch
       ? ` <span class="badge ${coch.seguro ? 'accent' : 'warn'}" style="font-size:.68rem;cursor:pointer" onclick="event.stopPropagation();verCocheraDeTransf('${t.id}')" title="${coch.seguro ? 'Alquiler de cochera' : 'Se parece a un alquiler de cochera'}">🅿️ ${coch.seguro ? '' : '¿'}${esc(coch.cochera)}${coch.seguro ? '' : '?'} · ${esc(coch.nc)}${coch.monto != null ? ` · ${fmt(coch.monto)}` : ''}</span>`
       : '';
+    // Si el que transfirió está en Papeles de trabajo, se avisa acá mismo
+    // con el inmueble: es la pregunta que se hace el que concilia.
+    const pap = papelesDeTransferencia(t);
+    // El color dice qué tan seguro es: si el nombre identifica, va firme;
+    // si sólo pegó el monto, va como duda para que lo miren antes.
+    const porNom = pap.papeles.some(x => x.nombre);
+    const avisoPap = pap.papeles.length
+      ? ` <span class="badge ${porNom ? 'accent' : 'warn'}" style="font-size:.68rem;cursor:pointer" onclick="event.stopPropagation();verPapelesDeTransf('${t.id}')" title="${porNom ? 'Este cliente está en Papeles de trabajo' : 'El importe coincide con el aporte de alguien de Papeles'}">📋 ${porNom ? '' : '≈ '}${esc(pap.papeles.map(x => `${x.p.cliente || '—'} · ${x.p.inmueble}`).join(' / '))}${pap.papeles.some(x => x.monto) ? ' · monto ✓' : ''}</span>`
+      : '';
     const cesPend = ces.filter(x => !x.c.facturado).length;
     const avisoCes = ces.length
       ? ` <span class="badge ${cesPend ? 'warn' : 'ok'}" style="font-size:.68rem;cursor:pointer" onclick="event.stopPropagation();verCesionesCoincidentes('${t.id}')" title="${cesPend ? 'Cesión del mismo día e importe, sin facturar' : 'Cesión del mismo día e importe, ya facturada'}">🔗 ${cesPend ? 'cesión sin facturar' : 'cesión facturada'}${ces.length > 1 ? ` (${ces.length})` : ''}</span>`
@@ -13163,10 +13385,17 @@ function renderTransfBanco() {
     return `<tr data-id="${t.id}" style="${t.realizada ? 'opacity:.72' : ''}">
       <td><input type="checkbox" class="tb-chk" data-id="${t.id}" ${_tbSel.has(t.id) ? 'checked' : ''}></td>
       <td>${fmtFecha(t.fecha)}</td>
-      <td style="max-width:420px">${esc(t.descripcion)} ${aviso}${avisoCoch}${avisoCes}</td>
+      <td style="max-width:420px">${esc(t.descripcion)} ${aviso}${avisoCoch}${avisoCes}${avisoPap}</td>
       <td class="num"><b class="${otraMoneda ? 'mon-val' : ''}">${simb} ${fmt(t.importe)}</b></td>
       <td class="num">${t.cotiz_usd != null ? fmt(t.cotiz_usd) : '<span class="muted">—</span>'}</td>
-      <td class="num">${t.cotiz_uvi != null ? fmt(t.cotiz_uvi) : '<span class="muted">—</span>'}</td>
+      <td class="num">${(() => {
+        const q = uvisQueCancela(t, cta);
+        const cot = t.cotiz_uvi != null ? fmt(t.cotiz_uvi)
+                  : (q ? `<span class="muted">${fmt(q.cotiz)}</span>` : '<span class="muted">—</span>');
+        return cot + (q
+          ? `<div style="font-size:.72rem;color:var(--accent);font-weight:600">${fmt(q.uvis)} UVI</div>`
+          : '');
+      })()}</td>
       <td class="actions" style="display:flex;gap:6px;justify-content:flex-end">
         ${outlookConfigurado() ? `<button class="btn ghost sm" onclick="buscarMailsTransf('${t.id}')" title="Buscar mails relacionados en Outlook">📧</button>` : ''}
         <button class="btn ghost sm" onclick="verTransfFlotante('${t.id}')" title="Abrir en ventana flotante">🪟</button>
@@ -13573,12 +13802,32 @@ async function abrirFlotanteLectura(t) {
       .fl-ident.ok{background:var(--accent-soft);border:1px solid var(--accent-2);color:var(--ink)}
       .fl-ident.duda{background:#fff7ed;border:1px solid var(--warn);color:#92400e}
       .fl-ident.no{background:var(--surface-2);border:1px solid var(--line);color:var(--ink-3);font-size:.69rem}
+      .fl-sub{font-size:.62rem;color:#1d4ed8;font-weight:700;white-space:nowrap;cursor:pointer;line-height:1.15}
+      .fl-sub:hover{text-decoration:underline}
+      /* Los intereses van en pastilla ámbar: es el número que se copia para
+         facturar, y tiene que saltar a la vista entre tanto número. */
+      .fl-int{font-size:.62rem;font-weight:700;white-space:nowrap;cursor:pointer;line-height:1.15;
+        background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:4px;padding:0 5px;margin-left:4px}
+      .fl-int:hover{background:#fde68a}
+      .fl-pap{display:flex;align-items:center;gap:6px}
+      .fl-pap-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .fl-ok-mon{color:#15803d;font-weight:600}
+      .fl-dud{opacity:.7}
+      .fl-cob{flex:0 0 auto;border:1px solid var(--accent);background:var(--accent);color:#fff;
+        font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:4px;cursor:pointer;line-height:1.5}
+      .fl-cob:hover{filter:brightness(1.08)}
+      .fl-cob.si{background:transparent;border-color:#15803d;color:#15803d}
+      .fl-cob:disabled{opacity:.5;cursor:default}
       .fl-grid{display:grid;grid-template-columns:minmax(0,.78fr) minmax(0,1.08fr) minmax(0,1fr) minmax(0,.82fr) minmax(0,.82fr);gap:5px;
                background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:4px 6px}
       .fl-c{min-width:0}
       .fl-lab{font-size:.55rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);line-height:1.1}
+      /* flex-wrap en vez de overflow:hidden. Antes, en una ventana angosta lo
+         que no entraba se cortaba en silencio: las UVIs y los intereses
+         directamente no se veían. Ahora bajan a un segundo renglón dentro de
+         la misma celda, que crece unos pocos pixeles y muestra todo. */
       .fl-val{font-size:.78rem;font-weight:700;color:var(--ink);display:flex;gap:2px;align-items:center;
-              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+              flex-wrap:wrap;white-space:nowrap;line-height:1.35}
       .fl-val.mono{font-family:monospace;font-size:.7rem;letter-spacing:-.02em}
       .fl-val small{font-weight:400;font-size:.66rem;color:var(--warn)}
       button.cp{font-size:.58rem;padding:0 2px;border:none;background:transparent;
@@ -13616,6 +13865,13 @@ function pintarFlotanteLectura(t) {
   const ident = identificarTransferencia(t.descripcion);
   const ces = cesionesQueCoinciden(t);
   const coch = identificarCochera(t.descripcion, t.fecha);
+  const infoPap = papelesDeTransferencia(t);
+  const pap = infoPap.papeles;
+  const mesT = infoPap.mes, anioT = infoPap.anio;
+  const uvisCancela = uvisQueCancela(t, cta);
+  // Los intereses del mes de ese papel: lo actualizado menos el monto base.
+  const interes = (pap.length === 1 && pap[0].aporte != null)
+    ? pap[0].aporte - Number(pap[0].p.monto_base || 0) : null;
 
   const cp = v => `<button class="cp" title="Copiar" onclick="navigator.clipboard.writeText('${String(v).replace(/'/g, "\\'")}')">⎘</button>`;
   const celda = (lab, val, cls = '') =>
@@ -13631,21 +13887,53 @@ function pintarFlotanteLectura(t) {
     ${ident ? `<div class="fl-ident ${ident.seguro ? 'ok' : 'duda'}" title="${ident.seguro ? 'según' : 'se parece a'} ${esc(ident.coincide)}">
         ${ident.seguro ? '✓' : '≈ ¿'}<b>${esc(ident.titular)}</b>${ident.seguro ? '' : '?'}${ident.nc ? ` · ${esc(ident.nc)}` : ''}${ident.empr ? ` · ${esc(ident.empr)}` : ''}${cp(ident.titular)}
       </div>`
-      : `<div class="fl-ident no" title="No hay identificador cargado">Sin identificador · ${esc(nombreDeDescripcion(t.descripcion) || '—')}</div>`}
+      : pap.length
+        // Si abajo ya sale de quién es por el monto, repetir "sin
+        // identificador" gasta un renglón entero para no decir nada.
+        ? ''
+        : `<div class="fl-ident no" title="No hay identificador cargado">Sin identificador · ${esc(nombreDeDescripcion(t.descripcion) || '—')}</div>`}
     <div class="fl-grid">
       ${celda('Fecha', t.fecha.slice(8,10) + '/' + t.fecha.slice(5,7) + '/' + t.fecha.slice(2,4))}
-      ${celda(`Importe ${simb}`, `${fmt(t.importe)}${cp(t.importe)}`)}
-      ${celda('CUIT', cuit ? `${cuit}${cp(cuit)}` : sinDato, 'mono')}
+      ${celda(`Importe ${simb}`, `${fmt(t.importe)}${cp(t.importe)}`
+        // La diferencia por ICC es lo que se factura aparte. Sólo se muestra
+        // con UN papel coincidente: con dos, poner un número sería elegir por
+        // el otro cuál de los dos lotes está pagando.
+        + (interes != null ? `<span class="fl-int" title="Intereses a facturar · clic para copiar"
+             onclick="navigator.clipboard.writeText('${interes.toFixed(2)}')">int. ${fmt(interes)} ⎘</span>` : ''))}
+      ${cuit ? celda('CUIT', `${cuit}${cp(cuit)}`, 'mono') : ''}
       ${celda(`USD${t.cotiz_usd != null ? '✓' : ''}`, usdRef != null ? `${fmt(usdRef)}${cp(usdRef)}` : sinDato)}
-      ${celda(`UVI${t.cotiz_uvi != null ? '✓' : ''}`, uviRef != null ? `${fmt(uviRef)}${cp(uviRef)}` : sinDato)}
+      ${celda(`UVI${t.cotiz_uvi != null ? '✓' : ''}`,
+        (uviRef != null ? `${fmt(uviRef)}${cp(uviRef)}` : sinDato)
+        // Las UVIs van DENTRO de la celda de la cotización y sin ninguna
+        // palabra: el rótulo de arriba ya dice UVI, y en una ventana de 700px
+        // cada palabra de más empuja el número fuera de la pantalla.
+        + (uvisCancela ? `<span class="fl-sub" title="UVIs que cancela · clic para copiar"
+             onclick="navigator.clipboard.writeText('${uvisCancela.uvis.toFixed(2)}')">= ${fmt(uvisCancela.uvis)}</span>` : ''))}
     </div>
     ${coch ? `<div class="fl-ident ${coch.seguro ? 'ok' : 'duda'}" style="margin-top:4px">🅿️ ${coch.seguro ? 'Cochera' : '¿Cochera'} <b>${esc(coch.cochera)}</b>${coch.seguro ? '' : '?'} · ${esc(coch.nc)}${coch.monto != null ? ` · $${fmt(coch.monto)}` : ' · <small>sin monto</small>'}</div>` : ''}
     ${ces.length ? `<div class="fl-ident ${ces.some(x => !x.c.facturado) ? 'duda' : 'ok'}" style="margin-top:4px">🔗 Cesión de <b>${esc(ces[0].c.cedente)}</b>${ces.length > 1 ? ` (+${ces.length - 1})` : ''} · ${ces.some(x => !x.c.facturado) ? 'sin facturar' : 'facturada'}</div>` : ''}
+    ${pap.map((x, i) => {
+      const pagado = !!pagoDe(x.p.id, mesT, anioT);
+      return `<div class="fl-ident ${x.nombre ? 'ok' : 'duda'} fl-pap" style="margin-top:4px">
+        <span class="fl-pap-txt">📋 ${x.nombre ? '' : '≈ '}<b>${esc(x.p.cliente || '—')}</b> · ${esc(x.p.inmueble)}${
+          x.monto ? ' · <span class="fl-ok-mon">monto ✓</span>' : ''}</span>
+        <button class="fl-cob ${pagado ? 'si' : ''}" data-pap="${x.p.id}"
+                title="${pagado ? `Ya figura cobrado en ${MESES[mesT - 1]} ${anioT}` : `Marcar ${MESES[mesT - 1]} ${anioT} como cobrado`}">${pagado ? '✓ cobrado' : 'cobrado'}</button>
+      </div>`;
+    }).join('')}
     <div class="fl-nav">
       <button class="fl-sec" id="fl-prev" title="Anterior" ${idx <= 0 ? 'disabled' : ''}>←</button>
       <button class="fl-ok" id="fl-hecho">${t.realizada ? '↩ Volver a pendiente' : '✓ Realizada y siguiente'}</button>
       <button class="fl-sec" id="fl-next" title="Siguiente" ${idx < 0 || idx >= pend.length - 1 ? 'disabled' : ''}>→</button>
     </div>`;
+
+  pd.querySelectorAll('.fl-cob').forEach(b => {
+    b.onclick = async () => {
+      b.disabled = true;
+      await cobrarDesdeTransf(b.dataset.pap, t.id);
+      pintarFlotanteLectura(t);
+    };
+  });
 
   const ir = d => { const n = pend[idx + d]; if (n) pintarFlotanteLectura(n); };
   pd.getElementById('fl-prev').onclick = () => ir(-1);
