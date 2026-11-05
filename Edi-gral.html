@@ -380,6 +380,7 @@ select.en-moneda,.field select.en-moneda{border-left:4px solid var(--mon)}
 .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:.72rem;font-weight:600}
 .badge.ok{background:var(--ok-soft);color:var(--ok)}
 .badge.warn{background:var(--warn-soft);color:var(--warn)}
+.badge.err{background:var(--err-soft);color:var(--err)}
 .badge.muted{background:var(--surface-2);color:var(--ink-3)}
 .badge.accent{background:var(--accent-soft);color:var(--accent)}
 
@@ -2188,6 +2189,38 @@ details[open] .ident-toggle{transform:rotate(180deg)}
 
       <!-- Los que terminaron de pagar. Plegado: no es trabajo pendiente,
            pero hace falta poder mirar quién canceló y cuándo. -->
+      <details class="card" id="pt-mora-card" style="margin-top:14px;display:none;border-left:3px solid var(--err)">
+        <summary class="pt-canc-sum">
+          <span class="pt-canc-flecha">▸</span>
+          <span id="pt-mora-tit"></span>
+          <span class="sub" style="font-weight:400;margin-left:6px">no pagaron el mes cerrado</span>
+        </summary>
+        <div style="padding-top:12px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+            <span class="sub">Mes que se controla:</span>
+            <b id="pt-mora-mes"></b>
+            <span class="sub" style="margin-left:10px">Se controla desde:</span>
+            <select id="pt-mora-desde-mes" style="width:auto;padding:4px 7px;font-size:.82rem"></select>
+            <input type="number" id="pt-mora-desde-anio" style="width:78px;padding:4px 7px;font-size:.82rem" placeholder="Año">
+            <button class="btn ghost sm" id="pt-mora-guardar">Guardar</button>
+            <span style="flex:1"></span>
+            <button class="btn ghost sm" id="pt-mora-todos">✉ Bajar todos los avisos</button>
+          </div>
+          <div class="tbl-wrap"><table class="tbl" id="pt-mora-tabla">
+            <thead><tr>
+              <th>Cliente</th><th>Propietario</th><th>Inmueble</th>
+              <th class="num">Debe</th><th>No pagó</th><th>Último pago</th><th class="actions"></th>
+            </tr></thead>
+            <tbody></tbody>
+            <tfoot></tfoot>
+          </table></div>
+          <p class="hint" style="margin-top:8px">Se controla el mes anterior al que estás mirando arriba,
+            porque el mes en curso todavía no venció. <b>Debe</b> es la suma de todos los meses impagos,
+            no sólo el último. El mes base de acá arriba corta hasta dónde se mira para atrás,
+            salvo en los clientes que tienen <b>Cobrar desde</b> cargado: en esos manda esa fecha.</p>
+        </div>
+      </details>
+
       <details class="card" id="pt-futuros-card" style="margin-top:14px;display:none">
         <summary class="pt-canc-sum">
           <span class="pt-canc-flecha">▸</span>
@@ -2634,6 +2667,7 @@ const state = {
   bancosCuentas: [],
   transfBanco: [],
   transfArchivo: [],
+  config: {},
   archivoMeses: [],
   archivoDesde: null,
   finalizadas: [],
@@ -3121,7 +3155,7 @@ async function afterLogin() {
     loadIcc(), loadAlicuotas(), loadBoletos(), loadPosesiones(),
     loadCesiones(), loadCuentas(), loadCotizaciones(), loadGastosConceptos(),
     loadTareas(), loadTareasBaja(), loadResponsables(), loadTransferencias(), loadEmprendimientos(), loadIdentificadores(), loadCuentasRentas(), loadResponsablesSellos(), loadInstructivos(), loadRetiros(), loadRetirosPersonas(), loadBiblioteca(), loadBibAsignaciones(), loadCocheras(),
-    loadBancosCuentas(), loadTransferenciasBanco(), loadArchivoMeses(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(), loadMailReglas(), loadSugerencias(), loadSeguimiento(), loadSimTasas(),
+    loadBancosCuentas(), loadTransferenciasBanco(), loadArchivoMeses(), loadConfig(), loadCotizacionesUvi(), loadCotizacionesBna(), loadIdentEmpr(), loadFinalizadas(), loadBadlar(), loadDeudaCalculos(), loadPapeles(), loadPapelesPagos(), loadIccEnviadas(), loadSpeeches(), loadMailReglas(), loadSugerencias(), loadSeguimiento(), loadSimTasas(),
     loadFeriados(new Date().getFullYear()),
     loadFeriados(new Date().getFullYear() + 1),
   ]);
@@ -9987,6 +10021,13 @@ const ARCHIVO_TOPE  = 60000;   // ~5 años a 1000 por mes
 
 // Qué meses hay y cuántos movimientos tiene cada uno. Son unas pocas
 // filas: la cuenta la hace Postgres, no el navegador.
+// Los ajustes que valen para todos. Es una tabla chica, se lee al entrar.
+async function loadConfig() {
+  const { data, error } = await sb.from('app_config').select('clave,valor');
+  if (error) { console.warn('app_config:', error.message); return; }
+  state.config = Object.fromEntries((data || []).map(x => [x.clave, x.valor]));
+}
+
 async function loadArchivoMeses() {
   const { data, error } = await sb.from('transferencias_archivo_meses')
     .select('*').order('anio', { ascending: false }).order('mes', { ascending: false });
@@ -12640,6 +12681,7 @@ function renderPapeles() {
       : (totales.total > 0.005 ? ' · <b style="color:var(--ok)">todo cobrado</b>' : '')) +
     (totales.sinIcc ? ` · <span style="color:var(--warn)">${totales.sinIcc} sin ICC base</span>` : '');
 
+  renderPapelesMora();
   renderPapelesFuturos();
   renderPapelesCancelados();
 
@@ -12688,6 +12730,209 @@ function renderPapeles() {
         <button class="btn ghost sm" onclick="ptEditar('${p.id}')">Editar</button>
       </td></tr>`;
   }).join('');
+}
+
+// ---------- Gestión de mora ----------
+//
+// El mes que se controla es el ANTERIOR al que se está mirando arriba: el
+// mes en curso todavía no venció, así que nadie está en mora por él.
+function ptMesMora() {
+  const { mes, anio } = ptMesDestino();
+  const k = anio * 12 + mes - 1;          // un mes para atrás
+  return { mes: ((k - 1) % 12) + 1, anio: Math.floor((k - 1) / 12) };
+}
+
+// Desde qué mes se controla la mora, para todos. Los pagos anteriores a esa
+// fecha no se venían cargando en la app, así que contarlos como impagos
+// haría aparecer debiendo a clientes que están al día.
+function moraDesde() {
+  const c = state.config?.mora_desde;
+  if (!c || !c.mes || !c.anio) return null;
+  return { mes: Number(c.mes), anio: Number(c.anio) };
+}
+
+// Todos los meses impagos de un cliente, desde que empezó a pagar hasta el
+// mes que se controla. Mirar sólo el último esconde al que hace cuatro meses
+// que no paga, que es justamente el que hay que perseguir.
+function mesesImpagos(p, hastaMes, hastaAnio) {
+  const hasta = hastaAnio * 12 + hastaMes;
+
+  // Desde cuándo se le cobra.
+  //
+  // Si el cliente tiene "cobrar desde" cargado, esa fecha manda y punto: la
+  // puso alguien a propósito sabiendo de cuándo arranca la financiación, y
+  // es más confiable que cualquier regla general.
+  //
+  // El mes base global es para los otros: los que vienen de antes de que la
+  // app llevara los cobros, donde el mes base es la fecha del contrato y los
+  // meses de atrás nunca se cargaron. Ahí sí hay que recortar, porque si no
+  // aparecen debiendo plata que ya pagaron.
+  let desde;
+  if (p.cobra_desde_mes && p.cobra_desde_anio) {
+    desde = p.cobra_desde_anio * 12 + p.cobra_desde_mes;
+  } else {
+    desde = p.anio_base * 12 + p.mes_base;
+    const md = moraDesde();
+    if (md) desde = Math.max(desde, md.anio * 12 + md.mes);
+  }
+
+  if (desde > hasta) return [];
+
+  const out = [];
+  for (let k = desde; k <= hasta; k++) {
+    const mes = ((k - 1) % 12) + 1, anio = Math.floor((k - 1) / 12);
+    if (pagoDe(p.id, mes, anio)) continue;
+    out.push({ mes, anio, monto: montoActualizado(p, mes, anio) });
+  }
+  return out;
+}
+
+function papelesEnMora() {
+  const { mes, anio } = ptMesMora();
+  const q = ($('#pt-buscar')?.value || '').toLowerCase().trim();
+  return (state.papeles || [])
+    .filter(p => p.activo !== false)
+    // El que terminó de pagar no debe nada, y el que todavía no arrancó
+    // tampoco: ni uno ni otro van a la lista de mora.
+    .filter(p => p.cuotas_restantes !== 0)
+    .filter(p => !papelEmpiezaDespues(p, mes, anio))
+    .map(p => ({ p, impagos: mesesImpagos(p, mes, anio) }))
+    .filter(x => x.impagos.length)
+    .filter(x => !q || `${x.p.cliente} ${x.p.propietario} ${x.p.inmueble}`.toLowerCase().includes(q))
+    // Primero el que más debe: es por donde se empieza a llamar.
+    .sort((a, b) => b.impagos.length - a.impagos.length
+                 || deuda(b.impagos) - deuda(a.impagos));
+}
+
+const deuda = impagos => impagos.reduce((a, m) => a + (m.monto || 0), 0);
+
+// La frase, escrita como se dice. "Debe 1 cuotas: Octubre 2026" no se le
+// dice a nadie, y es lo que hay que leer al levantar el teléfono.
+function fraseImpagos(impagos) {
+  if (!impagos.length) return '';
+  const nom = m => `${MESES[m.mes - 1]} ${m.anio}`;
+  if (impagos.length === 1) return `No pagó el mes de ${nom(impagos[0])}`;
+  const ns = impagos.map(nom);
+  // Si son todos del mismo año, el año se dice una sola vez al final.
+  const mismoAnio = impagos.every(m => m.anio === impagos[0].anio);
+  const lista = mismoAnio
+    ? impagos.map(m => MESES[m.mes - 1])
+    : ns;
+  const ultimo = lista.pop();
+  return `No pagó ${lista.join(', ')} ni ${ultimo}${mismoAnio ? ` de ${impagos[0].anio}` : ''}`;
+}
+
+// El texto del aviso de mora. Es el que usa Cobranzas, tal cual.
+function textoMailMoraDeuda(p) {
+  return `
+Estimado/a Cliente: ${p.propietario}
+
+Nos dirigimos a Ud. para informarle que a la fecha posee un saldo pendiente de pago por su inmueble en
+
+${p.inmueble}
+
+En caso de haberlo abonado, le rogamos nos envíe el comprobante a
+cobranzas@grupoedisur.com.ar
+
+Por otra parte, queremos recordarle que en caso de corresponder, se le cobrarán intereses por mora, por cada día de atraso en el pago.
+
+Nos ponemos a disposición por cualquier consulta.
+
+Saludos cordiales,
+
+Cobranzas
+Grupo Edisur`;
+}
+
+// Puede cambiar el mes base el que puede tocar los cobros.
+function puedeConfigMora() {
+  const pr = state.profile || {};
+  return pr.rol === 'admin' || pr.area === 'finanzas';
+}
+
+window.ptMoraGuardarDesde = async function() {
+  const mes = Number($('#pt-mora-desde-mes').value) || null;
+  const anio = Number($('#pt-mora-desde-anio').value) || null;
+  if (!mes || !anio) { toast('Elegí mes y año', 'warn'); return; }
+  if (anio < 2020 || anio > 2100) { toast('Ese año no parece válido', 'warn'); return; }
+
+  const { data, error } = await sb.from('app_config').upsert({
+    clave: 'mora_desde', valor: { mes, anio },
+    updated_at: new Date().toISOString(), updated_by: state.user.id,
+  }, { onConflict: 'clave' }).select('clave');
+  if (error) { toast(mensajeError(error), 'err'); return; }
+  if (!data?.length) { toast('No se guardó: puede que no tengas permiso', 'err'); return; }
+
+  await loadConfig(); renderPapeles();
+  toast(`La mora se controla desde ${MESES[mes - 1]} ${anio}`, 'ok');
+};
+
+function renderPapelesMora() {
+  const card = $('#pt-mora-card');
+  if (!card) return;
+  const filas = papelesEnMora();
+  const { mes, anio } = ptMesMora();
+  $('#pt-mora-mes').textContent = `${MESES[mes - 1]} ${anio}`;
+
+  // El selector del mes base. Vale para todos, así que el que no lo puede
+  // cambiar igual lo ve: si la lista de uno es distinta a la del de al lado
+  // y no se ve por qué, no se entiende nada.
+  const md = moraDesde();
+  const selM = $('#pt-mora-desde-mes');
+  if (selM && !selM.options.length) {
+    selM.innerHTML = MESES.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+  }
+  if (selM && md) selM.value = String(md.mes);
+  const inA = $('#pt-mora-desde-anio');
+  if (inA && md) inA.value = md.anio;
+  const puede = puedeConfigMora();
+  [selM, inA, $('#pt-mora-guardar')].forEach(e => { if (e) e.disabled = !puede; });
+  if ($('#pt-mora-guardar')) {
+    $('#pt-mora-guardar').style.display = puede ? '' : 'none';
+    $('#pt-mora-guardar').title =
+      'Vale para todos los clientes que no tengan "Cobrar desde" cargado, y para todo el mundo';
+  }
+
+  if (!filas.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  $('#pt-mora-tit').textContent =
+    `⚠ ${filas.length} ${filas.length === 1 ? 'cliente en mora' : 'clientes en mora'}`;
+
+  $('#pt-mora-tabla tbody').innerHTML = filas.map(({ p, impagos }) => {
+    const d = deuda(impagos);
+    const sinIcc = impagos.some(m => m.monto == null);
+    const ult = ultimoPagoDe(p.id);
+    // Los meses escritos, no un número: "Ago, Sep, Oct" se entiende de un
+    // vistazo; "3" obliga a pasar el mouse para saber cuáles son.
+    const detalle = impagos.length <= 4
+      ? impagos.map(m => `${MESES[m.mes - 1].slice(0, 3)} ${String(m.anio).slice(2)}`).join(', ')
+      : `${impagos.length} meses · desde ${MESES[impagos[0].mes - 1].slice(0, 3)} ${String(impagos[0].anio).slice(2)}`;
+    return `<tr>
+      <td class="mono">${esc(p.cliente || '—')}</td>
+      <td><b>${esc(p.propietario)}</b></td>
+      <td>${esc(p.inmueble)}</td>
+      <td class="num">${d ? `<b>$${fmt(d)}</b>` : '<span class="muted">—</span>'}${
+        sinIcc ? '<div class="sub" style="color:var(--warn);font-size:.7rem">falta ICC de algún mes</div>' : ''}</td>
+      <td><span class="badge ${impagos.length > 2 ? 'err' : 'warn'}"
+            title="${impagos.length} ${impagos.length === 1 ? 'cuota impaga' : 'cuotas impagas'}">${esc(detalle)}</span></td>
+      <td>${ult ? `${MESES[ult.mes - 1]} ${ult.anio}` : '<span class="muted">nunca pagó</span>'}</td>
+      <td class="actions">
+        ${(p.emails || '').includes('@')
+          ? `<button class="btn ghost sm" onclick="ptMailMora('${p.id}')" title="Aviso de saldo pendiente">✉ Mora</button>`
+          : `<button class="btn ghost sm" disabled title="No tiene mail cargado: cargáselo con Editar" style="opacity:.45">✉ sin mail</button>`}
+        <button class="btn ghost sm" onclick="ptTogglePago('${p.id}', ${mes}, ${anio})"
+                title="Marcar ${MESES[mes - 1]} ${anio} como cobrado">Cobrado</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  const total = filas.reduce((a, x) => a + deuda(x.impagos), 0);
+  const cuotas = filas.reduce((a, x) => a + x.impagos.length, 0);
+  $('#pt-mora-tabla tfoot').innerHTML = `<tr>
+    <td colspan="3"><b>Total adeudado</b></td>
+    <td class="num"><b>$${fmt(total)}</b></td>
+    <td><b>${cuotas}</b> ${cuotas === 1 ? 'cuota' : 'cuotas'}</td>
+    <td colspan="2"></td></tr>`;
 }
 
 // Los que arrancan más adelante. Plegado abajo: no ensucian el mes en
@@ -13157,6 +13402,67 @@ window.ptMail = async function(id) {
   });
 };
 
+// Aviso de saldo pendiente. Mismo mecanismo que los otros dos mails: se
+// arma el .eml y Outlook lo abre listo para enviar.
+window.ptMailMora = async function(id) {
+  const p = (state.papeles || []).find(x => x.id === id);
+  if (!p) return;
+  const { mes, anio } = ptMesMora();
+  const impagos = mesesImpagos(p, mes, anio);
+  const para = (p.emails || '').split(/[,;\s]+/).filter(x => x.includes('@'));
+  if (!para.length) { toast('Ese cliente no tiene mail cargado', 'warn'); return; }
+
+  const asunto = conNroCliente(`Saldo pendiente · ${p.inmueble}`, p);
+  const cuerpo = textoMailMoraDeuda(p);
+  const eml = emlDesde(para.join(', '), asunto, cuerpo, null);
+
+  showModal(`<div class="modal-head"><h3>Aviso de mora · ${esc(p.propietario)}</h3>
+      <button class="modal-close" onclick="closeModal()">×</button></div>
+    <div class="modal-body">
+      <div class="badge ${impagos.length > 2 ? 'err' : 'warn'}" style="margin-bottom:10px;display:block;padding:8px 10px">
+        <b>${esc(fraseImpagos(impagos))}</b>${
+          impagos.length > 1 ? ` · ${impagos.length} cuotas` : ''}${
+          deuda(impagos) ? ` · $${fmt(deuda(impagos))}` : ''}
+      </div>
+      <div class="field"><label>Para</label><input type="text" readonly value="${esc(para.join(', '))}"></div>
+      <div class="field"><label>Asunto</label><input type="text" readonly value="${esc(asunto)}"></div>
+      <div class="field"><label>Mensaje</label><textarea rows="15" readonly
+        style="font-family:inherit">${esc(cuerpo.trim())}</textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal()">Cerrar</button>
+      <button class="btn accent" id="mora-bajar">⤓ Abrir en Outlook</button>
+    </div>`);
+  $('#mora-bajar').addEventListener('click', () => {
+    bajarEml(eml, `mora-${nombreArchivo(p.propietario)}`);
+    closeModal();
+    toast('Se descargó el aviso: abrilo y mandalo desde Outlook', 'ok');
+  });
+};
+
+// Todos los avisos de una, para no abrir cliente por cliente.
+window.ptMoraTodos = async function() {
+  const filas = papelesEnMora();
+  const con = filas.filter(x => (x.p.emails || '').includes('@'));
+  const sin = filas.length - con.length;
+  if (!con.length) { toast('Ninguno de los clientes en mora tiene mail cargado', 'warn'); return; }
+  if (!await confirmAction(
+        `Se van a bajar ${con.length} avisos de mora, uno por cliente.` +
+        (sin ? ` ${sin} ${sin === 1 ? 'queda' : 'quedan'} afuera por no tener mail cargado.` : '') +
+        ' Después los abrís y los mandás desde Outlook. ¿Seguir?')) return;
+
+  for (const { p } of con) {
+    const para = (p.emails || '').split(/[,;\s]+/).filter(x => x.includes('@'));
+    const eml = emlDesde(para.join(', '),
+      conNroCliente(`Saldo pendiente · ${p.inmueble}`, p), textoMailMoraDeuda(p), null);
+    bajarEml(eml, `mora-${nombreArchivo(p.propietario)}`);
+    // Un respiro entre descargas: el navegador bloquea las que llegan todas
+    // juntas y se pierden sin avisar.
+    await new Promise(r => setTimeout(r, 350));
+  }
+  toast(`Se descargaron ${con.length} avisos` + (sin ? ` · ${sin} sin mail` : ''), 'ok');
+};
+
 window.ptMora = async function(id) {
   const p = (state.papeles || []).find(x => x.id === id);
   if (!p) return;
@@ -13193,6 +13499,8 @@ if ($('#pt-tabla')) {
   $('#pt-add').addEventListener('click', () => ptEditar(null));
   ['#pt-mes', '#pt-anio', '#pt-estado', '#pt-cobro'].forEach(s => $(s).addEventListener('change', renderPapeles));
   $('#pt-buscar').addEventListener('input', renderPapeles);
+  $('#pt-mora-todos')?.addEventListener('click', () => ptMoraTodos());
+  $('#pt-mora-guardar')?.addEventListener('click', () => ptMoraGuardarDesde());
   $('#pt-excel').addEventListener('click', () => {
     const { mes, anio } = ptMesDestino();
     const filas = papelesFiltrados().map(p => ({
