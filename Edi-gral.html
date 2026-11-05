@@ -12920,8 +12920,10 @@ function renderPapelesMora() {
         ${(p.emails || '').includes('@')
           ? `<button class="btn ghost sm" onclick="ptMailMora('${p.id}')" title="Aviso de saldo pendiente">✉ Mora</button>`
           : `<button class="btn ghost sm" disabled title="No tiene mail cargado: cargáselo con Editar" style="opacity:.45">✉ sin mail</button>`}
-        <button class="btn ghost sm" onclick="ptTogglePago('${p.id}', ${mes}, ${anio})"
-                title="Marcar ${MESES[mes - 1]} ${anio} como cobrado">Cobrado</button>
+        <button class="btn ghost sm" onclick="ptTogglePago('${p.id}', ${impagos[0].mes}, ${impagos[0].anio})"
+                title="Marcar ${MESES[impagos[0].mes - 1]} ${impagos[0].anio} como cobrado${
+                  impagos.length > 1 ? `, que es la cuota más vieja que debe. Quedan ${impagos.length - 1} atrás.` : ''}"
+          >Cobrar ${MESES[impagos[0].mes - 1].slice(0, 3)}</button>
       </td>
     </tr>`;
   }).join('');
