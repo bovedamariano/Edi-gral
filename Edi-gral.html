@@ -1268,8 +1268,26 @@ details[open] .ident-toggle{transform:rotate(180deg)}
           <span id="sellos-resumen" style="font-size:.82rem;color:var(--ink-3)"></span>
         </div>
 
+        <!-- Aparece sólo con algo tildado: si no, es una barra vacía ocupando
+             lugar arriba de la tabla todo el día. -->
+        <div id="sellos-sel-bar" class="card" style="display:none;padding:8px 12px;margin-bottom:10px;
+             background:var(--accent-soft);border-color:var(--accent);align-items:center;gap:10px;flex-wrap:wrap">
+          <b id="sellos-sel-txt" style="font-size:.85rem"></b>
+          <select id="sellos-sel-que" style="width:auto;padding:4px 8px;font-size:.8rem">
+            <option value="ambos">DDJJ y cedulón</option>
+            <option value="djj">Sólo las DDJJ</option>
+            <option value="cedulon">Sólo los cedulones</option>
+          </select>
+          <button class="btn accent sm" id="sellos-sel-imprimir">🖨 Imprimir</button>
+          <button class="btn ghost sm"  id="sellos-sel-bajar">↓ Descargar</button>
+          <span style="flex:1"></span>
+          <span id="sellos-sel-aviso" class="sub" style="color:var(--warn)"></span>
+          <button class="btn ghost sm" id="sellos-sel-limpiar">× Quitar selección</button>
+        </div>
+
         <div class="tbl-wrap"><table class="tbl" id="sellos-tabla">
-          <thead><tr><th>Fecha</th><th>Propietario</th><th>Unidad</th><th>Operación</th><th class="num">Monto</th><th>Moneda</th><th class="num">A pagar</th><th>Vence</th><th>Estado</th><th>Rentas</th><th class="actions"></th></tr></thead>
+          <thead><tr><th style="width:28px"><input type="checkbox" id="sellos-chk-todos"
+              title="Seleccionar los declarados de esta página"></th><th>Fecha</th><th>Propietario</th><th>Unidad</th><th>Operación</th><th class="num">Monto</th><th>Moneda</th><th class="num">A pagar</th><th>Vence</th><th>Estado</th><th>Rentas</th><th class="actions"></th></tr></thead>
           <tbody></tbody>
           <tfoot id="sellos-total"></tfoot>
         </table></div>
@@ -4967,7 +4985,7 @@ function renderSellos() {
   }
   const pager = $('#sellos-pager');
   if (!filt.length) {
-    tb.innerHTML = '<tr><td colspan="11" class="empty">Sin boletos que coincidan con los filtros</td></tr>';
+    tb.innerHTML = '<tr><td colspan="12" class="empty">Sin boletos que coincidan con los filtros</td></tr>';
     if (pager) pager.style.display = 'none';
     const tfv = $('#sellos-total');
     if (tfv) tfv.innerHTML = '';
@@ -5002,7 +5020,7 @@ function renderSellos() {
       pagados.length ? `<span style="color:var(--ok)">pagado $${fmt(sum(pagados))}</span> <span class="muted">(${fmtInt(pagados.length)})</span>` : '',
     ].filter(Boolean).join(' · ');
     tf.innerHTML = `<tr>
-      <td colspan="6"><b>Total a pagar</b>
+      <td colspan="7"><b>Total a pagar</b>
         <span class="sub" style="font-weight:400">${fmtInt(filt.length)} boleto${filt.length === 1 ? '' : 's'}${
           filt.length !== state.boletos.length ? ', filtrados' : ''}</span></td>
       <td class="num"><b>$${fmt(total)}</b></td>
@@ -5033,7 +5051,11 @@ function renderSellos() {
     // siendo trabajo de Cobranzas, esté declarado o no.
     const rEst = b.rentas_estado || 'no';
     const tomada = rEst !== 'no';
+    const conPdf = pdfsDeBoleto(b).length > 0;
     return `<tr${tomada ? ' style="background:var(--surface-2)"' : ''}>
+      <td>${conPdf
+        ? `<input type="checkbox" class="sellos-chk" data-id="${b.id}" ${_selloSel.has(b.id) ? 'checked' : ''}>`
+        : '<span class="muted" title="Todavía no tiene comprobantes para imprimir">·</span>'}</td>
       <td>${fmtFecha(b.fecha)}</td><td>${b.propietario}</td><td>${b.unidad}</td>
       <td><span class="badge muted" style="font-size:.7rem">${tipoOp}</span></td>
       <td class="num">${fmt(b.monto)}</td><td>${b.moneda}</td>
@@ -5058,6 +5080,8 @@ function renderSellos() {
       </td>
     </tr>`;
   }).join('');
+
+  renderSellosSel();
 
   // Los indicadores miran TODOS los boletos, no los filtrados: son el
   // panorama del año, no el resultado de la búsqueda de arriba.
@@ -5409,6 +5433,220 @@ function chipRentas(b) {
   return `<span class="badge" style="background:var(--err-soft);color:var(--err);font-size:.7rem"
     title="${esc(b.rentas_error || '')}">⚠ error</span>`;
 }
+
+// ---------- Imprimir varios comprobantes de una ----------
+//
+// Antes había que bajarlos de a uno, abrir cada PDF y mandarlo a imprimir:
+// veinte declaraciones eran cuarenta archivos y cuarenta impresiones.
+//
+// Se tildan las que ya están declaradas y salen TODAS en un solo PDF, en el
+// orden de la tabla y con la DDJJ pegada a su cedulón, que es como se
+// archivan. Una impresión, un taco de papel que ya viene ordenado.
+const _selloSel = new Set();
+
+// Qué comprobantes tiene este boleto, en el orden en que se imprimen.
+function pdfsDeBoleto(b, que) {
+  const out = [];
+  if (que !== 'cedulon' && b.rentas_pdf_djj) out.push({ ruta: b.rentas_pdf_djj, cual: 'DDJJ' });
+  if (que !== 'djj' && b.rentas_pdf_cedulon) out.push({ ruta: b.rentas_pdf_cedulon, cual: 'cedulón' });
+  return out;
+}
+
+// Los tildados, en el orden de la tabla y no en el que se fueron tildando:
+// se imprime para archivar, y el orden de la pantalla es el que se espera.
+function sellosSeleccionados() {
+  return aplicarFiltrosBoletos().filter(b => _selloSel.has(b.id));
+}
+
+function renderSellosSel() {
+  const bar = $('#sellos-sel-bar');
+  if (!bar) return;
+
+  // Lo que se borró o se volvió a "sin declarar" no puede quedar tildado
+  // fantasma, sumando a un contador de algo que ya no se puede imprimir.
+  const vivos = new Set((state.boletos || []).filter(b => pdfsDeBoleto(b).length).map(b => b.id));
+  [..._selloSel].forEach(id => { if (!vivos.has(id)) _selloSel.delete(id); });
+
+  const sel = sellosSeleccionados();
+  bar.style.display = sel.length ? 'flex' : 'none';
+  if (!sel.length) { const t = $('#sellos-chk-todos'); if (t) { t.checked = false; t.indeterminate = false; } return; }
+
+  const que = $('#sellos-sel-que')?.value || 'ambos';
+  const hojas = sel.reduce((a, b) => a + pdfsDeBoleto(b, que).length, 0);
+  $('#sellos-sel-txt').textContent =
+    `${sel.length} seleccionad${sel.length === 1 ? 'a' : 'as'} · ${hojas} comprobante${hojas === 1 ? '' : 's'}`;
+
+  // Si se eligió "sólo cedulones" y alguno no lo tiene, mejor decirlo acá
+  // que descubrirlo contando papeles después de imprimir.
+  const sin = sel.filter(b => !pdfsDeBoleto(b, que).length).length;
+  $('#sellos-sel-aviso').textContent = sin
+    ? `${sin} sin ese comprobante, ${sin === 1 ? 'queda' : 'quedan'} afuera` : '';
+
+  // Tilde del encabezado: refleja la página que se está viendo.
+  const enPag = [...document.querySelectorAll('.sellos-chk')];
+  const t = $('#sellos-chk-todos');
+  if (t && enPag.length) {
+    const n = enPag.filter(c => c.checked).length;
+    t.checked = n === enPag.length;
+    t.indeterminate = n > 0 && n < enPag.length;
+  }
+}
+
+// pdf-lib se baja la primera vez que se usa. Es la única forma de unir PDFs
+// que ya existen —jsPDF arma uno nuevo, no pega los que ya están— y no vale
+// la pena cargarla en cada login para algo que se usa una vez por semana.
+let _pdfLibCargando = null;
+function cargarPdfLib() {
+  if (window.PDFLib) return Promise.resolve(window.PDFLib);
+  if (_pdfLibCargando) return _pdfLibCargando;
+  _pdfLibCargando = new Promise((ok, mal) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+    sc.onload = () => window.PDFLib ? ok(window.PDFLib) : mal(new Error('no cargó'));
+    sc.onerror = () => { _pdfLibCargando = null; mal(new Error('no se pudo cargar la librería de PDF')); };
+    document.head.appendChild(sc);
+  });
+  return _pdfLibCargando;
+}
+
+// Arma el PDF único. Devuelve el blob y qué quedó afuera, para poder
+// avisarlo: un comprobante que falta y nadie avisa es una multa.
+async function unirComprobantes(sel, que) {
+  const { PDFDocument } = await cargarPdfLib();
+  const salida = await PDFDocument.create();
+  const fallados = [];
+  let hojas = 0;
+
+  for (const b of sel) {
+    for (const { ruta, cual } of pdfsDeBoleto(b, que)) {
+      try {
+        const { data, error } = await sb.storage.from('cedulones').download(ruta);
+        if (error) throw error;
+        const src = await PDFDocument.load(await data.arrayBuffer());
+        const pgs = await salida.copyPages(src, src.getPageIndices());
+        pgs.forEach(pg => salida.addPage(pg));
+        hojas++;
+      } catch (e) {
+        fallados.push(`${b.propietario} · ${cual}`);
+      }
+    }
+  }
+  if (!hojas) throw new Error('No se pudo bajar ningún comprobante');
+  return { blob: new Blob([await salida.save()], { type: 'application/pdf' }), fallados, hojas };
+}
+
+// Abre la ventana de impresión con el PDF ya cargado.
+//
+// Ninguna página web puede mandar algo a la impresora sin que el navegador
+// muestre su ventana de impresión: eso lo decide Chrome, no nosotros. Lo
+// más cerca que se llega es que esa ventana se abra sola y alcance con
+// darle Enter, y eso es lo que hace esto.
+//
+// El iframe tiene que estar dibujado para que el visor de PDF arranque:
+// con display:none no carga nunca. Por eso va corrido fuera de pantalla en
+// vez de escondido.
+async function abrirImpresion(url, nombre) {
+  const bajar = () => {
+    const a = document.createElement('a');
+    a.href = url; a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    return 'bajado';
+  };
+
+  const porIframe = await new Promise(res => {
+    const ifr = document.createElement('iframe');
+    ifr.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;height:1000px;border:0';
+    let listo = false;
+    ifr.onload = () => {
+      listo = true;
+      try {
+        ifr.contentWindow.focus();
+        ifr.contentWindow.print();
+        // Se saca recién después: si se borra enseguida, la ventana de
+        // impresión se queda sin el documento y se cierra sola.
+        setTimeout(() => ifr.remove(), 120000);
+        res(true);
+      } catch (_) { ifr.remove(); res(false); }
+    };
+    ifr.onerror = () => { ifr.remove(); res(false); };
+    // Si el visor de PDF no está disponible, onload no llega nunca.
+    setTimeout(() => { if (!listo) { ifr.remove(); res(false); } }, 6000);
+    ifr.src = url;
+    document.body.appendChild(ifr);
+  });
+  if (porIframe) return 'dialogo';
+
+  const w = window.open(url, '_blank');
+  return w ? 'pestana' : bajar();
+}
+
+async function sellosJuntar(accion) {
+  const sel = sellosSeleccionados();
+  if (!sel.length) return;
+  const que = $('#sellos-sel-que')?.value || 'ambos';
+  const btns = ['#sellos-sel-imprimir', '#sellos-sel-bajar'].map(x => $(x));
+  btns.forEach(b => { if (b) b.disabled = true; });
+  const previo = $('#sellos-sel-imprimir')?.textContent;
+  if ($('#sellos-sel-imprimir')) $('#sellos-sel-imprimir').textContent = 'Armando…';
+
+  try {
+    const { blob, fallados, hojas } = await unirComprobantes(sel, que);
+    const url = URL.createObjectURL(blob);
+    const hoy = new Date().toISOString().slice(0, 10);
+    const nombre = `sellos-${que === 'djj' ? 'ddjj' : que === 'cedulon' ? 'cedulones' : 'ddjj-y-cedulones'}-${hoy}.pdf`;
+
+    if (accion === 'bajar') {
+      const a = document.createElement('a');
+      a.href = url; a.download = nombre;
+      document.body.appendChild(a); a.click(); a.remove();
+      toast(`${hojas} comprobante${hojas === 1 ? '' : 's'} en un archivo`, 'ok');
+    } else {
+      const via = await abrirImpresion(url, nombre);
+      toast(`${hojas} comprobante${hojas === 1 ? '' : 's'} en un PDF · ${
+        via === 'dialogo'  ? 'se abre la impresión'
+      : via === 'pestana'  ? 'se abrió en otra pestaña, imprimí con Ctrl+P'
+      :                      'se descargó, abrilo e imprimí desde ahí'}`,
+        via === 'dialogo' ? 'ok' : 'warn');
+    }
+
+    // La URL se suelta recién después: si se revoca enseguida, la pestaña
+    // que recién se abrió se queda sin el archivo.
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+    if (fallados.length) {
+      toast(`No se pudieron bajar ${fallados.length}: ${fallados.slice(0, 3).join(', ')}${fallados.length > 3 ? '…' : ''}`, 'warn');
+    }
+  } catch (e) {
+    toast('No se pudo armar el PDF: ' + (e.message || e), 'err');
+  } finally {
+    btns.forEach(b => { if (b) b.disabled = false; });
+    if ($('#sellos-sel-imprimir')) $('#sellos-sel-imprimir').textContent = previo || '🖨 Imprimir';
+  }
+}
+
+// Los tildes se escuchan desde la tabla, que se repinta entera en cada
+// render: engancharlos fila por fila sería volver a engancharlos siempre.
+$('#sellos-tabla')?.addEventListener('change', e => {
+  const c = e.target.closest('.sellos-chk');
+  if (!c) return;
+  if (c.checked) _selloSel.add(c.dataset.id); else _selloSel.delete(c.dataset.id);
+  renderSellosSel();
+});
+$('#sellos-chk-todos')?.addEventListener('change', e => {
+  document.querySelectorAll('.sellos-chk').forEach(c => {
+    c.checked = e.target.checked;
+    if (c.checked) _selloSel.add(c.dataset.id); else _selloSel.delete(c.dataset.id);
+  });
+  renderSellosSel();
+});
+$('#sellos-sel-limpiar')?.addEventListener('click', () => {
+  _selloSel.clear();
+  document.querySelectorAll('.sellos-chk').forEach(c => { c.checked = false; });
+  renderSellosSel();
+});
+$('#sellos-sel-que')?.addEventListener('change', renderSellosSel);
+$('#sellos-sel-imprimir')?.addEventListener('click', () => sellosJuntar('imprimir'));
+$('#sellos-sel-bajar')?.addEventListener('click', () => sellosJuntar('bajar'));
 
 // Los comprobantes viven en un bucket PRIVADO: no se puede linkear directo,
 // hay que pedirle a Supabase una URL firmada que dura un rato.
@@ -9062,40 +9300,79 @@ function papelesDeTransferencia(t) {
   const ident = identificarTransferencia(desc);
   const porNombre = ident?.nc ? papelesDeCliente(ident.nc) : [];
 
-  // El aporte se compara contra el mes de la transferencia.
   const importe = typeof t === 'string' ? null : Number(t?.importe);
   let mes = null, anio = null;
-  if (importe && t?.fecha) {
+  if (t?.fecha) {
     const f = new Date(t.fecha + 'T12:00:00');
     mes = f.getMonth() + 1; anio = f.getFullYear();
   }
 
+  // Contra qué meses se compara el importe.
+  //
+  // No alcanza con el mes de la transferencia. El que paga el 2 de diciembre
+  // casi siempre está pagando noviembre, y como el aporte se actualiza por
+  // ICC el de diciembre es otro número: pagó bien y el cruce no lo encuentra.
+  // Dos meses para atrás cubre al que viene atrasado; uno para adelante, al
+  // que paga a fin de mes la cuota del mes que viene.
+  const ventana = [];
+  if (mes) {
+    const k0 = anio * 12 + mes;
+    for (let k = k0 - 2; k <= k0 + 1; k++) {
+      ventana.push({ mes: ((k - 1) % 12) + 1, anio: Math.floor((k - 1) / 12) });
+    }
+  }
+
+  // De la ventana, el mes cuyo aporte más se parece a lo que entró. Se queda
+  // con el más chico en valor absoluto: si dos meses entran en la tolerancia
+  // —pasa cuando el ICC casi no se movió— el que pega mejor es el bueno.
+  function mejorMes(p) {
+    let mejor = null;
+    ventana.forEach(({ mes: m, anio: a }) => {
+      if (papelEmpiezaDespues(p, m, a)) return;
+      const ap = montoActualizado(p, m, a);
+      if (ap == null || !importe) return;
+      const dif = importe - ap;
+      if (Math.abs(dif) > PAPELES_TOLERANCIA) return;
+      if (!mejor || Math.abs(dif) < Math.abs(mejor.dif)) mejor = { mes: m, anio: a, aporte: ap, dif };
+    });
+    return mejor;
+  }
+
+  // Al que coincide por nombre pero no por importe hay que imputarle algo
+  // igual: la más vieja que deba, que es el orden en que se imputa una
+  // cobranza. Si no debe nada, el mes de la transferencia.
+  function mesAImputar(p) {
+    const tope = anio * 12 + mes;
+    const dentro = mesesImpagos(p, mes, anio)
+      .filter(x => {
+        const k = x.anio * 12 + x.mes;
+        return k >= tope - 2 && k <= tope && x.monto != null;
+      });
+    return dentro.length ? { mes: dentro[0].mes, anio: dentro[0].anio } : { mes, anio };
+  }
+
   const vistos = new Map();
-  porNombre.forEach(p => vistos.set(p.id, { p, nombre: true, monto: false, aporte: null, dif: null }));
+  porNombre.forEach(p => vistos.set(p.id, { p, nombre: true, monto: false }));
 
   if (importe && mes) {
     (state.papeles || []).forEach(p => {
       if (p.activo === false) return;
-      const m = montoActualizado(p, mes, anio);
-      if (m == null) return;
-      const dif = importe - m;
-      if (Math.abs(dif) > PAPELES_TOLERANCIA) return;
+      const mj = mejorMes(p);
+      if (!mj) return;
       const y = vistos.get(p.id);
-      if (y) { y.monto = true; y.aporte = m; y.dif = dif; }
-      else vistos.set(p.id, { p, nombre: false, monto: true, aporte: m, dif });
+      if (y) Object.assign(y, { monto: true, ...mj });
+      else vistos.set(p.id, { p, nombre: false, monto: true, ...mj });
     });
   }
 
-  // Al que coincidió por nombre también se le calcula el aporte, para poder
-  // mostrar la diferencia aunque el monto no haya entrado en la tolerancia.
-  if (mes) {
-    vistos.forEach(v => {
-      if (v.aporte == null) {
-        v.aporte = montoActualizado(v.p, mes, anio);
-        v.dif = (importe && v.aporte != null) ? importe - v.aporte : null;
-      }
-    });
-  }
+  // A los que entraron sólo por nombre les falta el mes y el aporte.
+  vistos.forEach(v => {
+    if (v.aporte !== undefined) return;
+    const d = mes ? mesAImputar(v.p) : { mes: null, anio: null };
+    v.mes = d.mes; v.anio = d.anio;
+    v.aporte = (d.mes != null) ? montoActualizado(v.p, d.mes, d.anio) : null;
+    v.dif = (importe && v.aporte != null) ? importe - v.aporte : null;
+  });
 
   // Primero los que coinciden por las dos cosas, después por nombre, al
   // final los que sólo pegan por monto.
@@ -10673,17 +10950,24 @@ window.verPapelesDeTransf = function(id) {
              Sin identificador para <b>${esc(nombreDeDescripcion(t.descripcion) || '—')}</b>: esto salió sólo por el importe
            </div>`}
       <div class="tbl-wrap"><table class="tbl"><thead><tr>
-        <th>Inmueble</th><th class="num">Aporte de ${MESES[mes - 1]} ${anio}</th>
+        <th>Inmueble</th><th class="num">Aporte</th>
         <th class="num">Intereses</th>
         <th class="num">Transferido</th><th>Diferencia</th><th>Coincide por</th><th>Cobrado</th>
       </tr></thead><tbody>
       ${papeles.map(x => {
         const p = x.p, m = x.aporte, dif = x.dif;
-        const pago = pagoDe(p.id, mes, anio);
+        const xm = x.mes, xa = x.anio;
+        const pago = (xm != null) ? pagoDe(p.id, xm, xa) : null;
+        // Si el importe pegó en un mes que no es el de la transferencia, hay
+        // que decirlo: es la diferencia entre imputar bien y dejar un mes
+        // abierto corriendo intereses.
+        const otroMes = xm != null && (xm !== mes || xa !== anio);
         const via = [x.nombre ? 'nombre' : '', x.monto ? 'monto' : ''].filter(Boolean).join(' y ');
         return `<tr>
           <td><b>${esc(p.inmueble)}</b><div class="muted" style="font-size:.75rem">${esc(p.propietario)} · ${esc(p.cliente || '')}</div></td>
-          <td class="num">${m != null ? `<b>$${fmt(m)}</b>` : '<span style="color:var(--warn)">sin ICC</span>'}</td>
+          <td class="num">${m != null ? `<b>$${fmt(m)}</b>` : '<span style="color:var(--warn)">sin ICC</span>'}
+            <div class="${otroMes ? 'badge warn' : 'muted'}" style="font-size:.68rem;font-weight:600;margin-top:2px;white-space:nowrap">${
+              xm != null ? `${otroMes ? '↩ ' : ''}${MESES[xm - 1]} ${xa}` : '—'}</div></td>
           <td class="num">${m != null
             ? `<span class="pt-dif" title="Diferencia por ICC a facturar · clic para copiar"
                      onclick="copiarNumero(${m - Number(p.monto_base || 0)})">$${fmt(m - Number(p.monto_base || 0))} <span class="cp-ic">⎘</span></span>`
@@ -10695,9 +10979,11 @@ window.verPapelesDeTransf = function(id) {
               ? `<span class="badge ok">${dif > 0 ? '+' : '−'}$${fmt(Math.abs(dif))}</span>`
               : `<span style="color:var(--warn)">${dif > 0 ? '+' : ''}$${fmt(dif)}</span>`}</td>
           <td><span class="badge ${x.nombre && x.monto ? 'ok' : x.nombre ? 'accent' : 'warn'}" style="font-size:.68rem">${via}</span></td>
-          <td><button class="btn ${pago ? 'ghost' : 'accent'} sm"
-                onclick="cobrarDesdeTransf('${p.id}','${t.id}').then(()=>verPapelesDeTransf('${t.id}'))"
-                title="${pago ? `Cobrado en ${MESES[mes - 1]} ${anio} · volver a impago` : `Marcar ${MESES[mes - 1]} ${anio} como cobrado`}">${pago ? '✓ cobrado' : 'Marcar cobrado'}</button></td>
+          <td><button class="btn ${pago ? 'ghost' : 'accent'} sm" ${xm == null ? 'disabled' : ''}
+                onclick="cobrarDesdeTransf('${p.id}','${t.id}',${xm},${xa}).then(()=>verPapelesDeTransf('${t.id}'))"
+                title="${xm == null ? 'No se sabe a qué mes imputarlo'
+                  : pago ? `Cobrado en ${MESES[xm - 1]} ${xa} · volver a impago`
+                  : `Marcar ${MESES[xm - 1]} ${xa} como cobrado`}">${pago ? '✓ cobrado' : `Cobrar ${xm != null ? MESES[xm - 1].slice(0, 3) : ''}`}</button></td>
         </tr>`;
       }).join('')}
       </tbody></table></div>
@@ -13040,12 +13326,15 @@ window.ptTogglePago = async function(id, mesForzado, anioForzado) {
 };
 
 // Marca cobrado desde Transferencias, para el mes de la transferencia.
-window.cobrarDesdeTransf = async function(papelId, transfId) {
+window.cobrarDesdeTransf = async function(papelId, transfId, mesImputar, anioImputar) {
   const t = (state.transfBanco || []).find(x => x.id === transfId);
   const p = (state.papeles || []).find(x => x.id === papelId);
   if (!t || !p) return;
-  const f = new Date(t.fecha + 'T12:00:00');
-  const mes = f.getMonth() + 1, anio = f.getFullYear();
+  // El mes lo decide el cruce, no la fecha del movimiento: el que paga el 2
+  // de diciembre suele estar pagando noviembre. Si no vino, la fecha.
+  let mes, anio;
+  if (mesImputar && anioImputar) { mes = Number(mesImputar); anio = Number(anioImputar); }
+  else { const f = new Date(t.fecha + 'T12:00:00'); mes = f.getMonth() + 1; anio = f.getFullYear(); }
   const ya = pagoDe(papelId, mes, anio);
   if (ya && !await confirmAction(
         `${p.propietario} ya figura cobrado en ${MESES[mes - 1]} ${anio}. ¿Lo volvés a poner impago?`)) return;
@@ -14223,12 +14512,18 @@ function pintarFlotanteLectura(t) {
     ${coch ? `<div class="fl-ident ${coch.seguro ? 'ok' : 'duda'}" style="margin-top:4px">🅿️ ${coch.seguro ? 'Cochera' : '¿Cochera'} <b>${esc(coch.cochera)}</b>${coch.seguro ? '' : '?'} · ${esc(coch.nc)}${coch.monto != null ? ` · $${fmt(coch.monto)}` : ' · <small>sin monto</small>'}</div>` : ''}
     ${ces.length ? `<div class="fl-ident ${ces.some(x => !x.c.facturado) ? 'duda' : 'ok'}" style="margin-top:4px">🔗 Cesión de <b>${esc(ces[0].c.cedente)}</b>${ces.length > 1 ? ` (+${ces.length - 1})` : ''} · ${ces.some(x => !x.c.facturado) ? 'sin facturar' : 'facturada'}</div>` : ''}
     ${pap.map((x, i) => {
-      const pagado = !!pagoDe(x.p.id, mesT, anioT);
+      const xm = x.mes != null ? x.mes : mesT, xa = x.anio != null ? x.anio : anioT;
+      const pagado = !!pagoDe(x.p.id, xm, xa);
+      // El mes sólo se escribe cuando no es el de la transferencia: ahí el
+      // dato importa y en la ventana chica no hay lugar para repetirlo.
+      const otro = xm !== mesT || xa !== anioT;
       return `<div class="fl-ident ${x.nombre ? 'ok' : 'duda'} fl-pap" style="margin-top:4px">
         <span class="fl-pap-txt">📋 ${x.nombre ? '' : '≈ '}<b>${esc(x.p.cliente || '—')}</b> · ${esc(x.p.inmueble)}${
-          x.monto ? ' · <span class="fl-ok-mon">monto ✓</span>' : ''}</span>
+          x.monto ? ' · <span class="fl-ok-mon">monto ✓</span>' : ''}${
+          otro ? ` · <span class="fl-ok-mon" style="color:var(--warn)">↩ ${MESES[xm - 1].slice(0, 3)}</span>` : ''}</span>
         <button class="fl-cob ${pagado ? 'si' : ''}" data-pap="${x.p.id}"
-                title="${pagado ? `Ya figura cobrado en ${MESES[mesT - 1]} ${anioT}` : `Marcar ${MESES[mesT - 1]} ${anioT} como cobrado`}">${pagado ? '✓ cobrado' : 'cobrado'}</button>
+                data-mes="${xm}" data-anio="${xa}"
+                title="${pagado ? `Ya figura cobrado en ${MESES[xm - 1]} ${xa}` : `Marcar ${MESES[xm - 1]} ${xa} como cobrado`}">${pagado ? '✓ cobrado' : `cobrar ${MESES[xm - 1].slice(0, 3)}`}</button>
       </div>`;
     }).join('')}
     <div class="fl-nav">
@@ -14240,7 +14535,7 @@ function pintarFlotanteLectura(t) {
   pd.querySelectorAll('.fl-cob').forEach(b => {
     b.onclick = async () => {
       b.disabled = true;
-      await cobrarDesdeTransf(b.dataset.pap, t.id);
+      await cobrarDesdeTransf(b.dataset.pap, t.id, b.dataset.mes, b.dataset.anio);
       pintarFlotanteLectura(t);
     };
   });
