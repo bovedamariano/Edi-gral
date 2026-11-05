@@ -242,7 +242,7 @@ aside.sidebar{
   #lupa{padding:52px 8px 8px}
 }
 
-/* Lotes cancelados (Cuotas con posesión). Plegado por defecto: esta ahi para
+/* Lotes cancelados (Cuotas post posesión). Plegado por defecto: esta ahi para
    el que lo quiera mirar, sin ocupar la pantalla todos los dias. La flechita
    es lo unico que avisa que se abre, asi que no se saca. */
 .pt-canc-sum{cursor:pointer;font-weight:600;list-style:none;display:flex;
@@ -921,7 +921,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
     <button class="nav-item" data-tab="seguimiento">👥 Seguimiento de clientes</button>
     <button class="nav-item" data-tab="retiros">📤 Retiro de documentación</button>
     <button class="nav-item" data-tab="mails">📬 Mails</button>
-    <button class="nav-item" data-tab="papeles">📑 Cuotas con posesión</button>
+    <button class="nav-item" data-tab="papeles">📑 Cuotas post posesión</button>
     <button class="nav-item" data-tab="cocheras">🅿️ Cocheras</button>
     <div class="nav-section" id="admin-section" style="display:none">Admin</div>
     <button class="nav-item" data-tab="sugerencias">💡 Sugerencias</button>
@@ -2220,7 +2220,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
 
     <section class="tab-content" id="tab-papeles" style="display:none">
       <div class="page-head">
-        <div><h1>Cuotas con posesión</h1><p>Aportes mensuales actualizados por ICC</p></div>
+        <div><h1>Cuotas post posesión</h1><p>Aportes mensuales actualizados por ICC</p></div>
         <button class="btn accent" id="pt-add">+ Nuevo cliente</button>
       </div>
 
@@ -9294,7 +9294,7 @@ function buscarPorNombre(crudo, lista, getNombre) {
   return { seguro: false, item: mismoApellido[0], coincide: nt, porApellido: true };
 }
 
-// ¿Este número de cliente tiene cuotas con posesión?
+// ¿Este número de cliente tiene cuotas post posesión?
 //
 // El identificador de la transferencia trae el número de cliente, y en
 // Papeles ese número es la clave. Si coincide, el que está mirando el
@@ -10984,18 +10984,18 @@ window.verCocheraDeTransf = function(id) {
     </div>`);
 };
 
-// El detalle de las cuotas con posesión de ese cliente, con el
+// El detalle de las cuotas post posesión de ese cliente, con el
 // aporte del mes al lado de lo que transfirió: la comparación es el motivo
 // por el que alguien abre esto.
 window.verPapelesDeTransf = function(id) {
   const t = (state.transfBanco || []).find(x => x.id === id);
   if (!t) return;
   const { papeles, ident, mes, anio } = papelesDeTransferencia(t);
-  if (!papeles.length) { toast('No hay nada en Cuotas con posesión que coincida', 'warn'); return; }
+  if (!papeles.length) { toast('No hay nada en Cuotas post posesión que coincida', 'warn'); return; }
 
   const soloMonto = !papeles.some(x => x.nombre);
 
-  showModal(`<div class="modal-head"><h3>📋 ${soloMonto ? 'Coincide con una cuota con posesión' : 'Este cliente tiene cuotas con posesión'}</h3>
+  showModal(`<div class="modal-head"><h3>📋 ${soloMonto ? 'Coincide con una cuota post posesión' : 'Este cliente tiene cuotas post posesión'}</h3>
       <button class="modal-close" onclick="closeModal()">×</button></div>
     <div class="modal-body">
       ${ident
@@ -11051,7 +11051,7 @@ window.verPapelesDeTransf = function(id) {
     </div>
     <div class="modal-foot">
       <button class="btn ghost" onclick="closeModal()">Cerrar</button>
-      <button class="btn accent" onclick="closeModal(); switchTab('papeles')">Abrir cuotas con posesión</button>
+      <button class="btn accent" onclick="closeModal(); switchTab('papeles')">Abrir cuotas post posesión</button>
     </div>`);
 };
 
@@ -13861,7 +13861,7 @@ if ($('#pt-tabla')) {
       Cobrado: pagoDe(p.id, mes, anio) ? 'SI' : '',
       Mails: p.emails || '',
     }));
-    exportarExcel(filas, `Cuotas con posesion ${MESES[mes - 1]} ${anio}`);
+    exportarExcel(filas, `Cuotas post posesion ${MESES[mes - 1]} ${anio}`);
   });
 }
 
@@ -14024,14 +14024,14 @@ function renderTransfBanco() {
     const avisoCoch = coch
       ? ` <span class="badge ${coch.seguro ? 'accent' : 'warn'}" style="font-size:.68rem;cursor:pointer" onclick="event.stopPropagation();verCocheraDeTransf('${t.id}')" title="${coch.seguro ? 'Alquiler de cochera' : 'Se parece a un alquiler de cochera'}">🅿️ ${coch.seguro ? '' : '¿'}${esc(coch.cochera)}${coch.seguro ? '' : '?'} · ${esc(coch.nc)}${coch.monto != null ? ` · ${fmt(coch.monto)}` : ''}</span>`
       : '';
-    // Si el que transfirió tiene cuotas con posesión, se avisa acá mismo
+    // Si el que transfirió tiene cuotas post posesión, se avisa acá mismo
     // con el inmueble: es la pregunta que se hace el que concilia.
     const pap = papelesDeTransferencia(t);
     // El color dice qué tan seguro es: si el nombre identifica, va firme;
     // si sólo pegó el monto, va como duda para que lo miren antes.
     const porNom = pap.papeles.some(x => x.nombre);
     const avisoPap = pap.papeles.length
-      ? ` <span class="badge ${porNom ? 'accent' : 'warn'}" style="font-size:.68rem;cursor:pointer" onclick="event.stopPropagation();verPapelesDeTransf('${t.id}')" title="${porNom ? 'Este cliente tiene cuotas con posesión' : 'El importe coincide con la cuota de alguien'}">📋 ${porNom ? '' : '≈ '}${esc(pap.papeles.map(x => `${x.p.cliente || '—'} · ${x.p.inmueble}`).join(' / '))}${pap.papeles.some(x => x.monto) ? ' · monto ✓' : ''}</span>`
+      ? ` <span class="badge ${porNom ? 'accent' : 'warn'}" style="font-size:.68rem;cursor:pointer" onclick="event.stopPropagation();verPapelesDeTransf('${t.id}')" title="${porNom ? 'Este cliente tiene cuotas post posesión' : 'El importe coincide con la cuota de alguien'}">📋 ${porNom ? '' : '≈ '}${esc(pap.papeles.map(x => `${x.p.cliente || '—'} · ${x.p.inmueble}`).join(' / '))}${pap.papeles.some(x => x.monto) ? ' · monto ✓' : ''}</span>`
       : '';
     const cesPend = ces.filter(x => !x.c.facturado).length;
     const avisoCes = ces.length
