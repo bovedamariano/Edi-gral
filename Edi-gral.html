@@ -318,6 +318,56 @@ aside.sidebar{
 .btn-logout:hover{background:rgba(255,255,255,.06);color:#fff}
 
 main.content{padding:28px 36px;max-width:1280px}
+
+/* Cotizaciones siempre a la vista, arriba a la derecha.
+   Chico a propósito: tiene que poder mirarse de reojo sin tapar nada ni
+   pedir atención. Se despliega al tocarlo y se achica a una ficha con el
+   signo peso si molesta. z-index por debajo de los modales (9000). */
+.cotfix{position:fixed;top:10px;right:16px;z-index:60;font-size:.74rem;
+  background:var(--surface);border:1px solid var(--line);border-radius:999px;
+  box-shadow:0 2px 10px rgba(0,0,0,.08);display:flex;align-items:center;
+  gap:9px;padding:5px 10px;cursor:pointer;user-select:none;
+  transition:box-shadow .15s,border-color .15s;max-width:calc(100vw - 32px)}
+.cotfix:hover{box-shadow:0 4px 16px rgba(0,0,0,.13);border-color:var(--accent)}
+.cotfix.abierto{border-radius:12px;flex-direction:column;align-items:stretch;
+  gap:0;padding:0;width:255px;cursor:default}
+.cotfix-item{display:flex;align-items:baseline;gap:4px;white-space:nowrap}
+.cotfix-et{color:var(--ink-3);font-weight:600;font-size:.66rem;
+  text-transform:uppercase;letter-spacing:.03em}
+.cotfix-val{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.cotfix-sep{color:var(--line);font-weight:300}
+/* El punto ámbar es lo único que grita: un valor viejo usado como si fuera
+   de hoy es plata mal calculada. Tiene que verse sin desplegar nada. */
+.cotfix-viejo{width:6px;height:6px;border-radius:50%;background:var(--warn);
+  flex:0 0 auto}
+.cotfix-fila{display:flex;justify-content:space-between;align-items:center;
+  gap:10px;padding:7px 11px;border-bottom:1px solid var(--line)}
+.cotfix-fila:last-child{border-bottom:0}
+.cotfix-fila b{font-size:.92rem;font-variant-numeric:tabular-nums}
+.cotfix-det{color:var(--ink-3);font-size:.66rem}
+.cotfix-head{display:flex;justify-content:space-between;align-items:center;
+  padding:6px 11px;border-bottom:1px solid var(--line);background:var(--surface-2);
+  border-radius:12px 12px 0 0}
+.cotfix-head span{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--ink-3);font-weight:700}
+.cotfix-x{border:0;background:none;cursor:pointer;color:var(--ink-3);
+  font-size:1rem;line-height:1;padding:0 2px}
+.cotfix-x:hover{color:var(--ink)}
+.cotfix-pie{padding:6px 11px;border-top:1px solid var(--line)}
+.cotfix-fecha{display:flex;gap:6px;align-items:center;padding:6px 11px;
+  border-bottom:1px solid var(--line)}
+.cotfix-fecha input{flex:1;min-width:0;padding:3px 6px;font-size:.72rem;
+  border:1px solid var(--line);border-radius:6px;background:var(--surface);
+  color:var(--ink);font-family:inherit}
+.cotfix-fecha .btn{padding:2px 8px;font-size:.68rem}
+/* Achicado: una ficha redonda, como el botón de respuestas rápidas. */
+.cotfix.mini{width:30px;height:30px;padding:0;border-radius:50%;
+  justify-content:center;gap:0}
+.cotfix.mini .cotfix-cuerpo{display:none}
+.cotfix-abrir{display:none;font-weight:700;color:var(--accent)}
+.cotfix.mini .cotfix-abrir{display:block}
+.cotfix-cuerpo{display:flex;align-items:center;gap:9px;min-width:0;overflow:hidden}
+.cotfix.abierto .cotfix-cuerpo{display:block;width:100%}
 .page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px}
 .page-head h1{margin:0}
 .page-head p{margin:6px 0 0;color:var(--ink-3);font-size:.9rem}
@@ -663,6 +713,11 @@ details[open] .ident-toggle{transform:rotate(180deg)}
   aside.sidebar{position:fixed;top:0;left:-280px;width:260px;height:100vh;transition:left .25s;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,.18)}
   aside.sidebar.open{left:0}
   main.content{padding:60px 12px 24px}
+  /* En el celular arriba a la derecha está la barra del burger y abajo a la
+     derecha el botón de respuestas rápidas y los avisos. Queda la esquina
+     de abajo a la izquierda, que es la única libre. */
+  .cotfix{top:auto;bottom:10px;left:10px;right:auto;font-size:.7rem}
+  .cotfix.abierto{width:230px}
 
   /* Barra superior con burger SIEMPRE visible */
   .mobile-topbar{display:flex !important;position:fixed;top:0;left:0;right:0;height:48px;background:var(--surface);border-bottom:1px solid var(--line);z-index:99;align-items:center;padding:0 12px;gap:10px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
@@ -842,6 +897,7 @@ details[open] .ident-toggle{transform:rotate(180deg)}
 </div>
 <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 <div id="app">
+  <div class="cotfix mini" id="cotfix" style="display:none"></div>
   <aside class="sidebar" id="sidebar">
     <div class="brand">Grupo <span>Edisur</span></div>
     <button class="nav-item nav-campana sin-alertas" id="nav-campana" style="display:none" title="Tareas próximas a vencer">
@@ -14605,26 +14661,177 @@ async function loadCotizacionesBna() {
   state.cotizacionesBna = data || [];
 }
 
+// Cuáles son los valores vigentes AHORA.
+//
+// Vive en una función sola porque lo usan la tarjeta de Cotización y el
+// cuadrito fijo de arriba a la derecha. Si cada uno lo calculara por su
+// cuenta, tarde o temprano muestran números distintos y no hay forma de
+// saber cuál creer.
+//
+// Vigente = el último que YA PASÓ. Una cotización cargada con fecha de
+// mañana (un error de tipeo en el mes o el año) se ordena primera y se
+// adueñaba de la tarjeta, encima con el sello "hoy": el número de arriba
+// dejaba de ser el que hay que usar.
+// Con una fecha, da los valores que regían ESE día. Sin fecha, los de hoy.
+// Es la misma cuenta: "el último que ya pasó" sólo cambia hasta dónde mira.
+function cotizVigentes(hasta) {
+  const ref = hasta || todayISO();
+  const alDia = x => x.fecha <= ref;
+  const ultimo = arr => [...(arr || [])].filter(alDia)
+    .sort((a, b) => b.fecha < a.fecha ? -1 : 1)[0];
+
+  const uvi = (state.uvi || []).find(u => u.fecha === ref) || ultimo(state.uvi);
+  const tes = ultimo((state.cotizaciones || []).filter(c => c.fuente === 'tesoreria'));
+  const bna = ultimo(state.cotizacionesBna);
+
+  // Días de atraso respecto de la fecha mirada: si el dato es viejo hay que
+  // verlo. Mirando un día de agosto, "hace 2 días" se cuenta desde agosto.
+  const atraso = f => f ? Math.round((new Date(ref + 'T00:00:00') - new Date(f + 'T00:00:00')) / 864e5) : null;
+  return { hoy: ref, uvi, tes, bna, atraso };
+}
+
+// ---------- El cuadrito fijo de arriba a la derecha ----------
+//
+// Las cotizaciones se consultan todo el día desde cualquier pantalla y
+// hasta ahora había que ir a Cotización, mirar, y volver. Ahora están
+// siempre, en una línea chica que no tapa nada.
+//
+// Tres estados, que se recuerdan en el navegador de cada uno:
+//   mini     → una ficha con $, para el que no las quiere ver
+//   cerrado  → una línea: US$ 1.545 · T$ 1.555 · UVI 1.600   (el de arranque)
+//   abierto  → el detalle con compra, venta y de qué día es cada una
+const COTFIX_ESTADO = 'edigral.cotfix';
+
+function cotfixEstado() {
+  try { return localStorage.getItem(COTFIX_ESTADO) || 'cerrado'; } catch (_) { return 'cerrado'; }
+}
+function cotfixGuardar(v) {
+  try { localStorage.setItem(COTFIX_ESTADO, v); } catch (_) {}
+}
+
+// Qué día se está mirando. null = hoy. No va a localStorage a propósito:
+// al volver mañana tiene que arrancar en hoy, no en la fecha que alguien
+// dejó puesta para consultar algo viejo.
+let cotfixFecha = null;
+
+window.cotfixVerFecha = function(f) {
+  cotfixFecha = (f && f !== todayISO()) ? f : null;
+  renderCotizFija();
+};
+
+window.cotfixToggle = function(forzar) {
+  const e = forzar || (cotfixEstado() === 'abierto' ? 'cerrado' : 'abierto');
+  // Cerrarlo vuelve a hoy: la línea de arriba tiene que mostrar siempre lo
+  // vigente. Si quedara con la fecha de una consulta vieja, mañana alguien
+  // factura con un dólar de agosto sin darse cuenta.
+  if (e !== 'abierto') cotfixFecha = null;
+  cotfixGuardar(e); renderCotizFija();
+};
+
+function renderCotizFija() {
+  const box = $('#cotfix');
+  if (!box) return;
+
+  // Sin sesión no se muestra: la pantalla de login no tiene datos cargados.
+  if (!state.user) { box.style.display = 'none'; return; }
+
+  // Sólo a quien ya puede entrar a Cotización. La de Tesorería es un número
+  // interno, y este cuadrito la pondría en la pantalla de alguien que hoy
+  // no la ve. El límite ya existe: se respeta, no se inventa otro.
+  try {
+    if (!getAccesos().includes('cotizacion')) { box.style.display = 'none'; return; }
+  } catch (_) { box.style.display = 'none'; return; }
+
+  const estado = cotfixEstado();
+  // La línea cerrada SIEMPRE muestra hoy. La fecha elegida vale nada más
+  // mientras está abierto.
+  const mirando = (estado === 'abierto') ? cotfixFecha : null;
+  const { uvi, tes, bna, atraso } = cotizVigentes(mirando);
+  if (!uvi && !tes && !bna && !mirando) { box.style.display = 'none'; return; }
+
+  box.style.display = '';
+  box.className = 'cotfix' + (estado === 'mini' ? ' mini' : estado === 'abierto' ? ' abierto' : '');
+  // Se limpia SIEMPRE. Abierto no lleva handler propio: si queda el de
+  // abrir que puso el render anterior, el clic en la ✕ burbujea hasta acá
+  // y la vuelve a abrir — no había forma de cerrarla.
+  //
+  // Y no alcanza con limpiarlo: la ✕ cierra, el render de cerrado instala
+  // el handler de abrir en la caja, y ESE MISMO clic sigue burbujeando y lo
+  // dispara. Por eso los botones de la cabecera cortan la propagación.
+  box.onclick = null;
+
+  const dias = [bna?.fecha, tes?.fecha, uvi?.fecha].map(atraso).filter(d => d !== null);
+  const viejo = dias.some(d => d > 3);
+  const cuando = d => d === null ? 'sin datos' : d <= 0 ? 'hoy' : d === 1 ? 'ayer' : `hace ${d} días`;
+
+  if (estado === 'abierto') {
+    const fila = (et, val, det, fecha) => `
+      <div class="cotfix-fila">
+        <div><div class="cotfix-et">${et}</div><div class="cotfix-det">${det}</div></div>
+        <div style="text-align:right">
+          <b>${val}</b>
+          <div class="cotfix-det" style="color:${
+            !mirando && atraso(fecha) > 3 ? 'var(--warn)' : 'var(--ink-3)'}">${
+            !fecha ? 'sin datos' : mirando ? fmtFecha(fecha) : cuando(atraso(fecha))}</div>
+        </div>
+      </div>`;
+    box.innerHTML = `
+      <div class="cotfix-head">
+        <span>${mirando ? 'Al ' + fmtFecha(mirando) : 'Cotizaciones'}</span>
+        <div style="display:flex;gap:2px">
+          <button class="cotfix-x" onclick="event&&event.stopPropagation();cotfixToggle('mini')" title="Achicar">−</button>
+          <button class="cotfix-x" onclick="event&&event.stopPropagation();cotfixToggle('cerrado')" title="Cerrar">×</button>
+        </div>
+      </div>
+      <div class="cotfix-fecha">
+        <input type="date" id="cotfix-dia" value="${mirando || todayISO()}" max="${todayISO()}"
+               onchange="cotfixVerFecha(this.value)" title="Ver las cotizaciones de otro día">
+        ${mirando ? `<button class="btn ghost sm" onclick="cotfixVerFecha(null)"
+               title="Volver a las de hoy">hoy</button>` : ''}
+      </div>
+      <div class="cotfix-cuerpo">
+        ${fila('Dólar BNA', bna ? '$' + fmt(bna.promedio) : '—',
+               bna ? `compra ${fmt(bna.compra)} · venta ${fmt(bna.venta)}` : 'sin datos', bna?.fecha)}
+        ${fila('Dólar Tesorería', tes ? '$' + fmt(tes.promedio) : '—',
+               tes ? `compra ${fmt(tes.compra)} · venta ${fmt(tes.venta)}` : 'sin cargar', tes?.fecha)}
+        ${fila('UVI', uvi ? fmt(uvi.valor) : '—',
+               uvi ? (mirando ? '' : fmtFecha(uvi.fecha)) : 'sin cargar', uvi?.fecha)}
+      </div>
+      ${(!uvi && !tes && !bna)
+        ? '<div class="cotfix-pie"><span class="cotfix-det">No hay nada cargado hasta esa fecha</span></div>'
+        : ''}
+      <div class="cotfix-pie">
+        <button class="btn ghost sm" style="width:100%"
+          onclick="switchTab('cotizacion')">Ir a Cotización</button>
+      </div>`;
+    return;
+  }
+
+  // Cerrado y mini comparten el mismo contenido: el mini lo esconde por CSS,
+  // así pasar de uno a otro no vuelve a calcular ni parpadea.
+  const item = (et, val) => val === null ? '' :
+    `<span class="cotfix-item"><span class="cotfix-et">${et}</span><span class="cotfix-val">${val}</span></span>`;
+  const partes = [
+    item('US$', bna ? fmt(bna.promedio) : null),
+    item('T$',  tes ? fmt(tes.promedio) : null),
+    item('UVI', uvi ? fmt(uvi.valor) : null),
+  ].filter(Boolean).join('<span class="cotfix-sep">|</span>');
+
+  box.innerHTML = `<span class="cotfix-abrir">$</span>
+    <span class="cotfix-cuerpo">${partes}${
+      viejo ? '<span class="cotfix-viejo" title="Hay una cotización de hace más de 3 días"></span>' : ''}</span>`;
+  box.title = viejo
+    ? 'Hay una cotización de hace más de 3 días — tocá para ver cuál'
+    : 'Cotizaciones vigentes — tocá para ver el detalle';
+  box.onclick = () => cotfixToggle('abierto');
+}
+
 // Tres valores de un vistazo: UVI de hoy, última de Tesorería y última del BNA.
 function renderResumenCotiz() {
   const cont = $('#cot-resumen');
   if (!cont) return;
-  const hoy = todayISO();
+  const { uvi, tes, bna, atraso } = cotizVigentes();
 
-  // El valor vigente es el último que YA PASÓ. Una cotización cargada con
-  // fecha de mañana (un error de tipeo en el mes o el año) se ordena primera
-  // y se adueñaba de la tarjeta, encima con el sello "hoy": el número de
-  // arriba dejaba de ser el que hay que usar.
-  const alDia = x => x.fecha <= hoy;
-
-  const uvi = (state.uvi || []).find(u => u.fecha === hoy)
-           || [...(state.uvi || [])].filter(alDia).sort((a, b) => b.fecha < a.fecha ? -1 : 1)[0];
-  const tes = (state.cotizaciones || []).filter(c => c.fuente === 'tesoreria').filter(alDia)
-           .sort((a, b) => b.fecha < a.fecha ? -1 : 1)[0];
-  const bna = [...(state.cotizacionesBna || [])].filter(alDia).sort((a, b) => b.fecha < a.fecha ? -1 : 1)[0];
-
-  // Días de atraso respecto de hoy: si el dato es viejo hay que verlo.
-  const atraso = f => f ? Math.round((new Date(hoy + 'T00:00:00') - new Date(f + 'T00:00:00')) / 864e5) : null;
   const sello = d => d === null ? '' : d <= 0 ? '<span class="badge ok" style="font-size:.62rem">hoy</span>'
     : d === 1 ? '<span class="badge muted" style="font-size:.62rem">ayer</span>'
     : `<span class="badge ${d > 3 ? 'warn' : 'muted'}" style="font-size:.62rem">hace ${d} días</span>`;
@@ -14647,6 +14854,10 @@ function renderResumenCotiz() {
             tes?.fecha, 'var(--accent)') +
     tarjeta('UVI', uvi ? fmt(uvi.valor) : '—',
             uvi ? fmtFecha(uvi.fecha) : 'sin cargar', uvi?.fecha, 'var(--ok)');
+
+  // El cuadrito de arriba lee los mismos datos: se repinta junto con esto
+  // para que no queden contando cosas distintas.
+  renderCotizFija();
 }
 
 function renderCotizDia() {
