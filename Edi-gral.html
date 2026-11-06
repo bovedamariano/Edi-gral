@@ -360,6 +360,14 @@ main.content{padding:28px 36px;max-width:1280px}
   border:1px solid var(--line);border-radius:6px;background:var(--surface);
   color:var(--ink);font-family:inherit}
 .cotfix-fecha .btn{padding:2px 8px;font-size:.68rem}
+
+/* Ya impreso. Una barra de 3px en el borde izquierdo: se barre la columna
+   con la vista y se ve de una cuáles faltan, sin que ninguna fila grite. */
+tr.sellos-impreso > td:first-child{box-shadow:inset 3px 0 0 var(--ok)}
+.sellos-impreso-txt{font-size:.66rem;color:var(--ink-3);cursor:pointer;
+  letter-spacing:.02em;margin-top:1px;width:fit-content}
+.sellos-impreso-txt::before{content:'🖨 ';filter:grayscale(1);opacity:.55}
+.sellos-impreso-txt:hover{color:var(--err);text-decoration:line-through}
 /* Achicado: una ficha redonda, como el botón de respuestas rápidas. */
 .cotfix.mini{width:30px;height:30px;padding:0;border-radius:50%;
   justify-content:center;gap:0}
@@ -5108,7 +5116,8 @@ function renderSellos() {
     const rEst = b.rentas_estado || 'no';
     const tomada = rEst !== 'no';
     const conPdf = pdfsDeBoleto(b).length > 0;
-    return `<tr${tomada ? ' style="background:var(--surface-2)"' : ''}>
+    return `<tr class="${b.impreso_at ? 'sellos-impreso' : ''}"${
+      tomada ? ' style="background:var(--surface-2)"' : ''}>
       <td>${conPdf
         ? `<input type="checkbox" class="sellos-chk" data-id="${b.id}" ${_selloSel.has(b.id) ? 'checked' : ''}>`
         : '<span class="muted" title="Todavía no tiene comprobantes para imprimir">·</span>'}</td>
@@ -5484,7 +5493,16 @@ function chipRentas(b) {
       (pdfs.length ? `<div style="font-size:.72rem">↓ ${pdfs.join(' · ')}</div>` : '') +
       (!pdfs.length && pdfsPurgados(b)
         ? `<div class="muted" style="font-size:.7rem" title="En la app se guardan los comprobantes de los últimos ${MESES_PDF_EN_APP} meses. Los anteriores quedan en la carpeta de la máquina.">📁 comprobantes en la carpeta</div>` : '') +
-      (b.rentas_error ? `<div style="font-size:.7rem;color:var(--warn)" title="${esc(b.rentas_error)}">⚠ sin comprobante</div>` : '');
+      (b.rentas_error ? `<div style="font-size:.7rem;color:var(--warn)" title="${esc(b.rentas_error)}">⚠ sin comprobante</div>` : '') +
+      // Que ya se imprimió se dice en voz baja: gris chico, sin color ni
+      // ícono que compita con el estado de Rentas, que es lo importante de
+      // esta columna. Lo que hay que poder hacer es barrer la lista y ver
+      // cuáles faltan, no que cada fila impresa pida atención.
+      (b.impreso_at
+        ? `<div class="sellos-impreso-txt" onclick="marcarImpreso('${b.id}', false)"
+             title="Impreso el ${fmtFechaHora(b.impreso_at)}${
+               b.impreso_por === state.user?.id ? ' por vos' : ''} · tocá para desmarcarlo"
+           >impreso</div>` : '');
   }
   return `<span class="badge" style="background:var(--err-soft);color:var(--err);font-size:.7rem"
     title="${esc(b.rentas_error || '')}">⚠ error</span>`;
@@ -5636,6 +5654,33 @@ async function abrirImpresion(url, nombre) {
   return w ? 'pestana' : bajar();
 }
 
+// Marcar (o desmarcar) comprobantes como impresos.
+//
+// Va por función y no por update directo: la policy de boletos deja
+// modificar sólo lo que NO está declarado, y acá se marca justamente lo
+// declarado. Un update normal no daría error — RLS lo filtra y afecta cero
+// filas en silencio, y la pantalla diría "listo" sin guardar nada.
+window.marcarImpreso = async function(ids, impreso) {
+  const lista = Array.isArray(ids) ? ids : [ids];
+  if (!lista.length) return 0;
+
+  const { data, error } = await sb.rpc('boletos_marcar_impreso',
+    { p_ids: lista, p_impreso: !!impreso });
+  if (error) { toast('No se pudo guardar la marca: ' + mensajeError(error), 'err'); return 0; }
+
+  // Se refleja en pantalla sin recargar todo.
+  const ahora = new Date().toISOString();
+  (state.boletos || []).forEach(b => {
+    if (!lista.includes(b.id)) return;
+    b.impreso_at  = impreso ? ahora : null;
+    b.impreso_por = impreso ? (state.user?.id || null) : null;
+  });
+  renderSellos();
+
+  if (!Array.isArray(ids)) toast(impreso ? 'Marcado como impreso' : 'Ya no figura impreso', 'ok');
+  return data || 0;
+};
+
 async function sellosJuntar(accion) {
   const sel = sellosSeleccionados();
   if (!sel.length) return;
@@ -5668,6 +5713,17 @@ async function sellosJuntar(accion) {
     // La URL se suelta recién después: si se revoca enseguida, la pestaña
     // que recién se abrió se queda sin el archivo.
     setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+    // Quedan marcados como impresos los que de verdad entraron en el PDF.
+    // Descargar también cuenta: se descarga para imprimir. Si alguno se
+    // bajó de más, se destilda tocando la marca.
+    const entraron = sel.filter(b => pdfsDeBoleto(b, que).length).map(b => b.id);
+    await marcarImpreso(entraron, true);
+
+    // Y se suelta la selección: lo que hay que mirar ahora es la marca, no
+    // las casillas de lo que ya salió en papel.
+    _selloSel.clear();
+    renderSellos();
 
     if (fallados.length) {
       toast(`No se pudieron bajar ${fallados.length}: ${fallados.slice(0, 3).join(', ')}${fallados.length > 3 ? '…' : ''}`, 'warn');
